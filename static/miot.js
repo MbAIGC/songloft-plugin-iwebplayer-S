@@ -7,9 +7,9 @@
         devices: [],
         hasMiotPlugin: true, // 🌟 新增：标记是否安装了插件
         currentDevice: {
-            id: localStorage.getItem('iwebplayer.target_device') || 'local',
-            type: localStorage.getItem('iwebplayer.target_device_type') || 'local',
-            accountId: localStorage.getItem('iwebplayer.target_account') || '',
+            id: localStorage.getItem('iwebplayer-s.target_device') || 'local',
+            type: localStorage.getItem('iwebplayer-s.target_device_type') || 'local',
+            accountId: localStorage.getItem('iwebplayer-s.target_account') || '',
             name: '本机'
         },
         wsStatus: null,
@@ -233,9 +233,9 @@
                 deviceVal.innerText = name;
                 deviceVal.dataset.value = id;
             }
-            localStorage.setItem('iwebplayer.target_device', id);
-            localStorage.setItem('iwebplayer.target_device_type', type);
-            localStorage.setItem('iwebplayer.target_account', accountId);
+            localStorage.setItem('iwebplayer-s.target_device', id);
+            localStorage.setItem('iwebplayer-s.target_device_type', type);
+            localStorage.setItem('iwebplayer-s.target_account', accountId);
 
             if (window.showToast) window.showToast(`✅ 已切换至：${name}`);
 
@@ -255,7 +255,7 @@
                 this.stopVirtualClock();
 
                 // 恢复本机的独立音量数值
-                const localVol = localStorage.getItem('iwebplayer.player_volume') || 100;
+                const localVol = localStorage.getItem('iwebplayer-s.player_volume') || 100;
                 const volSlider = document.getElementById('volume-slider');
                 const volText = document.getElementById('volume-text');
                 const audioEl = document.getElementById('audio');
@@ -266,7 +266,7 @@
                 if (audioEl) audioEl.volume = localVol / 100;
 
                 // 🌟 核心新增：切回本机时，强行把本机的独立播放顺序从缓存里恢复回来！
-                const storedMode = parseInt(localStorage.getItem('iwebplayer.local_play_mode'));
+                const storedMode = parseInt(localStorage.getItem('iwebplayer-s.local_play_mode'));
                 window.playMode = isNaN(storedMode) ? 1 : storedMode;
                 if (window.updatePlayModeUI) window.updatePlayModeUI();
             }
@@ -374,7 +374,7 @@
         syncListToPushPlaylist: async function(currentList) {
             try {
                 // 1. 无情斩杀旧的推送歌单（确保数据干净，比一首首删快一万倍）
-                let pushPl = window.playlistMeta ? window.playlistMeta.find(p => p.name === 'iWebPlayer推送') : null;
+                let pushPl = window.playlistMeta ? window.playlistMeta.find(p => p.name === 'iWebPlayer-S推送') : null;
                 if (pushPl) {
                     await fetch(`/api/v1/playlists/${pushPl.id}`, { method: 'DELETE' });
                 }
@@ -382,7 +382,7 @@
                 // 2. 瞬间重生一个新的同名歌单，拿到它热乎的 playlist_id
                 const createRes = await fetch('/api/v1/playlists', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: 'iWebPlayer推送', type: 'normal' })
+                    body: JSON.stringify({ name: 'iWebPlayer-S推送', type: 'normal' })
                 });
                 const newData = await createRes.json();
                 const plId = newData.id;

@@ -456,7 +456,7 @@
             window.songList = window.allPlaylists['曲库搜索'];
 
             // 🌟 新增：同步搜索本地歌单
-            const skipPls = ['全部', '所有歌曲', '最近新增', '曲库搜索', '收藏', '下载', '所有电台', 'cache_songs', '_local_iwebplayer_search', '电台收藏'];
+            const skipPls = ['全部', '所有歌曲', '最近新增', '曲库搜索', '收藏', '下载', '所有电台', 'cache_songs', '_local_iwebplayer-s_search', '电台收藏'];
             if (window.playlistMeta) {
                 window.matchedLocalPlaylists = window.playlistMeta.filter(pl => {
                     return !skipPls.includes(pl.name) && pl.name.toLowerCase().includes(keyword);
@@ -526,7 +526,7 @@
                 }
 
                 window.localState.playlist = window.currentPlaylist;
-                localStorage.setItem('iwebplayer.local_state', JSON.stringify(window.localState));
+                localStorage.setItem('iwebplayer-s.local_state', JSON.stringify(window.localState));
 
                 playlistVal.innerHTML = window.formatPlaylistTextWithTags(key, window.getMergedSongList(key).length);
                 playlistOpts.classList.remove('show');
@@ -553,7 +553,7 @@
 
                 let autoScrolled = false;
                 if (key === '曲库搜索') {
-                    const savedKeyword = localStorage.getItem('iwebplayer.local_search_keyword') || '';
+                    const savedKeyword = localStorage.getItem('iwebplayer-s.local_search_keyword') || '';
                     window.performLocalSearch(savedKeyword);
                 } else if (key === '在线资源') {
                     if(window.restoreOnlineView) window.restoreOnlineView();
@@ -561,7 +561,7 @@
                     window.songList = window.getMergedSongList(key);
                     window.renderPlaylist();
 
-                    const plTracks = JSON.parse(localStorage.getItem('iwebplayer.playlist_tracks') || '{}');
+                    const plTracks = JSON.parse(localStorage.getItem('iwebplayer-s.playlist_tracks') || '{}');
                     if (plTracks[key]) {
                         const targetName = plTracks[key].name;
                         const targetIdx = window.songList.findIndex(item => window.getSongNameObj(item) === targetName);
@@ -603,7 +603,7 @@
         };
 
         const predefinedOrder = window.PREDEFINED_PLAYLISTS || [];
-        const hiddenPlaylists = ['全部', '_local_iwebplayer_search', 'cache_songs', '电台收藏'];
+        const hiddenPlaylists = ['全部', '_local_iwebplayer-s_search', 'cache_songs', '电台收藏'];
 
         if (window.getMergedSongList('下载').length === 0) hiddenPlaylists.push('下载');
 
@@ -1170,14 +1170,14 @@
             } else {
                 if (plConf.resumeLocal !== 'off') {
                     const targetSvg = plConf.resumeLocal === 'global' ? window.SVG_ICONS.cloud_clock : window.SVG_ICONS.stopwatch;
-                    const history = JSON.parse(localStorage.getItem('iwebplayer.resume_history') || '{}');
+                    const history = JSON.parse(localStorage.getItem('iwebplayer-s.resume_history') || '{}');
                     const list = history[window.currentPlaylist] || [];
                     const found = list.find(item => item.name === songName);
                     if (found && found.time > 0) {
                         timeTagHtml = `<div style="display: flex; align-items: center; font-size: 11px; color: var(--primary); font-variant-numeric: tabular-nums; margin-left: 8px; flex-shrink: 0; font-weight: 500;">${targetSvg}${window.formatTime(found.time)}</div>`;
                     }
                 } else {
-                    const plTracks = JSON.parse(localStorage.getItem('iwebplayer.playlist_tracks') || '{}');
+                    const plTracks = JSON.parse(localStorage.getItem('iwebplayer-s.playlist_tracks') || '{}');
                     if (plTracks[window.currentPlaylist] && plTracks[window.currentPlaylist].name === songName && plTracks[window.currentPlaylist].time > 0) {
                         timeTagHtml = `<div style="display: flex; align-items: center; font-size: 11px; color: var(--primary); font-variant-numeric: tabular-nums; margin-left: 8px; flex-shrink: 0; font-weight: 500;">${window.SVG_ICONS.stopwatch}${window.formatTime(plTracks[window.currentPlaylist].time)}</div>`;
                     }
@@ -1304,12 +1304,12 @@
                             if (timeWrap) {
                                 timeWrap.innerHTML = `<div style="display: flex; align-items: center; font-size: 11px; color: var(--primary); font-variant-numeric: tabular-nums; margin-left: 8px; flex-shrink: 0; font-weight: 500;">${window.SVG_ICONS.cloud_clock}${window.formatTime(cTime)}</div>`;
                             }
-                            let history = JSON.parse(localStorage.getItem('iwebplayer.resume_history') || '{}');
+                            let history = JSON.parse(localStorage.getItem('iwebplayer-s.resume_history') || '{}');
                             let list = history[window.currentPlaylist] || [];
                             list = list.filter(item => item.name !== cSong);
                             list.unshift({ name: cSong, time: cTime });
                             history[window.currentPlaylist] = list;
-                            localStorage.setItem('iwebplayer.resume_history', JSON.stringify(history));
+                            localStorage.setItem('iwebplayer-s.resume_history', JSON.stringify(history));
                         }
                     }
                 }).catch(() => {});
@@ -1325,7 +1325,7 @@
             const isHighPerf = prefs.highPerf !== false;
 
             // 1. 🔍 尝试读取 V2 版极简压缩缓存
-            const cachedDataStr = localStorage.getItem('iwebplayer.global_cache');
+            const cachedDataStr = localStorage.getItem('iwebplayer-s.global_cache');
             let hasCache = false;
 
             if (cachedDataStr) {
@@ -1462,8 +1462,8 @@
                     }
 
                     try {
-                        localStorage.removeItem('iwebplayer.global_cache_v2');
-                        localStorage.removeItem('iwebplayer.global_cache');
+                        localStorage.removeItem('iwebplayer-s.global_cache_v2');
+                        localStorage.removeItem('iwebplayer-s.global_cache');
 
                         const cacheObj = {
                             customPlaylistNames: window.customPlaylistNames,
@@ -1476,7 +1476,7 @@
                         const jsonStr = JSON.stringify(cacheObj);
                         const finalStorageStr = window.LZString ? window.LZString.compressToUTF16(jsonStr) : jsonStr;
 
-                        localStorage.setItem('iwebplayer.global_cache', finalStorageStr);
+                        localStorage.setItem('iwebplayer-s.global_cache', finalStorageStr);
 
                         // 可选：在控制台打印一下压缩成果，你会非常有成就感
                         //console.log(`🗜️ 压缩率: ${((finalStorageStr.length / jsonStr.length) * 100).toFixed(1)}% | 压缩后大小: ${(finalStorageStr.length / 1024).toFixed(1)} KB`);
@@ -1550,7 +1550,7 @@
                 // 如果是后台静默拉取时发生 401，强制清空假缓存，并瞬间刷新页面，让首页拦截器接管！
                 doBackgroundSync().catch(e => {
                     if (e.message === "AUTH_FAILED") {
-                        localStorage.removeItem('iwebplayer.global_cache');
+                        localStorage.removeItem('iwebplayer-s.global_cache');
                         window.location.reload();
                     }
                 });

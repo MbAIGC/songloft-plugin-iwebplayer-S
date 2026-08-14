@@ -38,7 +38,7 @@
 </head>
 <body>
   <div class="container">
-    <h2>🔍 iWebPlayer Debug 页面</h2>
+    <h2>🔍 iWebPlayer-S Debug 页面</h2>
     <pre id="output">正在努力向大系统请求数据中...</pre>
   </div>
 
@@ -58,7 +58,7 @@
     };
 
     // 2. 去请求我们在 main.ts 留下的后门接口
-    fetch('/api/v1/jsplugin/iwebplayer/debug')
+    fetch('/api/v1/jsplugin/iwebplayer-s/debug')
       .then(res => res.json())
       .then(data => {
         document.getElementById('output').style.color = "#34d399"; // 成功为荧光绿

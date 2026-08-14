@@ -11,10 +11,10 @@ export async function broadcastWebDavConfig(key: string, value: any) {
     // 🌟 海关安检与别名映射
     let exportKey = key;
 
-    if (key === 'iwebplayer.webdav') {
+    if (key === 'iwebplayer-s.webdav') {
         exportKey = 'webdav_config'; // 转换对外别名
     } else if (!key.startsWith('webdav_lib_')) {
-        return; // 拦截 iwebplayer.config, iwebplayer.lxmusic 等私密数据
+        return; // 拦截 iwebplayer-s.config, iwebplayer-s.lxmusic 等私密数据
     }
 
     try {
@@ -31,6 +31,19 @@ export async function broadcastWebDavConfig(key: string, value: any) {
 
 const router = createRouter();
 setupWebDAVRoutes(router);
+
+router.get('/sw.js', () => ({
+    statusCode: 200,
+    headers: {
+        'Content-Type': 'application/javascript; charset=utf-8',
+        'Cache-Control': 'no-cache'
+    },
+    // Keep all SongLoft and media requests live; this worker only enables the
+    // browser's PWA lifecycle and controls the plugin's root start URL.
+    body: `self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));
+self.addEventListener('fetch', event => event.respondWith(fetch(event.request)));`
+}));
 
 // 🌟 全局临时沙盒：只在前端拉歌的短短几秒内存在，超时必死，绝不长驻内存！
 let flashSongsCache: any[] | null = null;
@@ -291,7 +304,7 @@ router.post('/store', async (req) => {
         }
 
         // 🌟 核心升级：无论是老版的 webdav_ 还是新版的 iwp_webdav，统统广播给小爱音箱插件！
-        if (key.startsWith('webdav_') || key === 'iwebplayer.webdav' || key.startsWith('iwebplayer.')) {
+        if (key.startsWith('webdav_') || key === 'iwebplayer-s.webdav' || key.startsWith('iwebplayer-s.')) {
             broadcastWebDavConfig(key, value);
         }
 
@@ -337,7 +350,7 @@ router.get('/scrape', async (req) => {
 });
 
 // 🌟 专供 debug 页面调用的后门接口
-// http://10.0.91.11:10333/api/v1/jsplugin/iwebplayer/static/debug.html
+// http://10.0.91.11:10333/api/v1/jsplugin/iwebplayer-s/static/debug.html
 
 router.get('/debug', async (req) => {
     try {
@@ -410,7 +423,7 @@ router.get('/debug', async (req) => {
 
 // ==== 核心生命周期函数 ====
 function onInit(): void {
-    songloft.log.info('iWebPlayer 原生架构已就绪！');
+    songloft.log.info('iWebPlayer-S 原生架构已就绪！');
 
     // 👇 新增：注册 P2P 双子星监听器，接收 miot-helper 的数据
     songloft.comm.onMessage("sync_webdav_data", async (payload, from) => {
@@ -452,4 +465,3 @@ globalThis.onInit = onInit;
 globalThis.onDeinit = onDeinit;
 // @ts-expect-error
 globalThis.onHTTPRequest = onHTTPRequest;
-

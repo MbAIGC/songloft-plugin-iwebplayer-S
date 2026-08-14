@@ -5,6 +5,61 @@
     // 内部微型 DOM 获取器，确保代码脱离 HTML 也能随时精准抓取元素
     const $ = (id) => document.getElementById(id);
 
+    function placeCornerToolsInActiveSurface() {
+        const tools = $('fp-corner-tools');
+        const fullPlayer = $('full-player');
+        const playerBar = $('player-bar');
+        if (!tools || !fullPlayer || !playerBar) return;
+
+        const isSplitHome = window.innerWidth >= 768
+            && document.body.classList.contains('split-view-active')
+            && !document.body.classList.contains('player-open');
+        const target = isSplitHome ? playerBar : fullPlayer;
+        if (tools.parentElement !== target) target.appendChild(tools);
+    }
+
+    window.syncDesktopTrackInfo = function() {
+        const audioEl = $('audio');
+        const npText = $('np-title')?.textContent?.replace(/\s+/g, ' ').trim() || '';
+        const playingName = audioEl?.dataset.playingSongName || window.currentSongName || (npText !== '暂无播放' ? npText : '');
+        const playingPlaylist = audioEl?.dataset.playingPlaylist || window.currentPlaylist || '';
+        let rawItem = window.currentIndex !== -1 ? (window.songList || [])[window.currentIndex] : null;
+
+        // The visible list can change while a track from another playlist is still playing.
+        // Resolve the item by the audio player's immutable playback identity in that case.
+        const hasPlayingName = (item) => item && window.getSongNameObj && window.getSongNameObj(item) === playingName;
+        if (!hasPlayingName(rawItem)) {
+            rawItem = (window.songList || []).find(hasPlayingName)
+                || (window.allPlaylists?.[playingPlaylist] || []).find(hasPlayingName)
+                || rawItem;
+        }
+
+        let title = String(audioEl?.dataset.trackTitle || rawItem?.title || rawItem?.name || playingName || '暂无播放').trim();
+        let artist = String(audioEl?.dataset.trackArtist || rawItem?.artist || rawItem?.singer || '').trim();
+        const album = String(audioEl?.dataset.trackAlbum || rawItem?.album || rawItem?.album_name || '').trim();
+
+        if (!artist && title.includes(' - ')) {
+            const parts = title.split(' - ');
+            title = parts.shift().trim();
+            artist = parts.join(' - ').trim();
+        }
+
+        // Keep the desktop panel useful for remote/device tracks whose list item
+        // is not present in the currently displayed playlist.
+        if (!artist && playingName && playingName.includes(' - ')) {
+            const parts = playingName.split(' - ');
+            if (!audioEl?.dataset.trackTitle) title = parts.shift().trim();
+            artist = parts.join(' - ').trim();
+        }
+
+        const titleEl = $('desktop-track-title');
+        const artistEl = $('desktop-track-artist');
+        const albumEl = $('desktop-track-album');
+        if (titleEl) titleEl.textContent = title || '暂无播放';
+        if (artistEl) artistEl.textContent = artist;
+        if (albumEl) albumEl.textContent = album ? `专辑: ${album}` : '';
+    };
+
     window.markSongAsDead = function(playlistName, songIndex) {
         if (!window.deadSongIndexes[playlistName]) {
             window.deadSongIndexes[playlistName] = [];
@@ -98,6 +153,10 @@
           </div>
         `;
 
+        // Update the desktop panel after the mini-player has received the
+        // current title. This also covers tracks restored from a prior session.
+        window.syncDesktopTrackInfo();
+
         setTimeout(() => {
             const container = npTitle.querySelector('.np-marquee-container');
             if (container) {
@@ -146,6 +205,7 @@
         if (progressBar) progressBar.style.width = '0%';
 
         window.updateNpTitleUI(window.currentSongName, true, false);
+        window.syncDesktopTrackInfo();
         const fpCover = $('fp-cover');
         const miniCoverImg = $('mini-cover-img');
         if (fpCover) fpCover.src = window.defaultCover;
@@ -165,19 +225,25 @@
     window.toggleFullPlayer = function(forceState) {
         const fullPlayer = $('full-player');
         if (!fullPlayer) return;
-        if (window.innerWidth >= 960 && document.body.classList.contains('split-view-active')) return;
-
         const isOpen = forceState !== undefined ? forceState : !fullPlayer.classList.contains('open');
         if (isOpen) {
+            window.syncDesktopTrackInfo();
             fullPlayer.classList.add('open');
             document.body.classList.add('player-open');
+            placeCornerToolsInActiveSurface();
+            const audioEl = $('audio');
+            if (audioEl && window.LyricsEngine) window.LyricsEngine.sync(audioEl.currentTime || 0);
             if (window.isIOS || window.innerWidth < 600) document.body.style.overflow = 'hidden';
         } else {
             fullPlayer.classList.remove('open');
             document.body.classList.remove('player-open');
+            placeCornerToolsInActiveSurface();
             document.body.style.overflow = '';
         }
     };
+
+    window.addEventListener('DOMContentLoaded', placeCornerToolsInActiveSurface);
+    window.addEventListener('resize', placeCornerToolsInActiveSurface);
 
     window.closeAllSongMenus = function() {
         if (window.activeSongMenuIndex !== -1) {
@@ -202,7 +268,7 @@
             if (onlineToolbar) onlineToolbar.classList.remove('show');
             if (menuWrapper && dropzone1) dropzone1.appendChild(menuWrapper);
 
-            const savedSearch = localStorage.getItem('iwebplayer.local_search_keyword') || '';
+            const savedSearch = localStorage.getItem('iwebplayer-s.local_search_keyword') || '';
             const searchInput = $('search-input');
             if (searchInput) searchInput.value = savedSearch;
 
@@ -601,10 +667,13 @@
             if (info && info.url && audioEl) {
                     window.localState.playlist = window.currentPlaylist;
                     window.localState.songName = window.currentSongName;
-                    localStorage.setItem('iwebplayer.local_state', JSON.stringify(window.localState));
+                    localStorage.setItem('iwebplayer-s.local_state', JSON.stringify(window.localState));
 
                     audioEl.dataset.playingPlaylist = window.currentPlaylist;
                     audioEl.dataset.playingSongName = targetSongName;
+                    audioEl.dataset.trackTitle = rawItem.title || rawItem.name || '';
+                    audioEl.dataset.trackArtist = rawItem.artist || rawItem.singer || '';
+                    audioEl.dataset.trackAlbum = rawItem.album || rawItem.album_name || '';
                     audioEl.dataset.hasStarted = "0";
                     audioEl.src = info.url;
 

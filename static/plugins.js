@@ -109,11 +109,11 @@
             window.ConfigManager.set('lxmusic', 'settings.platform_sort', window.currentPlatformSort);
 
             // 🌟 2. 将整个沙盒打包上传给后端保存（小爱音箱也能同步收到！）
-            await fetch('/api/v1/jsplugin/iwebplayer/store', {
+            await fetch('/api/v1/jsplugin/iwebplayer-s/store', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    key: 'iwebplayer.lxmusic',
+                    key: 'iwebplayer-s.lxmusic',
                     value: JSON.stringify(window.ConfigManager.get('lxmusic'))
                 })
             });
@@ -237,7 +237,7 @@
                 // 🌟 改为 async 函数以等待版本检测
                 radio.addEventListener('change', async (e) => {
                     if (e.target.checked) {
-                        localStorage.setItem('iwebplayer.lx_quality', e.target.value);
+                        localStorage.setItem('iwebplayer-s.lx_quality', e.target.value);
 
                         // 🌟 核心：检测插件版本，如果不支持，直接展现红底警告框
                         if (typeof window.getLxPluginInfo === 'function') {

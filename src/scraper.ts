@@ -1,5 +1,5 @@
 // src/scraper.ts
-// iWebPlayer 后端刮削引擎 (Phase 2: 满血雷达评分版 + Debug透传)
+// iWebPlayer-S 后端刮削引擎 (Phase 2: 满血雷达评分版 + Debug透传)
 
 // ==========================================
 // 🌟 核心情报箱：用于供 /debug 页面读取

@@ -28,7 +28,7 @@
 
     window.ConfigManager = {
         getKeyName(ns) {
-            return 'iwebplayer.' + ns;
+            return 'iwebplayer-s.' + ns;
         },
 
         load(ns) {
@@ -207,7 +207,7 @@
         if ('mediaSession' in navigator) {
           window._lastMediaSessionParams = { songName, coverUrl, favoriteList, appLogo };
           let displayTitle = favoriteList.includes(songName) ? `${songName} ♡︎` : songName;
-          let displayArtist = 'iWebPlayer';
+          let displayArtist = 'iWebPlayer-S';
           if (window._currentLockScreenLyric) { displayArtist = displayTitle; displayTitle = window._currentLockScreenLyric; }
           navigator.mediaSession.metadata = new MediaMetadata({ title: displayTitle, artist: displayArtist, album: '我的曲库', artwork: [ { src: coverUrl || appLogo || '/static/favicon.ico' } ] });
         }
@@ -358,7 +358,7 @@
             title = parts[0].trim();
             artist = parts.slice(1).join(' - ').trim();
         }
-        const url = `/api/v1/jsplugin/iwebplayer/scrape?type=${type}&title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}&filename=${encodeURIComponent(filename)}`;
+        const url = `/api/v1/jsplugin/iwebplayer-s/scrape?type=${type}&title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}&filename=${encodeURIComponent(filename)}`;
         try {
             const res = await fetch(url);
             if (res.ok) {

@@ -34,7 +34,7 @@
     // ==========================================
     window.StateManager = {
         getState: function() {
-            const key = `iwebplayer.state_${window.PluginManager.currentEngineName}`;
+            const key = `iwebplayer-s.state_${window.PluginManager.currentEngineName}`;
             const defaultState = window.PluginManager.currentEngineName === 'WebDAV'
                 ? '{"view":"playlist","keyword":""}'
                 : '{"view":"song","keyword":""}';
@@ -42,7 +42,7 @@
             catch(e) { return JSON.parse(defaultState); }
         },
         setState: function(stateObj) {
-            const key = `iwebplayer.state_${window.PluginManager.currentEngineName}`;
+            const key = `iwebplayer-s.state_${window.PluginManager.currentEngineName}`;
             let current = this.getState();
             Object.assign(current, stateObj);
             localStorage.setItem(key, JSON.stringify(current));
@@ -52,7 +52,7 @@
     window.SnapshotManager = {
         saveSnapshot: function(type, htmlContent, songListData) {
             const engine = window.PluginManager.currentEngineName;
-            const key = `iwebplayer.snapshot_${engine}`;
+            const key = `iwebplayer-s.snapshot_${engine}`;
             const snapshot = { type: type, html: htmlContent, data: songListData || [], timestamp: Date.now() };
             try {
                 const jsonStr = JSON.stringify(snapshot);
@@ -62,7 +62,7 @@
         },
         restoreSnapshot: function() {
             const engine = window.PluginManager.currentEngineName;
-            const compressed = localStorage.getItem(`iwebplayer.snapshot_${engine}`);
+            const compressed = localStorage.getItem(`iwebplayer-s.snapshot_${engine}`);
             if (!compressed) return false;
             try {
                 const jsonStr = window.LZString ? window.LZString.decompressFromUTF16(compressed) : compressed;
@@ -98,7 +98,7 @@
     window.HistoryManager = {
         save: function(type, textOrName, id, platform, action) {
             const engine = window.PluginManager.currentEngineName;
-            let history = JSON.parse(localStorage.getItem('iwebplayer.search_history') || '[]');
+            let history = JSON.parse(localStorage.getItem('iwebplayer-s.search_history') || '[]');
             history = history.filter(h => {
                 if (type === 'keyword' && h.type === 'keyword') return h.text !== textOrName;
                 if (type === 'playlist' && h.type === 'playlist') return h.id !== id;
@@ -108,7 +108,7 @@
             if (type === 'keyword') newItem.text = textOrName; else { newItem.name = textOrName; newItem.id = id; }
             history.unshift(newItem);
             if (history.length > 10) history = history.slice(0, 10);
-            localStorage.setItem('iwebplayer.search_history', JSON.stringify(history));
+            localStorage.setItem('iwebplayer-s.search_history', JSON.stringify(history));
         }
     };
 
@@ -235,7 +235,7 @@
             inputWrap.appendChild(popup);
         }
 
-        let history = JSON.parse(localStorage.getItem('iwebplayer.search_history') || '[]');
+        let history = JSON.parse(localStorage.getItem('iwebplayer-s.search_history') || '[]');
 
         if (history.length === 0) {
             popup.innerHTML = '<li class="select-option" style="color: var(--text-sub); justify-content: center; font-size: 13px; pointer-events: none;">暂无搜索历史</li>';
@@ -320,7 +320,7 @@
 
         document.getElementById('clear-history-btn')?.addEventListener('click', (e) => {
             e.stopPropagation();
-            localStorage.setItem('iwebplayer.search_history', '[]');
+            localStorage.setItem('iwebplayer-s.search_history', '[]');
             window.renderSearchHistoryPopup();
         });
     };
@@ -961,7 +961,7 @@
         }
 
         try {
-            const res = await fetch(`/api/v1/jsplugin/iwebplayer/dav/library?davId=${encodeURIComponent(serverName)}`);
+            const res = await fetch(`/api/v1/jsplugin/iwebplayer-s/dav/library?davId=${encodeURIComponent(serverName)}`);
             const rawData = await res.json();
 
             let libraryData = {};
@@ -1055,13 +1055,13 @@
 
         if(window.showToast) window.showToast("⏳ 启动网盘扫库...", true);
         try {
-            await fetch('/api/v1/jsplugin/iwebplayer/dav/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ davId, rootPath }) });
+            await fetch('/api/v1/jsplugin/iwebplayer-s/dav/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ davId, rootPath }) });
             window.pollWebDavStatus();
         } catch(e) { if(window.showToast) window.showToast("❌ 指令发送失败"); }
     };
 
     window.pollWebDavStatus = function() {
-        fetch('/api/v1/jsplugin/iwebplayer/dav/status')
+        fetch('/api/v1/jsplugin/iwebplayer-s/dav/status')
             .then(r => r.json())
             .then(res => {
                 if (res.status === 'scanning') {
@@ -1143,7 +1143,7 @@
         if (mainOptsEl && window.isWebDAVMode) mainOptsEl.innerHTML = '<li class="select-option">拉取中...</li>';
 
         try {
-            const defRes = await fetch('/api/v1/jsplugin/iwebplayer/store?key=webdav_default_server');
+            const defRes = await fetch('/api/v1/jsplugin/iwebplayer-s/store?key=webdav_default_server');
             const defJson = await defRes.json();
             webdavDefaultServerName = window.ConfigManager.get('webdav', 'settings.default_server') || "";
 
@@ -1300,9 +1300,9 @@
             window.showToast("⏳ 正在设定默认节点...");
 
             window.ConfigManager.set('webdav', 'settings.default_server', curName);
-            await fetch('/api/v1/jsplugin/iwebplayer/store', {
+            await fetch('/api/v1/jsplugin/iwebplayer-s/store', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key: 'iwebplayer.webdav', value: JSON.stringify(window.ConfigManager.get('webdav')) })
+                body: JSON.stringify({ key: 'iwebplayer-s.webdav', value: JSON.stringify(window.ConfigManager.get('webdav')) })
             });
 
             window.showToast("✅ 已成功设为默认"); window.loadWebDavServers(true);
@@ -1328,9 +1328,9 @@
             window.showToast("⏳ 彻底移出节点...");
             if (curName === webdavDefaultServerName) {
                 window.ConfigManager.set('webdav', 'settings.default_server', '');
-                await fetch('/api/v1/jsplugin/iwebplayer/store', {
+                await fetch('/api/v1/jsplugin/iwebplayer-s/store', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ key: 'iwebplayer.webdav', value: JSON.stringify(window.ConfigManager.get('webdav')) })
+                    body: JSON.stringify({ key: 'iwebplayer-s.webdav', value: JSON.stringify(window.ConfigManager.get('webdav')) })
                 });
             }
             await fetch(`/api/v1/jsplugin/dav/lists/${encodeURIComponent(curName)}`, { method: 'DELETE' });
@@ -1432,9 +1432,9 @@
                 window.showToast("⏳ 正在存盘账本...");
                 // 🌟 修复：接入沙盒，合并上传！
                 window.ConfigManager.set('webdav', `roots.${curSrv}`, currentBrowserPath);
-                await fetch('/api/v1/jsplugin/iwebplayer/store', {
+                await fetch('/api/v1/jsplugin/iwebplayer-s/store', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ key: 'iwebplayer.webdav', value: JSON.stringify(window.ConfigManager.get('webdav')) })
+                    body: JSON.stringify({ key: 'iwebplayer-s.webdav', value: JSON.stringify(window.ConfigManager.get('webdav')) })
                 });
             }
             wdDirPath.innerText = currentBrowserPath; wdDirBrowser.style.display = 'none'; wdDirView.style.display = 'flex'; wdServerView.style.opacity = '1'; wdServerView.style.pointerEvents = 'auto';
@@ -1457,9 +1457,9 @@
                         if (window.updateWebDavDirectLinkUI) window.updateWebDavDirectLinkUI();
 
                         // 顺手推送到云端
-                        fetch('/api/v1/jsplugin/iwebplayer/store', {
+                        fetch('/api/v1/jsplugin/iwebplayer-s/store', {
                             method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ key: 'iwebplayer.webdav', value: JSON.stringify(window.ConfigManager.get('webdav')) })
+                            body: JSON.stringify({ key: 'iwebplayer-s.webdav', value: JSON.stringify(window.ConfigManager.get('webdav')) })
                         }).catch(()=>{});
                     }
                 });
