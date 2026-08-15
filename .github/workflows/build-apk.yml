@@ -86,9 +86,7 @@ jobs:
 
       - name: Build APK
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon \
-          -PversionCode=${{ steps.version.outputs.versionCode }} \
-          -PversionName=${{ steps.version.outputs.version }}
+        run: ./gradlew assembleRelease --no-daemon -PversionCode=${{ steps.version.outputs.versionCode }} -PversionName=${{ steps.version.outputs.version }}
 
       - name: Rename APK
         run: |
