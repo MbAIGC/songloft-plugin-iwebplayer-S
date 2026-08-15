@@ -7,3 +7,4 @@ android/keystore.properties
 android/*.p12
 android/*.jks
 *.keystore
+Screenshot_*.jpg
