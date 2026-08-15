@@ -469,6 +469,12 @@ public class MainActivity extends AppCompatActivity {
                 (function(){
                   if (window.__androidMediaInjected) return;
                   window.__androidMediaInjected = true;
+                  function parseTime(t){
+                    if (!t) return 0;
+                    var m = /(\d+):(\d{2})/.exec(String(t));
+                    if (!m) return 0;
+                    return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+                  }
                   function readState(){
                     var a = document.getElementById('audio');
                     if (!a) return null;
@@ -481,7 +487,16 @@ public class MainActivity extends AppCompatActivity {
                     var c = document.getElementById('fp-cover');
                     if (c && c.src && c.src.indexOf('data:') !== 0) art = c.src;
                     if (!art) { var m = document.getElementById('mini-cover-img'); if (m && m.src && m.src.indexOf('data:') !== 0) art = m.src; }
-                    return {title: t, artist: artist, artwork: art, playing: !a.paused, position: a.currentTime || 0, duration: a.duration || 0};
+                    var pos = a.currentTime;
+                    if (!isFinite(pos) || pos < 0) {
+                      pos = parseTime(document.getElementById('time-current') ? document.getElementById('time-current').innerText : '');
+                    }
+                    var dur = a.duration;
+                    if (!isFinite(dur) || dur <= 0) {
+                      dur = parseTime(document.getElementById('time-duration') ? document.getElementById('time-duration').innerText : '');
+                    }
+                    if (dur < 0) dur = 0;
+                    return {title: t, artist: artist, artwork: art, playing: !a.paused, position: pos, duration: dur};
                   }
                   function push(){
                     var st = readState();
