@@ -1,0 +1,126 @@
+package com.songloft.iwebplayer;
+
+import android.annotation.SuppressLint;
+import android.app.AlertDialog;
+import android.content.SharedPreferences;
+import android.os.Build;
+import android.os.Bundle;
+import android.view.View;
+import android.view.WindowManager;
+import android.webkit.JavascriptInterface;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.widget.Toast;
+
+import androidx.appcompat.app.AppCompatActivity;
+
+public class MainActivity extends AppCompatActivity {
+
+    private static final String PREFS = "iwebplayer_prefs";
+    private static final String KEY_SERVER = "server_url";
+    private static final String PLUGIN_PATH = "api/v1/jsplugin/iwebplayer-s/static/index.html";
+
+    private WebView webView;
+    private SharedPreferences prefs;
+
+    @SuppressLint("SetJavaScriptEnabled")
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
+            getWindow().setStatusBarColor(android.graphics.Color.TRANSPARENT);
+            getWindow().getDecorView().setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
+        }
+
+        webView = new WebView(this);
+        setContentView(webView);
+
+        WebSettings s = webView.getSettings();
+        s.setJavaScriptEnabled(true);
+        s.setDomStorageEnabled(true);
+        s.setAllowFileAccess(true);
+        s.setMediaPlaybackRequiresUserGesture(false);
+        s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                if (request.isForMainFrame()
+                        && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                        && !request.getUrl().toString().contains("settings.html")) {
+                    Toast.makeText(MainActivity.this, "无法连接服务器，请检查地址后重试", Toast.LENGTH_LONG).show();
+                    view.loadUrl("file:///android_asset/settings.html");
+                }
+            }
+        });
+
+        webView.addJavascriptInterface(new Bridge(), "Android");
+
+        String server = prefs.getString(KEY_SERVER, "").trim();
+        if (server.isEmpty()) {
+            webView.loadUrl("file:///android_asset/settings.html");
+        } else {
+            openPlayer(server);
+        }
+    }
+
+    private void openPlayer(String server) {
+        String base = server.endsWith("/") ? server : server + "/";
+        webView.loadUrl(base + PLUGIN_PATH);
+    }
+
+    private class Bridge {
+        @JavascriptInterface
+        public String getServer() {
+            return prefs.getString(KEY_SERVER, "");
+        }
+
+        @JavascriptInterface
+        public void saveServer(String url) {
+            String cleaned = (url == null ? "" : url.trim());
+            if (!cleaned.isEmpty() && !cleaned.startsWith("http://") && !cleaned.startsWith("https://")) {
+                cleaned = "http://" + cleaned;
+            }
+            prefs.edit().putString(KEY_SERVER, cleaned).apply();
+        }
+
+        @JavascriptInterface
+        public void openPlayer() {
+            runOnUiThread(() -> {
+                String server = prefs.getString(KEY_SERVER, "").trim();
+                if (server.isEmpty()) {
+                    Toast.makeText(MainActivity.this, "请先保存服务器地址", Toast.LENGTH_SHORT).show();
+                } else {
+                    openPlayer(server);
+                }
+            });
+        }
+    }
+
+    @Override
+    public void onBackPressed() {
+        String url = webView.getUrl() == null ? "" : webView.getUrl();
+        boolean onPlayer = url.contains(PLUGIN_PATH);
+
+        if (webView.canGoBack()) {
+            webView.goBack();
+        } else if (onPlayer) {
+            new AlertDialog.Builder(this)
+                    .setTitle("iWebPlayer-S")
+                    .setMessage("要修改服务器地址吗？")
+                    .setPositiveButton("修改服务器", (d, w) -> webView.loadUrl("file:///android_asset/settings.html"))
+                    .setNegativeButton("退出", (d, w) -> finish())
+                    .show();
+        } else {
+            super.onBackPressed();
+        }
+    }
+}

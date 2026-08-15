@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>设置</title>
+<style>
+  body{background:#0b0b0f;color:#fff;font-family:system-ui;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;padding:20px}
+  .card{background:rgba(255,255,255,.06);backdrop-filter:blur(32px);border-radius:32px;padding:32px;max-width:400px;width:100%}
+  h1{font-size:22px;margin-bottom:24px}
+  input{width:100%;padding:14px 16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:14px;color:#fff;font-size:15px;margin-bottom:14px;box-sizing:border-box}
+  input:focus{border-color:#5b47ff;outline:none}
+  button{width:100%;padding:16px;background:linear-gradient(135deg,#5b47ff,#7c5cfc);border:none;border-radius:16px;color:#fff;font-size:17px;font-weight:600;cursor:pointer}
+  .status{margin-top:16px;text-align:center;color:rgba(255,255,255,.4);font-size:13px}
+  .footer{margin-top:20px;text-align:center;color:rgba(255,255,255,.15);font-size:11px}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>🎵 连接服务器</h1>
+  <form id="f">
+    <input id="s" placeholder="服务器地址 http://192.168.1.100:8080" required>
+    <button type="submit">保存并打开播放器</button>
+  </form>
+  <div class="status" id="msg">输入你的 SongLoft 服务器地址</div>
+  <div class="footer">数据仅存储于本机</div>
+</div>
+<script>
+(function(){
+  try {
+    var saved = Android.getServer();
+    if (saved) {
+      document.getElementById("s").value = saved;
+      document.getElementById("msg").textContent = "✅ 已载入保存的地址";
+    }
+  } catch(e) {}
+})();
+document.getElementById("f").addEventListener("submit", function(e){
+  e.preventDefault();
+  var s = document.getElementById("s").value.trim();
+  if (!s) { document.getElementById("msg").textContent = "❌ 请填写服务器地址"; return; }
+  try {
+    Android.saveServer(s);
+    document.getElementById("msg").textContent = "✅ 已保存，正在打开播放器...";
+    setTimeout(function(){ Android.openPlayer(); }, 400);
+  } catch(err) {
+    document.getElementById("msg").textContent = "❌ 保存失败: " + err.message;
+  }
+});
+</script>
+</body>
+</html>

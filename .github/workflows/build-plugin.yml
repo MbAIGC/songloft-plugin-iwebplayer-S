@@ -1,0 +1,42 @@
+name: Build iWebPlayer-S Plugin
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'static/**'
+      - 'plugin.json'
+      - 'package.json'
+      - 'package-lock.json'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build plugin
+        run: npm run build
+
+      - name: Upload plugin zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: iwebplayer-s-plugin
+          path: dist/iwebplayer-s.jsplugin.zip
+          if-no-files-found: error
