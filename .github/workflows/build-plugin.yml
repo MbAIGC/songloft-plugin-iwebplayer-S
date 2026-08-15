@@ -47,11 +47,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           PLUGIN_VERSION=$(python3 -c "import json;print(json.load(open('plugin.json'))['version'])")
+          cp dist/iwebplayer-s.jsplugin.zip "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip"
           LATEST=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || true)
           if [ -n "$LATEST" ]; then
-            gh release upload "$LATEST" dist/iwebplayer-s.jsplugin.zip --clobber
+            gh release upload "$LATEST" "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip" --clobber
           else
-            gh release create "plugin-v${PLUGIN_VERSION}" dist/iwebplayer-s.jsplugin.zip \
+            gh release create "plugin-v${PLUGIN_VERSION}" "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip" \
               --title "iWebPlayer-S Plugin v${PLUGIN_VERSION}" \
               --notes "iWebPlayer-S 插件包 v${PLUGIN_VERSION}（SongLoft 直接上传安装）"
           fi
