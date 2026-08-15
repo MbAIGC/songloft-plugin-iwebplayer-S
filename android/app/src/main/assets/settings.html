@@ -15,7 +15,8 @@
   .proto-wrap{position:relative;width:86px;flex-shrink:0}
   .proto-wrap select{width:100%;padding:14px 24px 14px 14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:14px;color:#fff;font-size:15px;outline:none;appearance:none;-webkit-appearance:none;cursor:pointer}
   .row select option{background:#14141c;color:#fff}
-  .proto-wrap .caret{position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;color:rgba(255,255,255,.55);font-size:11px}
+  .proto-wrap .caret{position:absolute;right:10px;top:0;bottom:0;display:flex;align-items:center;pointer-events:none;color:rgba(255,255,255,.55)}
+  .proto-wrap .caret svg{display:block}
   .row input:first-of-type{flex:1;min-width:0}
   .row input.port{width:86px;flex-shrink:0}
   .agree{display:flex;align-items:flex-start;gap:8px;font-size:12px;color:rgba(255,255,255,.55);margin-bottom:18px;line-height:1.5;cursor:pointer;user-select:none}
@@ -38,7 +39,7 @@
           <option value="http" selected>http</option>
           <option value="https">https</option>
         </select>
-        <span class="caret">▼</span>
+        <span class="caret"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
       </div>
       <input id="s" placeholder="服务器地址" value="192.168.100.100" required autocomplete="off">
       <input id="pt" class="port" placeholder="端口" value="58091" inputmode="numeric" required autocomplete="off">

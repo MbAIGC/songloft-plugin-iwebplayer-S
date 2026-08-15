@@ -12,6 +12,8 @@ import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.net.Uri;
+import android.os.Message;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -19,6 +21,7 @@ import android.os.Looper;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -127,6 +130,23 @@ public class MainActivity extends AppCompatActivity {
                     Toast.makeText(MainActivity.this, "无法连接服务器，请检查地址后重试", Toast.LENGTH_LONG).show();
                     view.loadUrl(SETTINGS_URL);
                 }
+            }
+        });
+
+        // 让 target="_blank" 等外部链接用系统浏览器打开（App 内不新开 WebView 窗口）
+        webView.getSettings().setSupportMultipleWindows(true);
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, Message resultMsg) {
+                WebView.HitTestResult result = view.getHitTestResult();
+                String url = result != null ? result.getExtra() : null;
+                if (url != null && !url.isEmpty()) {
+                    try {
+                        startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+                    } catch (Exception ignored) {
+                    }
+                }
+                return true;
             }
         });
 
