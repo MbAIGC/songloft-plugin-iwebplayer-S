@@ -93,3 +93,61 @@ npm run build
 
 构建产物：`dist/iwebplayer-s.jsplugin.zip`。
 
+## 7. Android 壳 App 与发布流水线（2026-08 追加）
+
+### 7.1 背景与方案
+
+局域网（HTTP）环境下 PWA 无法安装，为获得"类原生 App"体验，采用 **WebView 壳方案（方案 A）**：APK 不打包前端资源，直接加载
+`http://<服务器>/api/v1/jsplugin/iwebplayer-s/static/index.html`，因此：
+
+- 局域网 HTTP 无需 HTTPS 即可安装使用；
+- 服务器更新插件后，App 打开即为最新页面，无需重装 APK；
+- 相对路径 API、登录 token 均沿用服务器同源环境，无需改造插件前端。
+
+### 7.2 登录与鉴权
+
+- 首页设置页直接登录：协议下拉（http/https，默认 http）+ 服务器地址（默认 `192.168.100.100`）+ 端口（默认 `58091`）+ 账号/密码 + 协议勾选；
+- 后端接口：`POST /api/v1/auth/login`（`{username,password}`）返回 `access_token/refresh_token/expires_in`；刷新用 `POST /api/v1/auth/refresh`（`{refresh_token}`）；
+- token 存于 SharedPreferences，插件页加载完成后注入 `localStorage['songloft-auth']`（首次注入自动 reload 一次）；
+- 令牌临近过期后台静默刷新；页面内注入脚本检测"登录状态已失效"时自动尝试刷新并重载，刷新失败清除凭据回到设置页；
+- 移除了启动时误弹的原生"需要登录"弹窗：有凭据时永不弹窗，登录引导由页面内检测 + 设置页完成。
+
+### 7.3 通知栏 / 锁屏媒体控制
+
+- 原生 `MediaSessionCompat` + `MediaStyle` 通知：标题/歌手/封面/进度、播放/暂停/上一首/下一首/拖动；
+- 注入 JS 桥接轮询 `#audio` 与插件 UI（`#time-current` / `#time-duration`）上报状态，`audio.duration` 非有限值时用界面时间文本兜底；
+- 关键修复：必须设置 `MediaMetadataCompat.METADATA_KEY_DURATION`，否则系统显示 `--:--` 且进度条不动；
+- Android 13+ 需运行时申请 `POST_NOTIFICATIONS`，否则通知/锁屏不显示；
+- `androidx.media` 的兼容类位于 `android.support.v4.media.*` 命名空间（非 `androidx.media.*`），导入时注意。
+
+### 7.4 关键问题修复记录
+
+- **WebView 缓存旧页面**：`setCacheMode(LOAD_NO_CACHE)` + 启动 `clearCache(true)`，保证插件更新即时生效；
+- **分栏箭头（>）**：点击从"切换分栏"改为"进入播放页"（与点击封面一致）；长按 600ms 仍可关闭分栏退出宽屏；
+- **底部控制栏间距**：≥960px 与 768–959px 分支统一采用"左栏 50% + 控制栏 `padding-right: 28px`"，竖线保持在 50% 位置（曾尝试左栏收窄留中缝，导致竖线偏左、网页端回归，已撤销）；
+- **`media` 依赖类包名**：`MediaStyle` 在 `androidx.media.app`，会话/元数据兼容类在 `android.support.v4.media*`；
+- **启动误弹登录框**：删除原生登录弹窗及对应布局资源，改为页面内检测 + 设置页登录。
+
+### 7.5 CI 发布流水线
+
+- `.github/workflows/build-apk.yml`：推送 `android/**` 或 workflow 改动时自动构建；
+  - 版本解析：无 release 从 `v0.0.1` 起，之后自动 patch+1（可手动指定）；
+  - 固定签名：PKCS12 keystore 存于 GitHub Secrets（`ANDROID_KEYSTORE_BASE64` / `ANDROID_KEYSTORE_PASSWORD`），本地备份在 `android/keystore.properties`（已 gitignore），签名稳定可覆盖安装；
+  - 同一工作流内先 `npm ci && npm run build` 产出插件 zip，与 APK 一起发布到同一 Release；
+  - 构建后 `apksigner verify --print-certs` 校验签名。
+- `.github/workflows/build-plugin.yml`：插件源码改动时构建 `iwebplayer-s-v1.1.3.jsplugin.zip`（SongLoft 可直接上传安装，无需解压）。
+- 注意：强推重写历史后 GitHub 不会自动触发 push 工作流，需手动 `workflow_dispatch` 一次。
+
+### 7.6 品牌与 Logo
+
+- 插件作者、仓库归属改为 `MbAIGC`；全部历史提交通过 `filter-branch` 重写为 `MbAIGC <314928345+MbAIGC@users.noreply.github.com>`；
+- README 重写并着重致谢原作者 birdstudy-nj（不列入贡献者，避免歧义）；
+- `plugin.json` 补充 `homepage` / `updateUrl` / `download_url`（指向 GitHub Release）；
+- About 弹窗：项目主页改为可点击外链（App 内用系统浏览器打开），新增"适配的宽屏设备"说明；
+- Logo：网页端使用透明角 RGBA 版本（深浅色均可适配）；APK 桌面图标按用户偏好使用原图满幅版。
+
+### 7.7 已知限制
+
+- 首次从旧 debug 签名版升级到固定签名版需卸载一次（一次性）；
+- 插件页在 WebView 内打开外链依赖 `WebChromeClient.onCreateWindow` 转发系统浏览器；
+- 强推/历史重写不会触发 Actions，需手动触发一次。
