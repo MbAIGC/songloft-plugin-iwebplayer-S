@@ -2,6 +2,13 @@ plugins {
     id 'com.android.application'
 }
 
+// 本地签名配置（keystore.properties 不入库，CI 由 Secrets 生成）
+def keystorePropsFile = rootProject.file('keystore.properties')
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(new FileInputStream(keystorePropsFile))
+}
+
 android {
     namespace 'com.songloft.iwebplayer'
     compileSdk 35
@@ -10,8 +17,20 @@ android {
         applicationId "com.songloft.iwebplayer"
         minSdk 35
         targetSdk 35
-        versionCode 1
-        versionName "1.0"
+        versionCode project.hasProperty('versionCode') ? project.property('versionCode').toInteger() : 1
+        versionName project.hasProperty('versionName') ? project.property('versionName') : "1.0"
+    }
+
+    signingConfigs {
+        release {
+            if (keystorePropsFile.exists()) {
+                storeFile rootProject.file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+                storeType keystoreProps.getProperty('storeType', 'PKCS12')
+            }
+        }
     }
 
     compileOptions {
@@ -21,6 +40,7 @@ android {
 
     buildTypes {
         release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
         }

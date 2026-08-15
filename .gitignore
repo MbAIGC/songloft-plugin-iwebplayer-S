@@ -3,3 +3,7 @@ dist/
 IMG_*.jpg
 *.log
 .DS_Store
+android/keystore.properties
+android/*.p12
+android/*.jks
+*.keystore

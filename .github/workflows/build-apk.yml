@@ -64,16 +64,36 @@ jobs:
             fi
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          IFS='.' read -r VM VN VP <<< "$VERSION"
+          echo "versionCode=$((10#$VM * 10000 + 10#$VN * 100 + 10#$VP))" >> "$GITHUB_OUTPUT"
           echo "APK will be named: iWebPlayer-S-v${VERSION}.apk"
+
+      # ------------------------------------------------------------
+      # 用固定签名（Secrets 中的 keystore）签名 release 包，
+      # 避免每次构建生成不同 debug 证书导致覆盖安装冲突
+      # ------------------------------------------------------------
+      - name: Prepare signing keystore
+        run: |
+          mkdir -p android
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/iwebplayer-release.p12
+          {
+            echo "storeFile=iwebplayer-release.p12"
+            echo "storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}"
+            echo "keyAlias=iwebplayer"
+            echo "keyPassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}"
+            echo "storeType=PKCS12"
+          } > android/keystore.properties
 
       - name: Build APK
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleRelease --no-daemon \
+          -PversionCode=${{ steps.version.outputs.versionCode }} \
+          -PversionName=${{ steps.version.outputs.version }}
 
       - name: Rename APK
         run: |
           mkdir -p release
-          cp android/app/build/outputs/apk/debug/app-debug.apk \
+          cp android/app/build/outputs/apk/release/app-release.apk \
              "release/iWebPlayer-S-v${{ steps.version.outputs.version }}.apk"
 
       - name: Upload APK artifact
