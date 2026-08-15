@@ -37,7 +37,7 @@
         android:layout_marginTop="8dp"
         android:gravity="center"
         android:lineSpacingExtra="3dp"
-        android:text="打开播放器前需要先登录 SongLoft 服务器"
+        android:text="请使用服务器的账号与密码登录"
         android:textColor="#9CA3AF"
         android:textSize="14sp" />
 
