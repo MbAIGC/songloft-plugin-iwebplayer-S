@@ -1,13 +1,17 @@
 package com.songloft.iwebplayer;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
+import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceError;
@@ -18,6 +22,7 @@ import android.webkit.WebViewClient;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -25,6 +30,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String KEY_SERVER = "server_url";
     private static final String PLUGIN_PATH = "api/v1/jsplugin/iwebplayer-s/static/index.html";
     private static final long TOKEN_CHECK_INTERVAL_MS = 2000L;
+    private static final int REQ_NOTIFICATION = 1001;
 
     private WebView webView;
     private SharedPreferences prefs;
@@ -84,7 +90,32 @@ public class MainActivity extends AppCompatActivity {
         } else {
             openPlayer(server);
         }
+        requestNotificationPermissionIfNeeded();
         handler.post(tokenChecker);
+    }
+
+    /**
+     * Android 13+ 需要运行时授予通知权限，WebView 的媒体通知（锁屏/通知栏播放信息）才会显示。
+     */
+    private void requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIFICATION);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQ_NOTIFICATION) {
+            boolean granted = grantResults.length > 0
+                    && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+            if (!granted) {
+                Toast.makeText(this, "未授予通知权限，锁屏/通知栏将无法显示播放信息", Toast.LENGTH_LONG).show();
+            }
+        }
     }
 
     private void openPlayer(String server) {
@@ -125,15 +156,30 @@ public class MainActivity extends AppCompatActivity {
                         wasLoggedOut = true;
                         if (current.contains(PLUGIN_PATH) && !loginPromptShown) {
                             loginPromptShown = true; // 每个"未登录会话"只弹一次，避免反复打扰
-                            new AlertDialog.Builder(MainActivity.this)
-                                    .setTitle("需要登录")
-                                    .setMessage("打开播放器前需要先登录 SongLoft 服务器，是否前往登录页？")
-                                    .setPositiveButton("去登录", (d, w) -> webView.loadUrl(getServerBase()))
-                                    .setNegativeButton("取消", (d, w) -> { /* 保留插件页自带的引导 */ })
-                                    .show();
+                            showLoginPrompt();
                         }
                     }
                 });
+    }
+
+    /**
+     * 自定义登录引导弹窗（与 App 深色玻璃风格保持一致）。
+     */
+    private void showLoginPrompt() {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        dialog.setContentView(R.layout.dialog_login_prompt);
+        dialog.setCancelable(true);
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(
+                    new android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT));
+        }
+        dialog.findViewById(R.id.btn_login_go).setOnClickListener(v -> {
+            dialog.dismiss();
+            webView.loadUrl(getServerBase());
+        });
+        dialog.findViewById(R.id.btn_login_later).setOnClickListener(v -> dialog.dismiss());
+        dialog.show();
     }
 
     private class Bridge {
