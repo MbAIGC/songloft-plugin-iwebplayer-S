@@ -644,7 +644,7 @@
      12. 桌面端宽屏适配与双栏无缝切分 (Media Queries)
      ========================================== */
   @media (min-width: 600px) {
-    html { background-color: #e5e7eb; overflow-y: scroll; scrollbar-gutter: stable; }
+    html { background-color: #e5e7eb; overflow-y: auto; scrollbar-gutter: auto; }
     @media (prefers-color-scheme: dark) { html { background-color: #050505; } }
     body { width: 480px !important; margin: 0 auto !important; min-height: 100vh; box-shadow: 0 0 60px rgba(0,0,0,0.15); border-left: 1px solid var(--border); border-right: 1px solid var(--border); overflow-x: visible; }
     .player-bar, .full-player { width: 480px !important; left: 50% !important; margin-left: -240px !important; }
@@ -1308,7 +1308,7 @@
       z-index: 0;
       top: -24px;
       left: 0;
-      right: 0;
+      right: 10px;
       bottom: 8px;
       height: auto;
       pointer-events: none;
