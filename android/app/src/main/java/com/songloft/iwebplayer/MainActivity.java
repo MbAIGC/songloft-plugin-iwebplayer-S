@@ -3,7 +3,6 @@ package com.songloft.iwebplayer;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.AlertDialog;
-import android.app.Dialog;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -18,7 +17,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
-import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceError;
@@ -67,7 +65,6 @@ public class MainActivity extends AppCompatActivity {
     private SharedPreferences prefs;
     private MediaSessionCompat mediaSession;
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private boolean loginPromptShown = false;
     private boolean wasLoggedOut = false;
     private boolean authRefreshing = false;
     private String cachedArtworkUrl = "";
@@ -556,32 +553,13 @@ public class MainActivity extends AppCompatActivity {
                             openPlayer(prefs.getString(KEY_SERVER, ""));
                         }
                         wasLoggedOut = false;
-                        loginPromptShown = false;
-                    } else {
+                    } else if ("none".equals(result)) {
+                        // 仅在页面明确处于未登录态时记录；真正的登录引导由
+                        // 页面内检测（onAuthFailed）+ 设置页登录完成，
+                        // 不再弹原生"需要登录"弹窗，避免启动竞态误弹
                         wasLoggedOut = true;
-                        if (current.contains(PLUGIN_PATH) && !loginPromptShown) {
-                            loginPromptShown = true;
-                            showLoginPrompt();
-                        }
                     }
                 });
-    }
-
-    private void showLoginPrompt() {
-        Dialog dialog = new Dialog(this);
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
-        dialog.setContentView(R.layout.dialog_login_prompt);
-        dialog.setCancelable(true);
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawable(
-                    new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
-        }
-        dialog.findViewById(R.id.btn_login_go).setOnClickListener(v -> {
-            dialog.dismiss();
-            webView.loadUrl(SETTINGS_URL);
-        });
-        dialog.findViewById(R.id.btn_login_later).setOnClickListener(v -> dialog.dismiss());
-        dialog.show();
     }
 
     private void requestNotificationPermissionIfNeeded() {
