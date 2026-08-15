@@ -112,7 +112,8 @@ public class MainActivity extends AppCompatActivity {
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView view, String url) {
-                if (url.startsWith(getServerBase())) {
+                String base = getServerBase();
+                if (!base.isEmpty() && url.startsWith(base)) {
                     injectAuthIntoPage();
                     injectMediaBridge();
                 }
@@ -258,11 +259,16 @@ public class MainActivity extends AppCompatActivity {
 
     private void openPlayer(String server) {
         String base = server.endsWith("/") ? server : server + "/";
-        long expiresAt = prefs.getLong(KEY_EXPIRES, 0);
+        final long expiresAt = prefs.getLong(KEY_EXPIRES, 0);
         if (expiresAt > 0 && System.currentTimeMillis() > expiresAt - 5 * 60 * 1000) {
-            tryRefreshToken();
+            // 令牌临近过期时后台刷新，避免阻塞 UI 线程
+            new Thread(() -> {
+                tryRefreshToken();
+                runOnUiThread(() -> webView.loadUrl(base + PLUGIN_PATH));
+            }).start();
+        } else {
+            webView.loadUrl(base + PLUGIN_PATH);
         }
-        webView.loadUrl(base + PLUGIN_PATH);
     }
 
     private void injectAuthIntoPage() {
@@ -370,7 +376,14 @@ public class MainActivity extends AppCompatActivity {
             MediaMetadataCompat.Builder mb = new MediaMetadataCompat.Builder()
                     .putString(MediaMetadataCompat.METADATA_KEY_TITLE, title)
                     .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, artist);
+            if (durationMs > 0) {
+                // 关键：通知栏/锁屏的时长显示与进度条由系统根据
+                // MediaMetadata.DURATION + PlaybackState.position 渲染，必须设置总时长
+                mb.putLong(MediaMetadataCompat.METADATA_KEY_DURATION, durationMs);
+            }
             NotificationCompat.Builder nb = buildMediaNotification(title, artist, playing, positionMs, durationMs);
+            android.util.Log.d("iWebPlayer-S", "media update: title=" + title
+                    + " durMs=" + durationMs + " posMs=" + positionMs + " playing=" + playing);
 
             if (!artwork.isEmpty() && !artwork.equals(cachedArtworkUrl)) {
                 cachedArtworkUrl = artwork;
@@ -489,11 +502,11 @@ public class MainActivity extends AppCompatActivity {
                     if (!art) { var m = document.getElementById('mini-cover-img'); if (m && m.src && m.src.indexOf('data:') !== 0) art = m.src; }
                     var pos = a.currentTime;
                     if (!isFinite(pos) || pos < 0) {
-                      pos = parseTime(document.getElementById('time-current') ? document.getElementById('time-current').innerText : '');
+                    pos = parseTime(document.getElementById('time-current') ? (document.getElementById('time-current').textContent || '') : '');
                     }
                     var dur = a.duration;
                     if (!isFinite(dur) || dur <= 0) {
-                      dur = parseTime(document.getElementById('time-duration') ? document.getElementById('time-duration').innerText : '');
+                      dur = parseTime(document.getElementById('time-duration') ? (document.getElementById('time-duration').textContent || '') : '');
                     }
                     if (dur < 0) dur = 0;
                     return {title: t, artist: artist, artwork: art, playing: !a.paused, position: pos, duration: dur};
@@ -505,7 +518,7 @@ public class MainActivity extends AppCompatActivity {
                   setInterval(push, 1000);
                   var audio = document.getElementById('audio');
                   if (audio) {
-                    ['play','pause','ended','loadedmetadata','timeupdate'].forEach(function(ev){ audio.addEventListener(ev, push); });
+                    ['play','pause','ended','loadedmetadata','durationchange','timeupdate'].forEach(function(ev){ audio.addEventListener(ev, push); });
                   }
                   push();
                   function checkAuth(){
@@ -527,7 +540,9 @@ public class MainActivity extends AppCompatActivity {
     private void checkAuthAndMaybePrompt() {
         String url = webView.getUrl() == null ? "" : webView.getUrl();
         if (url.startsWith("file:")) return;
-        if (!url.startsWith(getServerBase()) && !url.contains(PLUGIN_PATH)) return;
+        String base = getServerBase();
+        if (base.isEmpty()) return;
+        if (!url.startsWith(base) && !url.contains(PLUGIN_PATH)) return;
 
         webView.evaluateJavascript(
                 "(function(){try{var a=JSON.parse(localStorage.getItem('songloft-auth')||'{}');" +
@@ -611,8 +626,12 @@ public class MainActivity extends AppCompatActivity {
         public void login(String server, String username, String password, int callbackId) {
             new Thread(() -> {
                 String result = doLogin(server, username, password);
-                runOnUiThread(() -> webView.evaluateJavascript(
-                        "window.__loginCb && window.__loginCb(" + callbackId + ", " + result + ")", null));
+                runOnUiThread(() -> {
+                    if (webView != null) {
+                        webView.evaluateJavascript(
+                                "window.__loginCb && window.__loginCb(" + callbackId + ", " + result + ")", null);
+                    }
+                });
             }).start();
         }
 
@@ -630,6 +649,7 @@ public class MainActivity extends AppCompatActivity {
 
         @JavascriptInterface
         public void onMedia(String json) {
+            android.util.Log.d("iWebPlayer-S", "onMedia raw: " + json);
             runOnUiThread(() -> updateMediaNotification(json));
         }
 
