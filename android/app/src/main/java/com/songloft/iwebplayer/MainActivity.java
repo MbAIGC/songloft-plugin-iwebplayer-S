@@ -13,9 +13,6 @@ import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
-import android.media.MediaMetadata;
-import android.media.session.MediaSession;
-import android.media.session.PlaybackState;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -35,6 +32,9 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
+import androidx.media.MediaMetadataCompat;
+import androidx.media.session.MediaSessionCompat;
+import androidx.media.session.PlaybackStateCompat;
 
 import org.json.JSONObject;
 
@@ -65,7 +65,7 @@ public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
     private SharedPreferences prefs;
-    private MediaSession mediaSession;
+    private MediaSessionCompat mediaSession;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean loginPromptShown = false;
     private boolean wasLoggedOut = false;
@@ -304,10 +304,10 @@ public class MainActivity extends AppCompatActivity {
     // ============================================================
 
     private void setupMediaSession() {
-        mediaSession = new MediaSession(this, "iWebPlayer");
-        mediaSession.setFlags(MediaSession.FLAG_HANDLES_MEDIA_BUTTONS
-                | MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);
-        mediaSession.setCallback(new MediaSession.Callback() {
+        mediaSession = new MediaSessionCompat(this, "iWebPlayer");
+        mediaSession.setFlags(MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS
+                | MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS);
+        mediaSession.setCallback(new MediaSessionCompat.Callback() {
             @Override
             public void onPlay() {
                 runJs("(function(){var a=document.getElementById('audio');if(a&&a.paused)a.play().catch(function(){})})()");
@@ -358,18 +358,18 @@ public class MainActivity extends AppCompatActivity {
             long durationMs = (long) (o.optDouble("duration", 0) * 1000);
             if (title.isEmpty()) title = "iWebPlayer-S";
 
-            PlaybackState.Builder psb = new PlaybackState.Builder()
-                    .setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE
-                            | PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_SKIP_TO_NEXT
-                            | PlaybackState.ACTION_SKIP_TO_PREVIOUS | PlaybackState.ACTION_SEEK_TO)
-                    .setState(playing ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED,
+            PlaybackStateCompat.Builder psb = new PlaybackStateCompat.Builder()
+                    .setActions(PlaybackStateCompat.ACTION_PLAY | PlaybackStateCompat.ACTION_PAUSE
+                            | PlaybackStateCompat.ACTION_PLAY_PAUSE | PlaybackStateCompat.ACTION_SKIP_TO_NEXT
+                            | PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS | PlaybackStateCompat.ACTION_SEEK_TO)
+                    .setState(playing ? PlaybackStateCompat.STATE_PLAYING : PlaybackStateCompat.STATE_PAUSED,
                             positionMs, 1.0f);
             mediaSession.setPlaybackState(psb.build());
             if (playing) mediaSession.setActive(true);
 
-            MediaMetadata.Builder mb = new MediaMetadata.Builder()
-                    .putString(MediaMetadata.METADATA_KEY_TITLE, title)
-                    .putString(MediaMetadata.METADATA_KEY_ARTIST, artist);
+            MediaMetadataCompat.Builder mb = new MediaMetadataCompat.Builder()
+                    .putString(MediaMetadataCompat.METADATA_KEY_TITLE, title)
+                    .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, artist);
             NotificationCompat.Builder nb = buildMediaNotification(title, artist, playing, positionMs, durationMs);
 
             if (!artwork.isEmpty() && !artwork.equals(cachedArtworkUrl)) {
@@ -378,7 +378,7 @@ public class MainActivity extends AppCompatActivity {
                 loadArtwork(artwork, bitmap -> {
                     cachedArtwork = bitmap;
                     if (bitmap != null) {
-                        mb.putBitmap(MediaMetadata.METADATA_KEY_ART, bitmap);
+                        mb.putBitmap(MediaMetadataCompat.METADATA_KEY_ART, bitmap);
                         nb.setLargeIcon(bitmap);
                     }
                     mediaSession.setMetadata(mb.build());
@@ -386,7 +386,7 @@ public class MainActivity extends AppCompatActivity {
                 });
             } else {
                 if (cachedArtwork != null) {
-                    mb.putBitmap(MediaMetadata.METADATA_KEY_ART, cachedArtwork);
+                    mb.putBitmap(MediaMetadataCompat.METADATA_KEY_ART, cachedArtwork);
                     nb.setLargeIcon(cachedArtwork);
                 }
                 mediaSession.setMetadata(mb.build());

@@ -12,11 +12,13 @@ on:
     paths:
       - 'android/**'
       - '.github/workflows/build-apk.yml'
-    tags:
-      - 'v*'
 
 permissions:
   contents: write
+
+concurrency:
+  group: build-apk
+  cancel-in-progress: false
 
 jobs:
   build-apk:
