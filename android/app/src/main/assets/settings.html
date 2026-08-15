@@ -11,6 +11,11 @@
   .sub{font-size:13px;color:rgba(255,255,255,.4);margin-bottom:24px}
   input{width:100%;padding:14px 16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:14px;color:#fff;font-size:15px;margin-bottom:14px;box-sizing:border-box;outline:none}
   input:focus{border-color:#5b47ff}
+  .row{display:flex;gap:8px}
+  .row select{width:78px;flex-shrink:0;padding:14px 8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:14px;color:#fff;font-size:15px;outline:none;appearance:none;-webkit-appearance:none}
+  .row select option{background:#14141c;color:#fff}
+  .row input:first-of-type{flex:1;min-width:0}
+  .row input.port{width:86px;flex-shrink:0}
   .agree{display:flex;align-items:flex-start;gap:8px;font-size:12px;color:rgba(255,255,255,.55);margin-bottom:18px;line-height:1.5;cursor:pointer;user-select:none}
   .agree input{width:16px;height:16px;margin:1px 0 0 0;flex-shrink:0;accent-color:#5b47ff}
   .agree b{color:rgba(255,255,255,.85);font-weight:600}
@@ -25,7 +30,14 @@
   <h1>🎵 连接服务器</h1>
   <div class="sub">登录后直接进入 iWebPlayer-S 播放器</div>
   <form id="f">
-    <input id="s" placeholder="服务器地址  http://192.168.1.100:8080" required autocomplete="off">
+    <div class="row">
+      <select id="proto">
+        <option value="http" selected>http</option>
+        <option value="https">https</option>
+      </select>
+      <input id="s" placeholder="服务器地址" value="192.168.100.100" required autocomplete="off">
+      <input id="pt" class="port" placeholder="端口" value="58091" inputmode="numeric" required autocomplete="off">
+    </div>
     <input id="u" placeholder="用户名" required autocomplete="username">
     <input id="p" type="password" placeholder="密码" required autocomplete="current-password">
     <label class="agree">
@@ -43,10 +55,26 @@
   try {
     var sv = Android.getServer();
     var un = Android.getUsername();
-    if (sv) document.getElementById("s").value = sv;
+    if (sv) {
+      var m = sv.match(/^(https?):\/\/([^:/]+)(?::(\d+))?/i);
+      if (m) {
+        document.getElementById("proto").value = m[1];
+        document.getElementById("s").value = m[2];
+        document.getElementById("pt").value = m[3] || "";
+      } else {
+        document.getElementById("s").value = sv;
+      }
+    }
     if (un) document.getElementById("u").value = un;
   } catch(e) {}
 })();
+
+function composeServer(){
+  var proto = document.getElementById("proto").value || "http";
+  var host = document.getElementById("s").value.trim().replace(/^https?:\/\//i, "");
+  var port = document.getElementById("pt").value.trim();
+  return proto + "://" + host + (port ? ":" + port : "");
+}
 
 window.__loginCb = function(id, res) {
   var btn = document.getElementById("btn");
@@ -63,7 +91,7 @@ window.__loginCb = function(id, res) {
 
 document.getElementById("f").addEventListener("submit", function(e){
   e.preventDefault();
-  var s = document.getElementById("s").value.trim();
+  var s = composeServer();
   var u = document.getElementById("u").value.trim();
   var p = document.getElementById("p").value;
   var msg = document.getElementById("msg");

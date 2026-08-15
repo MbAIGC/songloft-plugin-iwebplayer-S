@@ -1,12 +1,12 @@
 # 🎵 iWebPlayer-S
 
-> 适配 iPhone 的 SongLoft Web 播放器 · 媲美原生 App 的 PWA 体验 · 支持小爱音箱推送
+> iWebplayer-S 是以 [birdstudy-nj](https://github.com/birdstudy-nj) 大佬的 [iwebplayer](https://github.com/songloft-org/songloft-plugin-iwebplayer) 为基础，Vibe-Coding 适配的宽屏设备（例如笔记本、安卓平板等），并打包成 APK。
 
 ![Plugin](https://img.shields.io/badge/plugin-v1.1.3-ec4899)
 ![Android APK](https://img.shields.io/badge/apk-v0.0.1+-8b5cf6)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 
-iWebPlayer-S 是 SongLoft 的音乐播放器插件，在保留原版体验的基础上针对 iPhone 交互深度优化，并额外提供 **Android 直装 APK**（WebView 壳）——局域网 HTTP 服务器无需 HTTPS 也能安装使用，锁屏媒体控制、播放进度一应俱全。
+iWebPlayer-S 保留原版的播放、歌单、歌词、封面刮削、倍速、续播、LXMusic、WebDAV 与小爱音箱能力，并额外提供 **Android 直装 APK**（WebView 壳）——局域网 HTTP 服务器无需 HTTPS 也能安装使用，锁屏媒体控制、播放进度一应俱全。
 
 ---
 
