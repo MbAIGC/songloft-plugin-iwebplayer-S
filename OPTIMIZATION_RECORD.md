@@ -151,3 +151,27 @@ npm run build
 - 首次从旧 debug 签名版升级到固定签名版需卸载一次（一次性）；
 - 插件页在 WebView 内打开外链依赖 `WebChromeClient.onCreateWindow` 转发系统浏览器；
 - 强推/历史重写不会触发 Actions，需手动触发一次。
+
+## 8. 首页间距问题最终方案（2026-08 追加）
+
+### 8.1 问题背景
+
+分栏（split-view）首页底部控制栏与右侧歌曲列表之间的间距反复调整未达预期，先后尝试过：
+
+- 左栏收窄留中缝（`calc(50% - 24px)`）——竖线偏左、网页端回归，已废弃；
+- 悬浮卡片内缩（`left:12px; right:28px`）——效果不佳，已废弃；
+- `player-bar` 右内边距 `10px`——不满足，已回退为 `28px`。
+
+### 8.2 最终方案（与参考版 `index-by-gpt5.6-t.html` 对齐，已验证通过）
+
+1. `@media (min-width: 600px)` 下 `html` 滚动行为：
+   `overflow-y: scroll; scrollbar-gutter: stable` → `overflow-y: auto; scrollbar-gutter: auto`；
+2. `@media (min-width: 768px)` 下 `.player-bar::before` 悬浮卡片右缘：
+   `right: 0` → `right: 10px`（卡片右侧留出 10px 空隙）；
+3. 保留 `player-bar` 右内边距 `padding-right: 28px`（≥960px 与 768–959px 两条分支一致）。
+
+### 8.3 验证结论
+
+- 仓库 `static/index.html` 与参考版 `截图参考/index-by-gpt5.6-t.html` **逐字节一致**（`diff` 无差异）；
+- 插件重建后（`iwebplayer-s-v1.1.3.jsplugin.zip`）网页端与 App 端首页间距均正常；
+- 结论：以"滚动条自适应 + 底部卡片右缘 10px 内缩 + 控制栏 28px 内边距"组合作为最终方案存档。
