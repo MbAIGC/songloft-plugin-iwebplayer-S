@@ -672,7 +672,7 @@
 
     body.split-view-active .playlist, body.split-view-active .playlist-grid, body.split-view-active #loading { width: 479px !important; margin-left: 479px !important; margin-top: 0 !important; }
     body.split-view-active .full-player { display: flex !important; transform: none !important; width: 480px !important; left: 50% !important; margin-left: -480px !important; top: 56px !important; height: calc(100vh - var(--player-height) - 56px - env(safe-area-inset-bottom)) !important; border-radius: 0 !important; border-top: none !important; box-shadow: none !important; border-right: 1px solid var(--border) !important; padding-top: 24px !important; z-index: 190 !important; }
-    body.split-view-active .player-bar { width: 480px !important; left: 50% !important; margin-left: -480px !important; box-shadow: none !important; border-top: 1px solid var(--border) !important; border-right: 1px solid var(--border) !important; z-index: 200 !important; padding-right: 28px !important; }
+    body.split-view-active .player-bar { width: 480px !important; left: 50% !important; margin-left: -480px !important; box-shadow: none !important; border-top: 1px solid var(--border) !important; border-right: 1px solid var(--border) !important; z-index: 200 !important; padding-right: 10px !important; }
     body.split-view-active .drawer-handle { display: none !important; }
     body.split-view-active .up-arrow { visibility: hidden !important; pointer-events: none !important; }
 
@@ -1395,7 +1395,7 @@
       box-shadow: none !important;
       isolation: isolate;
       /* 与 ≥960px 分支一致的右内边距：控制内容与右侧竖线之间留出间距 */
-      padding-right: 28px !important;
+      padding-right: 10px !important;
     }
     body.split-view-active:not(.player-open) #fp-ambient-bg {
       width: 100% !important;

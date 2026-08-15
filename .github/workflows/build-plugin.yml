@@ -12,7 +12,7 @@ on:
       - 'package-lock.json'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -40,3 +40,18 @@ jobs:
           name: iwebplayer-s-plugin
           path: dist/iwebplayer-s.jsplugin.zip
           if-no-files-found: error
+
+      # 发布插件 zip 到 GitHub Release（与 APK 同一个 release 线）
+      - name: Publish plugin to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PLUGIN_VERSION=$(python3 -c "import json;print(json.load(open('plugin.json'))['version'])")
+          LATEST=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || true)
+          if [ -n "$LATEST" ]; then
+            gh release upload "$LATEST" dist/iwebplayer-s.jsplugin.zip --clobber
+          else
+            gh release create "plugin-v${PLUGIN_VERSION}" dist/iwebplayer-s.jsplugin.zip \
+              --title "iWebPlayer-S Plugin v${PLUGIN_VERSION}" \
+              --notes "iWebPlayer-S 插件包 v${PLUGIN_VERSION}（SongLoft 直接上传安装）"
+          fi
