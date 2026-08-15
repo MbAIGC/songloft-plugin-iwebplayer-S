@@ -672,7 +672,7 @@
 
     body.split-view-active .playlist, body.split-view-active .playlist-grid, body.split-view-active #loading { width: 479px !important; margin-left: 479px !important; margin-top: 0 !important; }
     body.split-view-active .full-player { display: flex !important; transform: none !important; width: 480px !important; left: 50% !important; margin-left: -480px !important; top: 56px !important; height: calc(100vh - var(--player-height) - 56px - env(safe-area-inset-bottom)) !important; border-radius: 0 !important; border-top: none !important; box-shadow: none !important; border-right: 1px solid var(--border) !important; padding-top: 24px !important; z-index: 190 !important; }
-    body.split-view-active .player-bar { width: 480px !important; left: 50% !important; margin-left: -480px !important; box-shadow: none !important; border-top: 1px solid var(--border) !important; border-right: 1px solid var(--border) !important; z-index: 200 !important; }
+    body.split-view-active .player-bar { width: 480px !important; left: 50% !important; margin-left: -480px !important; box-shadow: none !important; border-top: 1px solid var(--border) !important; border-right: 1px solid var(--border) !important; z-index: 200 !important; padding-right: 28px !important; }
     body.split-view-active .drawer-handle { display: none !important; }
     body.split-view-active .up-arrow { visibility: hidden !important; pointer-events: none !important; }
 
@@ -2530,17 +2530,38 @@
       }
 
       btn.addEventListener('click', () => {
-          const willBeSplit = !document.body.classList.contains('split-view-active');
-          if (willBeSplit) {
+          if (suppressSplitClick) { suppressSplitClick = false; return; }
+          if (document.body.classList.contains('split-view-active')) {
+              // 🌟 修复：分栏模式下点击箭头 = 与点击首页封面一致，直接进入播放页
+              if (typeof window.toggleFullPlayer === 'function') window.toggleFullPlayer(true);
+          } else {
+              // 单栏模式下点击箭头：恢复分栏
               document.body.classList.add('split-view-active');
               localStorage.setItem('iwebplayer-s.split_mode', 'true');
               document.body.style.overflow = '';
-          } else {
-              document.body.classList.remove('split-view-active');
-              localStorage.setItem('iwebplayer-s.split_mode', 'false');
-              if(typeof window.toggleFullPlayer === 'function') window.toggleFullPlayer(false);
           }
       });
+
+      // 🌟 长按箭头 = 关闭分栏（退出宽屏模式，回到窄版单栏）
+      let splitPressTimer = null;
+      let suppressSplitClick = false;
+      const cancelSplitPress = () => { if (splitPressTimer) { clearTimeout(splitPressTimer); splitPressTimer = null; } };
+      const startSplitPress = () => {
+          cancelSplitPress();
+          splitPressTimer = setTimeout(() => {
+              splitPressTimer = null;
+              suppressSplitClick = true;
+              document.body.classList.remove('split-view-active');
+              localStorage.setItem('iwebplayer-s.split_mode', 'false');
+              if (typeof window.toggleFullPlayer === 'function') window.toggleFullPlayer(false);
+          }, 600);
+      };
+      btn.addEventListener('touchstart', startSplitPress, { passive: true });
+      btn.addEventListener('touchend', cancelSplitPress);
+      btn.addEventListener('touchcancel', cancelSplitPress);
+      btn.addEventListener('mousedown', startSplitPress);
+      btn.addEventListener('mouseup', cancelSplitPress);
+      btn.addEventListener('mouseleave', cancelSplitPress);
 
       window.addEventListener('resize', () => {
           if (window.innerWidth >= 768) {
