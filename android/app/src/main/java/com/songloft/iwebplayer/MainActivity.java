@@ -105,6 +105,9 @@ public class MainActivity extends AppCompatActivity {
         s.setAllowFileAccess(true);
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        // 🌟 关键：禁用 HTTP 缓存，保证服务器更新插件后 App 立即拿到最新页面
+        // （否则 WebView 会一直显示旧的 index.html/CSS）
+        s.setCacheMode(WebSettings.LOAD_NO_CACHE);
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -128,6 +131,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         webView.addJavascriptInterface(new Bridge(), "Android");
+        webView.clearCache(true);
 
         String server = prefs.getString(KEY_SERVER, "").trim();
         if (server.isEmpty()) {
