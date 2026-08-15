@@ -99,7 +99,7 @@ public class MainActivity extends AppCompatActivity {
                 if (server.isEmpty()) {
                     Toast.makeText(MainActivity.this, "请先保存服务器地址", Toast.LENGTH_SHORT).show();
                 } else {
-                    openPlayer(server);
+                    MainActivity.this.openPlayer(server);
                 }
             });
         }
