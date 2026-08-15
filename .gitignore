@@ -8,3 +8,5 @@ android/*.p12
 android/*.jks
 *.keystore
 Screenshot_*.jpg
+iwps-logo.png
+IWPS_logo.svg
