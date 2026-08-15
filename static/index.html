@@ -300,7 +300,7 @@
   .time-row { width: 100%; display: flex; justify-content: space-between; }
   .time-current, .time-duration { font-size: 11px; color: var(--text-sub); opacity: 0.8; font-variant-numeric: tabular-nums; }
 
-  .now-playing-info { display: flex; align-items: center; width: 100%; cursor: pointer; padding: 0 10px; position: relative; box-sizing: border-box; justify-content: center; }
+  .now-playing-info { display: flex; align-items: center; width: 100%; cursor: pointer; padding: 0 15px; position: relative; box-sizing: border-box; justify-content: center; }
   .up-arrow { width: 40px; display: flex; justify-content: center; color: var(--text-sub); animation: bounce 2s infinite; }
   .up-arrow svg { transition: transform 0.3s ease; }
   body.player-open .up-arrow { animation: none; }
@@ -313,7 +313,7 @@
   @keyframes marquee-loop { 0% { transform: translateX(0); opacity: 0; } 5%, 15% { transform: translateX(0); opacity: 1; } 80%, 90% { transform: translateX(var(--scroll-dist)); opacity: 1; } 95%, 100% { transform: translateX(var(--scroll-dist)); opacity: 0; } }
   .marquee-scroll { animation: marquee-loop 6s linear infinite; }
 
-  .controls { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 0 10px; box-sizing: border-box; }
+  .controls { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 0 15px; box-sizing: border-box; }
   .iwp-btn { background: none; border: none; color: var(--text-main); font-size: 20px; cursor: pointer; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: opacity 0.2s; }
   .iwp-btn.play-btn { background: var(--primary); color: white; width: 46px; height: 46px; }
   .iwp-btn.mode-btn, .btn.vol-btn { opacity: 0.8; }
