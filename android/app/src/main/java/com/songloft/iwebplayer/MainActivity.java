@@ -5,6 +5,8 @@ import android.app.AlertDialog;
 import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
@@ -22,9 +24,21 @@ public class MainActivity extends AppCompatActivity {
     private static final String PREFS = "iwebplayer_prefs";
     private static final String KEY_SERVER = "server_url";
     private static final String PLUGIN_PATH = "api/v1/jsplugin/iwebplayer-s/static/index.html";
+    private static final long TOKEN_CHECK_INTERVAL_MS = 2000L;
 
     private WebView webView;
     private SharedPreferences prefs;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private boolean loginPromptShown = false;
+    private boolean wasLoggedOut = false;
+
+    private final Runnable tokenChecker = new Runnable() {
+        @Override
+        public void run() {
+            checkAuthAndMaybePrompt();
+            handler.postDelayed(this, TOKEN_CHECK_INTERVAL_MS);
+        }
+    };
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -70,11 +84,56 @@ public class MainActivity extends AppCompatActivity {
         } else {
             openPlayer(server);
         }
+        handler.post(tokenChecker);
     }
 
     private void openPlayer(String server) {
         String base = server.endsWith("/") ? server : server + "/";
         webView.loadUrl(base + PLUGIN_PATH);
+    }
+
+    private String getServerBase() {
+        String server = prefs.getString(KEY_SERVER, "").trim();
+        return server.endsWith("/") ? server : server + "/";
+    }
+
+    /**
+     * 轮询检查 SongLoft 登录态（localStorage 里的 songloft-auth accessToken）。
+     * 未登录：播放器页会显示"令牌失效"，此时引导用户去服务器根路径登录；
+     * 登录成功后：自动跳回播放器页。
+     */
+    private void checkAuthAndMaybePrompt() {
+        String url = webView.getUrl() == null ? "" : webView.getUrl();
+        if (url.startsWith("file:")) return;
+        if (!url.startsWith(getServerBase()) && !url.contains(PLUGIN_PATH)) return;
+
+        webView.evaluateJavascript(
+                "(function(){try{var a=JSON.parse(localStorage.getItem('songloft-auth')||'{}');" +
+                        "return (a && a.accessToken) ? 'ok' : 'none';}catch(e){return 'none';}})()",
+                value -> {
+                    String result = value == null ? "" : value.replace("\"", "");
+                    String current = webView.getUrl() == null ? "" : webView.getUrl();
+
+                    if ("ok".equals(result)) {
+                        // 登录成功：如果之前在别处（如服务器首页/登录页），自动回到播放器页
+                        if (wasLoggedOut && !current.contains(PLUGIN_PATH)) {
+                            openPlayer(prefs.getString(KEY_SERVER, ""));
+                        }
+                        wasLoggedOut = false;
+                        loginPromptShown = false;
+                    } else {
+                        wasLoggedOut = true;
+                        if (current.contains(PLUGIN_PATH) && !loginPromptShown) {
+                            loginPromptShown = true; // 每个"未登录会话"只弹一次，避免反复打扰
+                            new AlertDialog.Builder(MainActivity.this)
+                                    .setTitle("需要登录")
+                                    .setMessage("打开播放器前需要先登录 SongLoft 服务器，是否前往登录页？")
+                                    .setPositiveButton("去登录", (d, w) -> webView.loadUrl(getServerBase()))
+                                    .setNegativeButton("取消", (d, w) -> { /* 保留插件页自带的引导 */ })
+                                    .show();
+                        }
+                    }
+                });
     }
 
     private class Bridge {
@@ -122,5 +181,11 @@ public class MainActivity extends AppCompatActivity {
         } else {
             super.onBackPressed();
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        handler.removeCallbacks(tokenChecker);
+        super.onDestroy();
     }
 }
