@@ -471,7 +471,7 @@ public class MainActivity extends AppCompatActivity {
                   window.__androidMediaInjected = true;
                   function parseTime(t){
                     if (!t) return 0;
-                    var m = /(\d+):(\d{2})/.exec(String(t));
+                    var m = /(\\d+):(\\d{2})/.exec(String(t));
                     if (!m) return 0;
                     return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
                   }
