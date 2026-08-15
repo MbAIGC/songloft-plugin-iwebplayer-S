@@ -12,8 +12,10 @@
   input{width:100%;padding:14px 16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:14px;color:#fff;font-size:15px;margin-bottom:14px;box-sizing:border-box;outline:none}
   input:focus{border-color:#5b47ff}
   .row{display:flex;gap:8px}
-  .row select{width:78px;flex-shrink:0;padding:14px 8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:14px;color:#fff;font-size:15px;outline:none;appearance:none;-webkit-appearance:none}
+  .proto-wrap{position:relative;width:86px;flex-shrink:0}
+  .proto-wrap select{width:100%;padding:14px 24px 14px 14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:14px;color:#fff;font-size:15px;outline:none;appearance:none;-webkit-appearance:none;cursor:pointer}
   .row select option{background:#14141c;color:#fff}
+  .proto-wrap .caret{position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;color:rgba(255,255,255,.55);font-size:11px}
   .row input:first-of-type{flex:1;min-width:0}
   .row input.port{width:86px;flex-shrink:0}
   .agree{display:flex;align-items:flex-start;gap:8px;font-size:12px;color:rgba(255,255,255,.55);margin-bottom:18px;line-height:1.5;cursor:pointer;user-select:none}
@@ -31,10 +33,13 @@
   <div class="sub">登录后直接进入 iWebPlayer-S 播放器</div>
   <form id="f">
     <div class="row">
-      <select id="proto">
-        <option value="http" selected>http</option>
-        <option value="https">https</option>
-      </select>
+      <div class="proto-wrap">
+        <select id="proto">
+          <option value="http" selected>http</option>
+          <option value="https">https</option>
+        </select>
+        <span class="caret">▼</span>
+      </div>
       <input id="s" placeholder="服务器地址" value="192.168.100.100" required autocomplete="off">
       <input id="pt" class="port" placeholder="端口" value="58091" inputmode="numeric" required autocomplete="off">
     </div>

@@ -1256,8 +1256,7 @@
     }
     body.split-view-active:not(.player-open) .full-player,
     body.split-view-active:not(.player-open) .player-bar {
-      /* 🌟 修复：左栏收窄，让控制/播放区与右侧歌曲列表之间留出明确中缝 */
-      width: calc(50% - 24px) !important;
+      width: 50% !important;
       left: 0 !important;
       margin-left: 0 !important;
       border-right: 1px solid var(--border) !important;
@@ -1395,6 +1394,8 @@
       border-top: 0 !important;
       box-shadow: none !important;
       isolation: isolate;
+      /* 与 ≥960px 分支一致的右内边距：控制内容与右侧竖线之间留出间距 */
+      padding-right: 28px !important;
     }
     body.split-view-active:not(.player-open) #fp-ambient-bg {
       width: 100% !important;
@@ -1765,7 +1766,7 @@
       </div>
     </div>
     <div class="about-body">
-      <p><strong>iWebPlayer-S</strong> 是 <strong>SongLoft</strong> 的主题插件之一，专为 <strong>iPhone</strong> 交互优化，媲美原生APP的音乐播放与小爱音箱控制。</p>
+      <p><strong>iWebplayer-S</strong> 是以 <strong>birdstudy-nj</strong> 大佬的 <strong>iwebplayer</strong> 为基础，Vibe-Coding 适配的宽屏设备（例如笔记本、安卓平板等），并打包成 APK。</p>
       <ul class="about-features">
         <li>适配 iPhone Safari 浏览器</li>
         <li>提供PWA/配置直装，类似原生APP界面</li>
