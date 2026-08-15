@@ -410,7 +410,7 @@ public class MainActivity extends AppCompatActivity {
                 .setOngoing(playing)
                 .setOnlyAlertOnce(true)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .setStyle(new NotificationCompat.MediaStyle()
+                .setStyle(new androidx.media.app.NotificationCompat.MediaStyle()
                         .setMediaSession(mediaSession.getSessionToken())
                         .setShowActionsInCompactView(0, 1, 2))
                 .addAction(mediaAction("prev", "上一首"))
@@ -608,7 +608,7 @@ public class MainActivity extends AppCompatActivity {
                 if (server.isEmpty()) {
                     Toast.makeText(MainActivity.this, "请先登录服务器", Toast.LENGTH_SHORT).show();
                 } else {
-                    openPlayer(server);
+                    MainActivity.this.openPlayer(server);
                 }
             });
         }
