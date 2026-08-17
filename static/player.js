@@ -5,6 +5,23 @@
     // 内部微型 DOM 获取器，确保代码脱离 HTML 也能随时精准抓取元素
     const $ = (id) => document.getElementById(id);
 
+    // 🌟 歌词优先级 ①：优先读取 SongLoft 主程序已解析的歌词（内嵌/侧边栏/缓存）
+    async function fetchSongloftLyric(rawItem) {
+        try {
+            if (!rawItem || !rawItem.id) return null;
+            // 纯在线（LXMusic 搜索结果）歌曲在主库没有对应记录，直接跳过
+            if (rawItem._isOnlineObj && rawItem.plugin_entry_path !== 'dav') return null;
+            const res = await fetch(`/api/v1/songs/${encodeURIComponent(rawItem.id)}/lyric`);
+            if (!res.ok) return null;
+            const data = await res.json();
+            const payload = (data && data.data) ? data.data : data;
+            if (!payload) return null;
+            return payload.lyric || payload.tlyric || payload.rlyric || payload.lxlyric || null;
+        } catch (e) {
+            return null;
+        }
+    }
+
     function placeCornerToolsInActiveSurface() {
         const tools = $('fp-corner-tools');
         const fullPlayer = $('full-player');
@@ -469,7 +486,9 @@
             const loadLyric = async () => {
                 let finalLrc = null;
                 try {
-                    if (rawItem._isOnlineObj && rawItem.plugin_entry_path !== 'dav') {
+                    // ① 优先 SongLoft 主程序歌词（内嵌/侧边栏/缓存）
+                    finalLrc = await fetchSongloftLyric(rawItem);
+                    if (!finalLrc && rawItem._isOnlineObj && rawItem.plugin_entry_path !== 'dav') {
                         let sd = rawItem.source_data;
                         if (typeof sd === 'string') { try { sd = JSON.parse(sd); } catch(e){} }
                         const engineValEl = $('engine-val');
@@ -615,6 +634,8 @@
                     const engineValEl = $('engine-val');
                     const currentEngine = engineValEl ? engineValEl.dataset.value : 'LXMusic';
                     if (currentEngine === 'LXMusic') {
+                        // ① 优先 SongLoft 主程序歌词（在线歌曲无主库记录时自动跳过）
+                        if (!finalLrc) finalLrc = await fetchSongloftLyric(rawItem);
                         const lrcUrl = `/api/v1/jsplugin/lxmusic/api/direct/lyric?source=${sd.source}&songmid=${sd.songmid || sd.musicId}&musicId=${sd.musicId}&duration=${sd.duration}`;
                         fetch(lrcUrl).then(r => r.json()).then(lrcData => {
                             if (lrcData.code === 0 && lrcData.data && lrcData.data.lyric) {
@@ -623,6 +644,11 @@
                             }
                         }).catch(()=>{});
                     }
+                } else {
+                    // ① 本地/已入库歌曲：优先 SongLoft 主程序歌词（异步，不阻塞预读）
+                    fetchSongloftLyric(rawItem).then(lrc => {
+                        if (lrc) { finalLrc = lrc; applyUI(); }
+                    }).catch(()=>{});
                 }
             } else {
                 // 🌟 1. WebDAV 模式分流：公共函数一行搞定！
@@ -639,6 +665,8 @@
                     const currentEngine = engineValEl ? engineValEl.dataset.value : 'LXMusic';
 
                     if (currentEngine === 'LXMusic') {
+                        // ① 优先 SongLoft 主程序歌词（在线歌曲无主库记录时自动跳过）
+                        if (!finalLrc) finalLrc = await fetchSongloftLyric(rawItem);
                         const bestQuality = window.getBestLxQuality(sd, window.getLxQuality());
                         const urlData = await window.fetchLxMusicUrl(sd, bestQuality);
 
@@ -759,6 +787,10 @@
                 }
             }
 
+            // ① 优先 SongLoft 主程序歌词（本机普通播放路径）
+            if (!finalLrc || finalLrc.trim() === '') {
+                finalLrc = await fetchSongloftLyric(rawItem);
+            }
             if (!finalLrc || finalLrc.trim() === '') {
                 finalLrc = await window.fetchScrape(rawItem, 'lyric', window.currentSongName);
             }
