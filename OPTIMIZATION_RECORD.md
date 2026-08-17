@@ -175,3 +175,33 @@ npm run build
 - 仓库 `static/index.html` 与参考版 `截图参考/index-by-gpt5.6-t.html` **逐字节一致**（`diff` 无差异）；
 - 插件重建后（`iwebplayer-s-v1.1.3.jsplugin.zip`）网页端与 App 端首页间距均正常；
 - 结论：以"滚动条自适应 + 底部卡片右缘 10px 内缩 + 控制栏 28px 内边距"组合作为最终方案存档。
+
+## 9. 后续修复记录（2026-08-17 追加）
+
+### 9.1 1080p 分栏下歌曲列表未铺满
+
+- 根因一：`@media (min-width: 960px)` 分支仍是"固定 960px 居中"布局，1920px 屏幕上右栏只占中间区域；
+- 修复：≥960px 分支改为全宽 50/50（与 768–959px 分支一致），顶栏 100%、左栏/右栏各 50%、分栏按钮居中、Toast 移到 75%；
+- 根因二：`.playlist` 基础样式 `max-width: 800px` 未被分栏规则覆盖，1920px 下右栏 50%（960px）被卡回 800px，右侧空出 160px；
+- 修复：两条分栏分支均加 `max-width: none !important`。
+
+### 9.2 SongLoft 插件列表不显示 Logo
+
+- 根因：`static/icon.svg` 之前是"SVG 内嵌 base64 PNG"的伪矢量，SongLoft 客户端（Flutter/WebF）不支持渲染 SVG 内嵌位图；
+- 修复：用与原版同款 imagetracer.js 将 logo 转为**纯 `<path>` 矢量 SVG**（192×192，无内嵌图片），根目录 `logo.svg` 同步替换；`plugin.json` 的 `"icon": "icon.svg"` 不变。
+
+### 9.3 补充 lz-string.min.js
+
+- `index.html` 一直引用 `./static/lz-string.min.js`，但源码仓库中不存在（原版发布包里有、源码树没有），属历史悬空引用；
+- 已从原版插件包提取并加入 `static/lz-string.min.js`，消除 404，localStorage 压缩恢复生效。
+
+### 9.4 歌词读取优先级
+
+- 新增 `fetchSongloftLyric(rawItem)`：优先请求 `GET /api/v1/songs/{id}/lyric`（SongLoft 主程序内嵌/侧边栏/缓存歌词），解析 `data` 信封，取 `lyric→tlyric→rlyric→lxlyric` 首个非空；
+- 纯在线（LXMusic 搜索结果）歌曲自动跳过（主库无记录）；
+- 接入 4 处：MIoT `loadLyric`、预读缓存路径（在线+本地）、LXMusic 在线路径、本机普通播放兜底；
+- 最终优先级：① SongLoft 主程序 → ② LXMusic → ③ 刮削兜底。
+
+### 9.5 其它
+
+- 分栏 `player-bar` 右内边距曾临时改为 10px 后又撤销，保持 28px（见第 8 节最终方案）。
