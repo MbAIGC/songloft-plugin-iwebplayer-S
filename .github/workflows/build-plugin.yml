@@ -52,7 +52,15 @@ jobs:
           if [ -n "$LATEST" ]; then
             gh release upload "$LATEST" "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip" --clobber
           else
-            gh release create "plugin-v${PLUGIN_VERSION}" "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip" \
-              --title "iWebPlayer-S Plugin v${PLUGIN_VERSION}" \
-              --notes "iWebPlayer-S 插件包 v${PLUGIN_VERSION}（SongLoft 直接上传安装）"
+            PREV_TAG=$(gh release list --limit 2 --json tagName --jq '.[1].tagName // empty' 2>/dev/null || true)
+            if [ -n "$PREV_TAG" ]; then
+              NOTES=$(git log --oneline --no-merges "${PREV_TAG}..HEAD" | sed 's/^/- /')
+            else
+              NOTES=$(git log --oneline --no-merges -20 | sed 's/^/- /')
+            fi
+            gh release create "v${PLUGIN_VERSION}" "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip" \
+              --title "iWebPlayer-S v${PLUGIN_VERSION}" \
+              --notes "## 更新内容
+
+$NOTES"
           fi
