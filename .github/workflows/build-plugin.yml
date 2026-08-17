@@ -48,19 +48,26 @@ jobs:
         run: |
           PLUGIN_VERSION=$(python3 -c "import json;print(json.load(open('plugin.json'))['version'])")
           cp dist/iwebplayer-s.jsplugin.zip "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip"
+          # 插件 zip 上传到最新 release（APK 发布线）；版本化文件名保留旧插件
           LATEST=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || true)
+          PREV_TAG=$(gh release list --limit 2 --json tagName --jq '.[1].tagName // empty' 2>/dev/null || true)
+          if [ -n "$PREV_TAG" ]; then
+            NOTES=$(git log --oneline --no-merges "${PREV_TAG}..HEAD" | sed 's/^/- /')
+          else
+            NOTES=$(git log --oneline --no-merges -20 | sed 's/^/- /')
+          fi
+          PLUGIN_NOTES="## 插件更新（iWebPlayer-S v${PLUGIN_VERSION}）
+
+${NOTES}"
           if [ -n "$LATEST" ]; then
             gh release upload "$LATEST" "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip" --clobber
-          else
-            PREV_TAG=$(gh release list --limit 2 --json tagName --jq '.[1].tagName // empty' 2>/dev/null || true)
-            if [ -n "$PREV_TAG" ]; then
-              NOTES=$(git log --oneline --no-merges "${PREV_TAG}..HEAD" | sed 's/^/- /')
-            else
-              NOTES=$(git log --oneline --no-merges -20 | sed 's/^/- /')
+            # 把插件更新内容追加进 release 正文（已包含则跳过，避免重复）
+            if ! gh release view "$LATEST" --json body --jq '.body' | grep -q "iWebPlayer-S v${PLUGIN_VERSION}"; then
+              BODY=$(gh release view "$LATEST" --json body --jq '.body')
+              gh release edit "$LATEST" --notes "$(printf '%s\n\n%s' "$BODY" "$PLUGIN_NOTES")"
             fi
-            gh release create "v${PLUGIN_VERSION}" "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip" \
+          else
+            gh release create "plugin-v${PLUGIN_VERSION}" "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip" \
               --title "iWebPlayer-S v${PLUGIN_VERSION}" \
-              --notes "## 更新内容
-
-$NOTES"
+              --notes "$PLUGIN_NOTES"
           fi
