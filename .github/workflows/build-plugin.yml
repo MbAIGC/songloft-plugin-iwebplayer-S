@@ -58,7 +58,7 @@ jobs:
           fi
           PLUGIN_NOTES="## 插件更新（iWebPlayer-S v${PLUGIN_VERSION}）
 
-${NOTES}"
+          ${NOTES}"
           if [ -n "$LATEST" ]; then
             gh release upload "$LATEST" "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip" --clobber
             # 把插件更新内容追加进 release 正文（已包含则跳过，避免重复）
