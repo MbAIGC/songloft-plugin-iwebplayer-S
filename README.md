@@ -28,9 +28,13 @@ iWebPlayer-S 保留原版的播放、歌单、歌词、封面刮削、倍速、�
 
 播放时按以下优先级获取歌词，命中即停，空结果自动降级到下一级：
 
-1. **SongLoft 主程序**：请求 `/api/v1/songs/{id}/lyric`（内嵌歌词 / `.lrc` 侧边栏 / 缓存），本地与已入库歌曲优先；
+1. **SongLoft 主程序**：请求 `/api/v1/songs/{id}/lyric`（内嵌歌词 / `.lrc` 侧边栏 / 缓存），覆盖本地、已入库歌曲以及已被收录的在线歌（`lyric→tlyric→rlyric→lxlyric` 首个非空）；
 2. **LXMusic 插件**：在线歌曲的歌词下载；
 3. **刮削兜底**：iTunes / 网易云 / lrc.cx / lrclib.net 全网检索。
+
+三级流水线统一由 `window.fetchSongLyric(rawItem, targetSongName)` 提供（参照上游
+`songloft-plugin-iwebplayer` 的集中式方案重构），所有播放路径共用同一入口，
+命中即停、空结果自动降级。
 
 ## 📱 设备适配
 

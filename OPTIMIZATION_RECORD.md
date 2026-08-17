@@ -205,3 +205,20 @@ npm run build
 ### 9.5 其它
 
 - 分栏 `player-bar` 右内边距曾临时改为 10px 后又撤销，保持 28px（见第 8 节最终方案）。
+
+### 9.6 歌词读取重构：统一 fetchSongLyric（参照上游 2026-08-17 更新）
+
+- 背景：上游 `songloft-plugin-iwebplayer` 新增了集中式 `window.fetchSongLyric`
+  （SongLoft 主库 → LXMusic → 刮削 三级瀑布流，带命中日志、`targetSongName`
+  参数化）。本地此前把同一套流水线复制在 4 处调用点，细节不一致
+  （有的 await、有的 fire-and-forget、有的漏掉 LXMusic 层级），维护容易出错；
+- 采纳上游架构：新增统一的 `window.fetchSongLyric(rawItem, targetSongName)`，
+  4 处调用点（MIoT `loadLyric`、预读缓存路径、LXMusic 在线路径、本机普通播放
+  兜底）全部收敛为单一入口，并加入每级命中日志（`[歌词] 命中 ...`）；
+- 保留本地更强细节：
+  - 主库返回取 `lyric→tlyric→rlyric→lxlyric` 首个非空（上游只取 `lyric`）；
+  - `encodeURIComponent(rawItem.id)`（上游直接拼串）；
+  - 移除“纯在线歌曲跳过主库”的限制：主库覆盖“已被入库的在线歌”，
+    对无效 id 仅是快速 404，成本可忽略；
+- 行为收益：播放路径不再被歌词请求阻塞（原 LXMusic 在线路径是 await 后才设
+  音频源），歌词改为异步并行拉取；命中日志便于排查。

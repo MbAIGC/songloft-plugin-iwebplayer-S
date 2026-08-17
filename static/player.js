@@ -9,8 +9,6 @@
     async function fetchSongloftLyric(rawItem) {
         try {
             if (!rawItem || !rawItem.id) return null;
-            // 纯在线（LXMusic 搜索结果）歌曲在主库没有对应记录，直接跳过
-            if (rawItem._isOnlineObj && rawItem.plugin_entry_path !== 'dav') return null;
             const res = await fetch(`/api/v1/songs/${encodeURIComponent(rawItem.id)}/lyric`);
             if (!res.ok) return null;
             const data = await res.json();
@@ -21,6 +19,47 @@
             return null;
         }
     }
+
+    // 🌟 统一歌词获取中枢（三级瀑布流，参照上游 fetchSongLyric 重构）
+    // ① SongLoft 主程序歌词（内嵌/侧边栏/缓存，含网盘与被入库的在线歌）
+    // ② LXMusic 原生接口（仅在线歌曲） ③ 自定义刮削兜底
+    window.fetchSongLyric = async function(rawItem, targetSongName) {
+        try {
+            const mainLrc = await fetchSongloftLyric(rawItem);
+            if (mainLrc) {
+                console.log('[歌词] 命中 SongLoft 主程序歌词');
+                return mainLrc;
+            }
+
+            if (rawItem && rawItem._isOnlineObj && rawItem.plugin_entry_path !== 'dav') {
+                let sd = rawItem.source_data;
+                if (typeof sd === 'string') { try { sd = JSON.parse(sd); } catch(e){} }
+                const engineValEl = $('engine-val');
+                const currentEngine = engineValEl ? engineValEl.dataset.value : 'LXMusic';
+                if (currentEngine === 'LXMusic') {
+                    try {
+                        const lrcUrl = `/api/v1/jsplugin/lxmusic/api/direct/lyric?source=${sd.source}&songmid=${sd.songmid || sd.musicId}&musicId=${sd.musicId}&duration=${sd.duration}`;
+                        const lrcRes = await fetch(lrcUrl);
+                        const lrcData = await lrcRes.json();
+                        if (lrcData.code === 0 && lrcData.data && lrcData.data.lyric) {
+                            console.log('[歌词] 命中 LXMusic 原生接口');
+                            return lrcData.data.lyric;
+                        }
+                    } catch(e) {}
+                }
+            }
+
+            const scraped = await window.fetchScrape(rawItem, 'lyric', targetSongName);
+            if (scraped) {
+                console.log('[歌词] 命中自定义刮削');
+                return scraped;
+            }
+            console.log('[歌词] 未找到任何歌词');
+        } catch (e) {
+            console.error('[歌词] 统一歌词获取流水线崩溃:', e);
+        }
+        return null;
+    };
 
     function placeCornerToolsInActiveSurface() {
         const tools = $('fp-corner-tools');
@@ -484,32 +523,10 @@
             if (window.LyricsEngine) window.LyricsEngine.parse(null); // 先清空上一首
 
             const loadLyric = async () => {
-                let finalLrc = null;
-                try {
-                    // ① 优先 SongLoft 主程序歌词（内嵌/侧边栏/缓存）
-                    finalLrc = await fetchSongloftLyric(rawItem);
-                    if (!finalLrc && rawItem._isOnlineObj && rawItem.plugin_entry_path !== 'dav') {
-                        let sd = rawItem.source_data;
-                        if (typeof sd === 'string') { try { sd = JSON.parse(sd); } catch(e){} }
-                        const engineValEl = $('engine-val');
-                        const currentEngine = engineValEl ? engineValEl.dataset.value : 'LXMusic';
-                        if (currentEngine === 'LXMusic') {
-                            const lrcUrl = `/api/v1/jsplugin/lxmusic/api/direct/lyric?source=${sd.source}&songmid=${sd.songmid || sd.musicId}&musicId=${sd.musicId}&duration=${sd.duration}`;
-                            const lrcRes = await fetch(lrcUrl);
-                            const lrcData = await lrcRes.json();
-                            if (lrcData.code === 0 && lrcData.data && lrcData.data.lyric) {
-                                finalLrc = lrcData.data.lyric;
-                            }
-                        }
-                    }
-                    if (!finalLrc) {
-                        finalLrc = await window.fetchScrape(rawItem, 'lyric', window.currentSongName);
-                    }
-
-                    if (finalLrc && window.currentSongName === window.getSongNameObj(rawItem) && window.LyricsEngine) {
-                        window.LyricsEngine.parse(finalLrc);
-                    }
-                } catch(e) {}
+                const lrc = await window.fetchSongLyric(rawItem, window.currentSongName);
+                if (lrc && window.currentSongName === window.getSongNameObj(rawItem) && window.LyricsEngine) {
+                    window.LyricsEngine.parse(lrc);
+                }
             };
             loadLyric();
 
@@ -628,28 +645,7 @@
                 console.log("⚡ [极速切歌] 命中预读缓存！");
                 info = window.preloadCache.data;
 
-                if (rawItem._isOnlineObj && rawItem.plugin_entry_path !== 'dav') {
-                    let sd = rawItem.source_data;
-                    if (typeof sd === 'string') { try { sd = JSON.parse(sd); } catch(e){} }
-                    const engineValEl = $('engine-val');
-                    const currentEngine = engineValEl ? engineValEl.dataset.value : 'LXMusic';
-                    if (currentEngine === 'LXMusic') {
-                        // ① 优先 SongLoft 主程序歌词（在线歌曲无主库记录时自动跳过）
-                        if (!finalLrc) finalLrc = await fetchSongloftLyric(rawItem);
-                        const lrcUrl = `/api/v1/jsplugin/lxmusic/api/direct/lyric?source=${sd.source}&songmid=${sd.songmid || sd.musicId}&musicId=${sd.musicId}&duration=${sd.duration}`;
-                        fetch(lrcUrl).then(r => r.json()).then(lrcData => {
-                            if (lrcData.code === 0 && lrcData.data && lrcData.data.lyric) {
-                                finalLrc = lrcData.data.lyric;
-                                applyUI();
-                            }
-                        }).catch(()=>{});
-                    }
-                } else {
-                    // ① 本地/已入库歌曲：优先 SongLoft 主程序歌词（异步，不阻塞预读）
-                    fetchSongloftLyric(rawItem).then(lrc => {
-                        if (lrc) { finalLrc = lrc; applyUI(); }
-                    }).catch(()=>{});
-                }
+                // 歌词统一由下方公共 fetchSongLyric 流水线处理
             } else {
                 // 🌟 1. WebDAV 模式分流：公共函数一行搞定！
                 const davUrl = window.getWebDavStreamUrl(rawItem);
@@ -665,20 +661,11 @@
                     const currentEngine = engineValEl ? engineValEl.dataset.value : 'LXMusic';
 
                     if (currentEngine === 'LXMusic') {
-                        // ① 优先 SongLoft 主程序歌词（在线歌曲无主库记录时自动跳过）
-                        if (!finalLrc) finalLrc = await fetchSongloftLyric(rawItem);
                         const bestQuality = window.getBestLxQuality(sd, window.getLxQuality());
                         const urlData = await window.fetchLxMusicUrl(sd, bestQuality);
 
                         if (urlData && urlData.url) info = { url: urlData.url };
                         else if (urlData && urlData.data) info = { url: typeof urlData.data === 'string' ? urlData.data : urlData.data.url };
-
-                        const lrcUrl = `/api/v1/jsplugin/lxmusic/api/direct/lyric?source=${sd.source}&songmid=${sd.songmid || sd.musicId}&musicId=${sd.musicId}&duration=${sd.duration}`;
-                        const lrcRes = await fetch(lrcUrl);
-                        const lrcData = await lrcRes.json();
-                        if (lrcData.code === 0 && lrcData.data && lrcData.data.lyric) {
-                            finalLrc = lrcData.data.lyric;
-                        }
                     }
                 }
                 // 📁 3. 本地歌曲流程 (包括已经被加入到"我的歌单"的网盘歌曲)
@@ -787,17 +774,16 @@
                 }
             }
 
-            // ① 优先 SongLoft 主程序歌词（本机普通播放路径）
-            if (!finalLrc || finalLrc.trim() === '') {
-                finalLrc = await fetchSongloftLyric(rawItem);
-            }
-            if (!finalLrc || finalLrc.trim() === '') {
-                finalLrc = await window.fetchScrape(rawItem, 'lyric', window.currentSongName);
-            }
-            if (finalLrc) applyUI();
-            if (!finalLrc && targetSongName === window.currentSongName && window.LyricsEngine) {
-                window.LyricsEngine.parse(null);
-            }
+            // 统一歌词读取（SongLoft 主库 → LXMusic → 刮削），不阻塞播放
+            window.fetchSongLyric(rawItem, targetSongName).then(lrc => {
+                if (targetSongName !== window.currentSongName) return;
+                if (lrc) {
+                    finalLrc = lrc;
+                    applyUI();
+                } else if (window.LyricsEngine) {
+                    window.LyricsEngine.parse(null);
+                }
+            }).catch(()=>{});
 
         } catch (err) {
             if (window._davDirectTimeout) clearTimeout(window._davDirectTimeout); // 🌟 核心：解析异常时，也要杀掉定时器
