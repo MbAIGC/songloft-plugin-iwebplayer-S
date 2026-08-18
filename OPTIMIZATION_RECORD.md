@@ -222,3 +222,24 @@ npm run build
     对无效 id 仅是快速 404，成本可忽略；
 - 行为收益：播放路径不再被歌词请求阻塞（原 LXMusic 在线路径是 await 后才设
   音频源），歌词改为异步并行拉取；命中日志便于排查。
+
+### 9.7 插件缓存击穿修复：构建时自动注入 `?v=` 内容哈希
+
+- 背景（详见 `iwebplayer-s缓存问题分析.md`）：SongLoft 对子资源下发
+  `immutable, max-age=1年`，URL 不变则旧设备永远拿旧 JS；S 版手工维护的
+  `?v=`（如 `?v1.1.6`）在 player.js 内容变更时没有同步，且
+  `staticHash: false`，导致更新后旧浏览器仍跑旧代码；版本更新探针正则
+  （`/const APP_VERSION/`）与实际标记（`window.APP_VERSION`）不匹配，属死代码；
+- 修复一（P0）：新增 `scripts/inject-version-hashes.mjs`，在
+  `songloft-plugin build` 之后运行——读取 `dist/_build/static/*.js` 的
+  sha256 前 8 位替换 `index.html` 里所有 `<script src="./static/x.js?v=…">`
+  的版本参数，并重算 `plugin.json` 的 `zipHash` 后重新打包
+  `dist/iwebplayer-s.jsplugin.zip`；`package.json` 的 build 命令串联执行；
+- 修复二（P1）：修正 `checkLocalVersionUpdate()` 探针正则
+  （`/window\.APP_VERSION\s*=\s*['"](.*?)['"]/`），恢复“缓存固化时自动刷新”
+  兜底；
+- 效果：内容不变 → `?v=` 不变（继续吃 immutable 缓存）；内容一变 → URL 自动变
+  → 新装插件即时生效，无需手工 bump，与 `APP_VERSION` 解耦；
+- 注意：`?v=` 实际格式为 `?v0.8.0`（无等号），注入正则按此匹配；
+  本地 Node 18 无法跑 `songloft-plugin` CLI（npm 9 shim 的 ESM 问题），
+  用 Node 22 验证完整构建通过（9 个 script 全部注入正确）。

@@ -3844,7 +3844,7 @@
         fetch(window.location.pathname + '?t=' + Date.now(), { cache: 'no-store' })
             .then(res => res.text())
             .then(html => {
-                const match = html.match(/const APP_VERSION = ['"](.*?)['"]/);
+                const match = html.match(/window\.APP_VERSION\s*=\s*['"](.*?)['"]/);
                 if (match && match[1] && match[1] !== APP_VERSION) {
                     const newVersion = match[1];
                     const lastAttempt = localStorage.getItem('iwebplayer-s.iwp_update_attempt');
