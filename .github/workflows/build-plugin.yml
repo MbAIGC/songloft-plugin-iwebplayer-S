@@ -3,7 +3,7 @@ name: Build iWebPlayer-S Plugin
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - 'src/**'
       - 'static/**'
@@ -41,8 +41,9 @@ jobs:
           path: dist/iwebplayer-s.jsplugin.zip
           if-no-files-found: error
 
-      # 发布插件 zip 到 GitHub Release（与 APK 同一个 release 线）
+      # 发布插件 zip 到 GitHub Release（与 APK 同一个 release 线；仅 main 分支发布，dev 分支只产 artifact）
       - name: Publish plugin to release
+        if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

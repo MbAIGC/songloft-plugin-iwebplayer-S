@@ -8,7 +8,7 @@ on:
         required: false
         default: ''
   push:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - 'android/**'
       - '.github/workflows/build-apk.yml'
@@ -54,7 +54,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [ "${{ github.ref_type }}" = "tag" ]; then
+          # dev 分支：直接使用 plugin.json 的版本（如 1.1.5-dev），versionCode 取数字段
+          if [ "${{ github.ref }}" = "refs/heads/dev" ]; then
+            VERSION_FULL=$(python3 -c "import json;print(json.load(open('plugin.json'))['version'])")
+            VERSION="$VERSION_FULL"
+          elif [ "${{ github.ref_type }}" = "tag" ]; then
             VERSION="${GITHUB_REF_NAME#v}"
           elif [ -n "${{ inputs.version }}" ]; then
             VERSION="${{ inputs.version }}"
@@ -70,7 +74,9 @@ jobs:
             fi
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          IFS='.' read -r VM VN VP <<< "$VERSION"
+          # versionCode 只取纯数字段（剥离 -dev 等后缀）
+          VERCODE=$(echo "$VERSION" | sed 's/-.*$//')
+          IFS='.' read -r VM VN VP <<< "$VERCODE"
           echo "versionCode=$((10#$VM * 10000 + 10#$VN * 100 + 10#$VP))" >> "$GITHUB_OUTPUT"
           echo "APK will be named: iWebPlayer-S-v${VERSION}.apk"
 
@@ -124,6 +130,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish GitHub Release
+        if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
