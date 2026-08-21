@@ -1223,6 +1223,12 @@
       box-shadow: none !important;
     }
     body.player-open .player-container { max-width: none; }
+    /* 保持底部模式/切歌/播放/音量按钮使用原来的控制栏宽度；时间行继续独立铺开。 */
+    body.player-open .controls {
+      width: min(960px, 76vw);
+      margin-left: auto;
+      margin-right: auto;
+    }
     body.player-open .time-row { padding: 0 4px; }
     body.player-open .time-current,
     body.player-open .time-duration { font-size: 14px; }
