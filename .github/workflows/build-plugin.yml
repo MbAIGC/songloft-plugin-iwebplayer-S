@@ -82,7 +82,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           PLUGIN_VERSION=$(python3 -c "import json;print(json.load(open('plugin.json'))['version'])")
-          DEV_TAG="dev-${PLUGIN_VERSION}"
+          # The package version carries a -dev suffix, while the persistent release tag does not.
+          DEV_RELEASE_VERSION="${PLUGIN_VERSION%-dev}"
+          DEV_TAG="dev-${DEV_RELEASE_VERSION}"
           cp dist/iwebplayer-s.jsplugin.zip "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip"
           NOTES=$(git log --oneline --no-merges -10 | sed 's/^/- /')
           RELEASE_NOTES="$(cat DEV_RELEASE_NOTES.md)
