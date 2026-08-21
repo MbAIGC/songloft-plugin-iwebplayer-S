@@ -72,8 +72,9 @@
     --player-height: 160px;
     --tag-local: #4b5563;
   }
+  /* 深色主题：系统深色（且未手动锁浅色）或 手动深色，二选一生效 */
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       --bg-color: #111827;
       --card-bg: #1f2937;
       --text-main: #f9fafb;
@@ -81,6 +82,14 @@
       --border: #374151;
       --tag-local: #d1d5db;
     }
+  }
+  :root[data-theme="dark"] {
+    --bg-color: #111827;
+    --card-bg: #1f2937;
+    --text-main: #f9fafb;
+    --text-sub: #9ca3af;
+    --border: #374151;
+    --tag-local: #d1d5db;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -179,7 +188,8 @@
     border-bottom: 1px solid rgba(0, 0, 0, 0.05); display: flex; align-items: stretch; flex-direction: column;
     padding: 1px 16px 10px 16px; gap: 8px; transform: translate3d(0, 0, 0); -webkit-transform: translate3d(0, 0, 0);
   }
-  @media (prefers-color-scheme: dark) { .playlist-row { background: rgba(17, 24, 39, 0.65); border-bottom: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.3); } }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .playlist-row { background: rgba(17, 24, 39, 0.65); border-bottom: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.3); } }
+  :root[data-theme="dark"] .playlist-row { background: rgba(17, 24, 39, 0.65); border-bottom: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.3); }
 
   .toolbar-wrapper { gap: 10px; }
   .toolbar-main-box { display: flex; flex: 1; align-items: center; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; height: 40px; box-sizing: border-box; min-width: 0; transition: all 0.2s; }
@@ -230,13 +240,15 @@
      ========================================== */
   .playlist { list-style: none; padding: 10px; max-width: 800px; margin: 0 auto; background-color: transparent; }
   #loading { text-align: center; padding: 20px; color: var(--text-sub); background-color: transparent; }
-  @media (prefers-color-scheme: dark) { #loading, .playlist { background-color: transparent; } }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) #loading, :root:not([data-theme="light"]) .playlist { background-color: transparent; } }
+  :root[data-theme="dark"] #loading, :root[data-theme="dark"] .playlist { background-color: transparent; }
 
   .song-item { background: var(--card-bg); margin-bottom: 10px; padding: 15px; border-radius: 12px; display: flex; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05); cursor: pointer; transition: transform 0.1s; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
   .song-item:active { transform: scale(0.98); }
   .song-item.playing { border: 2px solid var(--primary); }
   .song-item.menu-open { background-color: rgba(236, 72, 153, 0.08); border-color: rgba(236, 72, 153, 0.3); z-index: 50; }
-  @media (prefers-color-scheme: dark) { .song-item.menu-open { background-color: rgba(236, 72, 153, 0.15); border-color: rgba(236, 72, 153, 0.4); } }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .song-item.menu-open { background-color: rgba(236, 72, 153, 0.15); border-color: rgba(236, 72, 153, 0.4); } }
+  :root[data-theme="dark"] .song-item.menu-open { background-color: rgba(236, 72, 153, 0.15); border-color: rgba(236, 72, 153, 0.4); }
 
   .song-cover-img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; margin: -10px 10px -10px -2px; flex-shrink: 0; box-shadow: 0 2px 6px rgba(0,0,0,0.15); transition: opacity 0.3s ease; }
   .song-info { flex: 1; overflow: hidden; }
@@ -518,7 +530,8 @@
     z-index: 1000; opacity: 0; pointer-events: none; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     display: flex; flex-direction: column; align-items: flex-end; color: var(--text-main); text-align: right;
   }
-  @media (prefers-color-scheme: dark) { .ios-guide-bubble { background: rgba(31, 41, 55, 0.95); border-color: rgba(255,255,255,0.1); color: #fff; } }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ios-guide-bubble { background: rgba(31, 41, 55, 0.95); border-color: rgba(255,255,255,0.1); color: #fff; } }
+  :root[data-theme="dark"] .ios-guide-bubble { background: rgba(31, 41, 55, 0.95); border-color: rgba(255,255,255,0.1); color: #fff; }
   .ios-guide-bubble.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
   .ios-guide-arrow { margin-top: 12px; margin-right: 12px; width: 28px; height: 28px; background: var(--primary); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(236, 72, 153, 0.3); animation: ios-bounce 1.2s infinite; }
 
@@ -645,7 +658,8 @@
      ========================================== */
   @media (min-width: 600px) {
     html { background-color: #e5e7eb; overflow-y: auto; scrollbar-gutter: auto; }
-    @media (prefers-color-scheme: dark) { html { background-color: #050505; } }
+    @media (prefers-color-scheme: dark) { html:not([data-theme="light"]) { background-color: #050505; } }
+    html[data-theme="dark"] { background-color: #050505; }
     body { width: 480px !important; margin: 0 auto !important; min-height: 100vh; box-shadow: 0 0 60px rgba(0,0,0,0.15); border-left: 1px solid var(--border); border-right: 1px solid var(--border); overflow-x: visible; }
     .player-bar, .full-player { width: 480px !important; left: 50% !important; margin-left: -240px !important; }
     .about-modal-backdrop { left: 50%; width: 480px; margin-left: -240px; }
@@ -668,7 +682,8 @@
     body.split-view-active .header { width: 100% !important; left: 0 !important; margin-left: 0 !important; right: auto !important; border-bottom: 1px solid var(--border); z-index: 260 !important; }
     body.split-view-active .playlist-row { position: sticky !important; width: 50% !important; left: auto !important; right: auto !important; margin-left: 50% !important; margin-right: 0 !important; z-index: 200 !important; padding-top: 8px !important; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.1), 0 4px 12px rgba(0, 0, 0, 0.05) !important; background: rgba(243, 244, 246, 0.7); border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important; }
     body.split-view-active #playlist-opts { top: 48px !important; }
-    @media (prefers-color-scheme: dark) { body.split-view-active .playlist-row { background: rgba(17, 24, 39, 0.65) !important; border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.3) !important; } }
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) body.split-view-active .playlist-row { background: rgba(17, 24, 39, 0.65) !important; border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.3) !important; } }
+    :root[data-theme="dark"] body.split-view-active .playlist-row { background: rgba(17, 24, 39, 0.65) !important; border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.3) !important; }
 
     body.split-view-active .playlist, body.split-view-active .playlist-grid, body.split-view-active #loading { width: 50% !important; margin-left: 50% !important; margin-top: 0 !important; max-width: none !important; }
     body.split-view-active .full-player { display: flex !important; transform: none !important; width: 50% !important; left: 0 !important; margin-left: 0 !important; top: 56px !important; height: calc(100vh - var(--player-height) - 56px - env(safe-area-inset-bottom)) !important; border-radius: 0 !important; border-top: none !important; box-shadow: none !important; border-right: 1px solid var(--border) !important; padding-top: 24px !important; z-index: 190 !important; }
@@ -814,37 +829,65 @@
   @media (prefers-color-scheme: dark) {
 
     /* 压暗全屏画报亮度（下方是你原本的代码，保持不变） */
-    body.ambient-active.player-open #fp-ambient-bg .fp-ambient-overlay,
-    body.ambient-active.split-view-active #fp-ambient-bg .fp-ambient-overlay {
+    :root:not([data-theme="light"]) body.ambient-active.player-open #fp-ambient-bg .fp-ambient-overlay,
+    :root:not([data-theme="light"]) body.ambient-active.split-view-active #fp-ambient-bg .fp-ambient-overlay {
       background: rgba(17, 24, 39, 0.35) !important;
     }
-    body.ambient-active.player-open #fp-ambient-bg .fp-ambient-img,
-    body.ambient-active.split-view-active #fp-ambient-bg .fp-ambient-img {
+    :root:not([data-theme="light"]) body.ambient-active.player-open #fp-ambient-bg .fp-ambient-img,
+    :root:not([data-theme="light"]) body.ambient-active.split-view-active #fp-ambient-bg .fp-ambient-img {
       opacity: 0.48 !important;
       filter: saturate(120%) !important; /* 适度提升暗光下的色彩鲜艳度 */
     }
 
     /* 手机端磨砂降级 */
-    body.ambient-active.player-open .full-player,
-    body.ambient-active.player-open .player-bar { background: rgba(17, 24, 39, 0.25) !important; }
-    body.ambient-active.player-open #device-val { background-color: rgba(31, 41, 55, 0.35) !important; border-color: rgba(255, 255, 255, 0.1) !important; }
+    :root:not([data-theme="light"]) body.ambient-active.player-open .full-player,
+    :root:not([data-theme="light"]) body.ambient-active.player-open .player-bar { background: rgba(17, 24, 39, 0.25) !important; }
+    :root:not([data-theme="light"]) body.ambient-active.player-open #device-val { background-color: rgba(31, 41, 55, 0.35) !important; border-color: rgba(255, 255, 255, 0.1) !important; }
 
     /* 平板端卡片墨岩化 */
     @media (min-width: 960px) {
-      body.ambient-active.split-view-active .header,
-      body.ambient-active.split-view-active .playlist-row { background: transparent !important; border: none !important; }
+      :root:not([data-theme="light"]) body.ambient-active.split-view-active .header,
+      :root:not([data-theme="light"]) body.ambient-active.split-view-active .playlist-row { background: transparent !important; border: none !important; }
 
-      body.ambient-active.split-view-active .song-item,
-      body.ambient-active.split-view-active .pl-card-b,
-      body.ambient-active.split-view-active .toolbar-main-box,
-      body.ambient-active.split-view-active .search-input-box,
-      body.ambient-active.split-view-active #device-val {
+      :root:not([data-theme="light"]) body.ambient-active.split-view-active .song-item,
+      :root:not([data-theme="light"]) body.ambient-active.split-view-active .pl-card-b,
+      :root:not([data-theme="light"]) body.ambient-active.split-view-active .toolbar-main-box,
+      :root:not([data-theme="light"]) body.ambient-active.split-view-active .search-input-box,
+      :root:not([data-theme="light"]) body.ambient-active.split-view-active #device-val {
         background-color: rgba(31, 41, 55, 0.85) !important;
         border: 1px solid rgba(255, 255, 255, 0.15) !important;
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
       }
-      body.ambient-active.split-view-active .song-item.playing { background-color: rgba(31, 41, 55, 0.95) !important; }
+      :root:not([data-theme="light"]) body.ambient-active.split-view-active .song-item.playing { background-color: rgba(31, 41, 55, 0.95) !important; }
     }
+  }
+  /* 手动深色模式（无论系统偏好，强制深色） */
+  :root[data-theme="dark"] body.ambient-active.player-open #fp-ambient-bg .fp-ambient-overlay,
+  :root[data-theme="dark"] body.ambient-active.split-view-active #fp-ambient-bg .fp-ambient-overlay {
+    background: rgba(17, 24, 39, 0.35) !important;
+  }
+  :root[data-theme="dark"] body.ambient-active.player-open #fp-ambient-bg .fp-ambient-img,
+  :root[data-theme="dark"] body.ambient-active.split-view-active #fp-ambient-bg .fp-ambient-img {
+    opacity: 0.48 !important;
+    filter: saturate(120%) !important;
+  }
+  :root[data-theme="dark"] body.ambient-active.player-open .full-player,
+  :root[data-theme="dark"] body.ambient-active.player-open .player-bar { background: rgba(17, 24, 39, 0.25) !important; }
+  :root[data-theme="dark"] body.ambient-active.player-open #device-val { background-color: rgba(31, 41, 55, 0.35) !important; border-color: rgba(255, 255, 255, 0.1) !important; }
+  @media (min-width: 960px) {
+    :root[data-theme="dark"] body.ambient-active.split-view-active .header,
+    :root[data-theme="dark"] body.ambient-active.split-view-active .playlist-row { background: transparent !important; border: none !important; }
+
+    :root[data-theme="dark"] body.ambient-active.split-view-active .song-item,
+    :root[data-theme="dark"] body.ambient-active.split-view-active .pl-card-b,
+    :root[data-theme="dark"] body.ambient-active.split-view-active .toolbar-main-box,
+    :root[data-theme="dark"] body.ambient-active.split-view-active .search-input-box,
+    :root[data-theme="dark"] body.ambient-active.split-view-active #device-val {
+      background-color: rgba(31, 41, 55, 0.85) !important;
+      border: 1px solid rgba(255, 255, 255, 0.15) !important;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+    }
+    :root[data-theme="dark"] body.ambient-active.split-view-active .song-item.playing { background-color: rgba(31, 41, 55, 0.95) !important; }
   }
 
   /* ==========================================
@@ -1488,6 +1531,9 @@
              <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
                <path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M5 21h14"></path>
              </svg> 安装 App
+          </li>
+          <li class="select-option" id="setting-theme">
+             <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="svg-mr-8"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg> 深色/浅色 <span id="setting-theme-label"></span>
           </li>
           <li class="select-option" id="setting-version">
              <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg> 版本 <span id="setting-version-label"></span>
@@ -3861,6 +3907,7 @@
 
     async function init() {
       defaultCover = window.defaultCover;
+      initTheme();              // 🌟 深色/浅色模式初始化（跟随系统 or 手动记忆）
       renderLogos();
       initSplitView();
       if (window.MiotManager) window.MiotManager.init();
@@ -4165,6 +4212,69 @@
      * 🌟 专属补丁 3：边缘主色提取 & 智能亮度计算 (自适应对比度)
      * ========================================== */
 
+    /* ==========================================
+     * 🌟 深色/浅色模式手动切换（跟随系统 or 手动记忆）
+     * 值：'system'(默认) | 'light' | 'dark'
+     * ========================================== */
+    const THEME_STORAGE_KEY = 'iwebplayer-s.theme';
+    let _currentThemeMode = 'system';
+
+    function applyThemeMode(mode) {
+      _currentThemeMode = mode;
+      const isDark = mode === 'dark'
+        || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      if (isDark) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      } else {
+        document.documentElement.setAttribute('data-theme', 'light');
+      }
+      // 联动主题色 meta
+      const metaThemeEl = document.querySelector('meta[name="theme-color"]');
+      if (metaThemeEl) {
+        // 播放页开启且已提取封面主色时，不覆盖（交给封面联动逻辑）
+        const playerOpen = document.body && document.body.classList.contains('player-open');
+        const hasTopColor = document.body && document.body.style.getPropertyValue('--top-color');
+        if (!playerOpen || !hasTopColor) {
+          metaThemeEl.content = isDark ? '#111827' : '#f3f4f6';
+        }
+      }
+      // 更新菜单 label
+      const label = document.getElementById('setting-theme-label');
+      if (label) {
+        label.textContent = mode === 'dark' ? '深色' : (mode === 'light' ? '浅色' : '跟随系统');
+      }
+      // 记忆偏好（仅手动选择时存；跟随系统也存，便于下次恢复）
+      try { localStorage.setItem(THEME_STORAGE_KEY, mode); } catch (e) {}
+    }
+
+    function initTheme() {
+      let mode = 'system';
+      try {
+        const stored = localStorage.getItem(THEME_STORAGE_KEY);
+        if (stored === 'light' || stored === 'dark' || stored === 'system') mode = stored;
+      } catch (e) {}
+      applyThemeMode(mode);
+
+      // 系统亮暗切换时，跟随模式的自动更新
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        if (_currentThemeMode === 'system') applyThemeMode('system');
+      });
+
+      // 设置菜单点击：跟随系统 → 浅色 → 深色 → 跟随系统
+      const themeItem = document.getElementById('setting-theme');
+      if (themeItem) {
+        themeItem.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          const next = _currentThemeMode === 'system' ? 'light'
+            : _currentThemeMode === 'light' ? 'dark' : 'system';
+          applyThemeMode(next);
+          // 与其他设置项一致：点击后关闭菜单
+          const opts = document.getElementById('settings-opts');
+          if (opts) opts.classList.remove('show');
+        });
+      }
+    }
+
     function initThemeColor() {
         let metaTheme = document.querySelector('meta[name="theme-color"]');
         if (!metaTheme) {
@@ -4172,7 +4282,10 @@
             metaTheme.name = 'theme-color';
             document.head.appendChild(metaTheme);
         }
-        const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        // 优先使用手动/跟随后的 data-theme，其次系统偏好
+        const forced = document.documentElement.getAttribute('data-theme');
+        const isDark = forced === 'dark'
+          || (!forced && window.matchMedia('(prefers-color-scheme: dark)').matches);
         metaTheme.content = isDark ? '#111827' : '#f3f4f6';
         return metaTheme;
     }
@@ -4268,6 +4381,8 @@
     bodyClassObserver.observe(document.body, { attributes: true });
 
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+        // 🌟 跟随模式下由 applyThemeMode 统一处理；手动锁定时系统切换不影响页面主题
+        if (typeof _currentThemeMode !== 'undefined' && _currentThemeMode !== 'system') return;
         if (!document.body.classList.contains('player-open')) {
             metaThemeEl.content = e.matches ? '#111827' : '#f3f4f6';
         }

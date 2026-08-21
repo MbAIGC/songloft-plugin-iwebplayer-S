@@ -25,6 +25,7 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
+import android.webkit.ValueCallback;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
@@ -60,6 +61,7 @@ public class MainActivity extends AppCompatActivity {
     private static final long TOKEN_CHECK_INTERVAL_MS = 3000L;
     private static final int REQ_NOTIFICATION = 1001;
     private static final int NOTIF_MEDIA = 1002;
+    private static final int REQ_FILE_CHOOSER = 1003;
     private static final String CHANNEL_PLAYBACK = "playback";
 
     public static MainActivity instance;
@@ -72,6 +74,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean authRefreshing = false;
     private String cachedArtworkUrl = "";
     private Bitmap cachedArtwork = null;
+    private ValueCallback<String[]> filePathCallback = null;
 
     private final Runnable tokenChecker = new Runnable() {
         @Override
@@ -112,6 +115,21 @@ public class MainActivity extends AppCompatActivity {
         // （否则 WebView 会一直显示旧的 index.html/CSS）
         s.setCacheMode(WebSettings.LOAD_NO_CACHE);
 
+        // 🌟 显式声明 WebView 明暗策略，避免 ROM/WebView 在系统日间时误判深色：
+        // 系统夜间 → 允许暗化（页面跟随系统）；系统日间 → 强制浅色（修正误判）。
+        // 插件页面内 data-theme 负责手动深浅切换，此处只保证 WebView 正确报告系统偏好。
+        boolean systemDark = (getResources().getConfiguration().uiMode
+                & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            s.setForceDark(systemDark
+                    ? WebSettings.FORCE_DARK_AUTO
+                    : WebSettings.FORCE_DARK_OFF);
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            s.setAlgorithmicDarkeningAllowed(systemDark);
+        }
+
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView view, String url) {
@@ -145,6 +163,27 @@ public class MainActivity extends AppCompatActivity {
                         startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
                     } catch (Exception ignored) {
                     }
+                }
+                return true;
+            }
+
+            // 🌟 支持 <input type="file"> 文件选择（导入音源脚本等）
+            @Override
+            public boolean onShowFileChooser(WebView webView, ValueCallback<String[]> filePathCallback, FileChooserParams fileChooserParams) {
+                if (MainActivity.this.filePathCallback != null) {
+                    MainActivity.this.filePathCallback.onReceiveValue(null);
+                }
+                MainActivity.this.filePathCallback = filePathCallback;
+
+                Intent intent = fileChooserParams.createIntent();
+                if (fileChooserParams.getAcceptTypes() == null || fileChooserParams.getAcceptTypes().length == 0) {
+                    intent.setType("*/*");
+                }
+                try {
+                    startActivityForResult(intent, REQ_FILE_CHOOSER);
+                } catch (Exception e) {
+                    MainActivity.this.filePathCallback = null;
+                    return false;
                 }
                 return true;
             }
@@ -611,6 +650,24 @@ public class MainActivity extends AppCompatActivity {
         runOnUiThread(() -> {
             if (webView != null) webView.evaluateJavascript(js, null);
         });
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_FILE_CHOOSER) {
+            if (resultCode == RESULT_OK && data != null && data.getData() != null) {
+                Uri uri = data.getData();
+                if (filePathCallback != null) {
+                    // WebView 期望收到 file:// URI（通过回调写回触发 <input type="file"> 的 change 事件）
+                    filePathCallback.onReceiveValue(new String[]{ uri.toString() });
+                }
+            } else if (filePathCallback != null) {
+                // 用户取消选择
+                filePathCallback.onReceiveValue(null);
+            }
+            filePathCallback = null;
+        }
     }
 
     private class Bridge {
