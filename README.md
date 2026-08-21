@@ -92,8 +92,12 @@ npm run build
 
 ## 📚 文档
 
-- [优化记录](./OPTIMIZATION_RECORD.md)
-- [代码评审](./ds-review.md)
+- [优化记录](./docs/OPTIMIZATION_RECORD.md)
+- [代码评审](./docs/ds-review.md)
+- [逐字歌词（KTV）引擎移植记录](./docs/优化记录-逐字歌词KTV移植.md)
+- [缓存问题分析](./docs/iwebplayer-s缓存问题分析.md)
+- [静默更新优化方案](./docs/iwebplayer-s静默更新优化方案.md)
+- [主题模式优化总结](./docs/iwebplayer-s主题模式优化总结.md)
 
 ## 🙏 致谢
 
