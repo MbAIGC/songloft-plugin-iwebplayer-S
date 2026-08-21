@@ -12,6 +12,7 @@ on:
     paths:
       - 'android/**'
       - '.github/workflows/build-apk-dev.yml'
+      - 'plugin.json'
 
 permissions:
   contents: write

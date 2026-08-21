@@ -7,7 +7,6 @@
     "build": "songloft-plugin build && node scripts/inject-version-hashes.mjs",
     "dev": "songloft-plugin dev",
     "validate": "songloft-plugin validate",
-    "version": "node scripts/auto-version.mjs",
     "publish:release": "songloft-plugin publish"
   },
   "devDependencies": {
