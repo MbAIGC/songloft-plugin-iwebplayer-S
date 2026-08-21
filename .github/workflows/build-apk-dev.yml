@@ -1,23 +1,23 @@
-name: Build Android APK
+name: Build Android APK (dev)
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: '手动指定版本号（如 0.0.1），留空则自动从上次 release 递增'
+        description: '手动指定版本号（如 0.0.1），留空则从 plugin.json 读取'
         required: false
         default: ''
   push:
-    branches: [main]
+    branches: [dev]
     paths:
       - 'android/**'
-      - '.github/workflows/build-apk.yml'
+      - '.github/workflows/build-apk-dev.yml'
 
 permissions:
   contents: write
 
 concurrency:
-  group: build-apk
+  group: build-apk-dev
   cancel-in-progress: false
 
 jobs:
@@ -44,39 +44,29 @@ jobs:
           cache: npm
 
       # ------------------------------------------------------------
-      # 版本号解析：
-      #   1) 推 tag（如 v0.0.1）→ 用 tag 版本
-      #   2) 手动触发时填了 version → 用填的版本
-      #   3) 其它情况 → 查询上次 release，patch +1；没有则从 v0.0.1 开始
+      # dev 版本号解析：默认直接使用 plugin.json 的版本（如 1.1.5-dev），
+      # versionCode 取数字段；手动触发填了 version 时优先用它。
       # ------------------------------------------------------------
       - name: Resolve version
         id: version
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            VERSION="${GITHUB_REF_NAME#v}"
-          elif [ -n "${{ inputs.version }}" ]; then
+          if [ -n "${{ inputs.version }}" ]; then
             VERSION="${{ inputs.version }}"
             VERSION="${VERSION#v}"
           else
-            LATEST=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || true)
-            if [ -n "$LATEST" ] && [[ "$LATEST" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              BASE="${LATEST#v}"
-              IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
-              VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
-            else
-              VERSION="0.0.1"
-            fi
+            VERSION=$(python3 -c "import json;print(json.load(open('plugin.json'))['version'])")
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          IFS='.' read -r VM VN VP <<< "$VERSION"
+          # versionCode 只取纯数字段（剥离 -dev 等后缀）
+          VERCODE=$(echo "$VERSION" | sed 's/-.*$//')
+          IFS='.' read -r VM VN VP <<< "$VERCODE"
           echo "versionCode=$((10#$VM * 10000 + 10#$VN * 100 + 10#$VP))" >> "$GITHUB_OUTPUT"
           echo "APK will be named: iWebPlayer-S-v${VERSION}.apk"
 
       # ------------------------------------------------------------
-      # 用固定签名（Secrets 中的 keystore）签名 release 包，
-      # 避免每次构建生成不同 debug 证书导致覆盖安装冲突
+      # 用固定签名（Secrets 中的 keystore）签名 release 包
       # ------------------------------------------------------------
       - name: Prepare signing keystore
         run: |
@@ -91,7 +81,7 @@ jobs:
           } > android/keystore.properties
 
       # ------------------------------------------------------------
-      # 同步构建插件 zip（与 APK 发布到同一个 Release，SongLoft 可直接上传安装）
+      # 同步构建插件 zip（与 APK 发布到同一个 dev release，SongLoft 可直接上传安装）
       # ------------------------------------------------------------
       - name: Build plugin zip
         run: |
@@ -119,19 +109,30 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: iWebPlayer-S-v${{ steps.version.outputs.version }}
+          name: iWebPlayer-S-dev-v${{ steps.version.outputs.version }}
           path: release/*
           if-no-files-found: error
 
-      - name: Publish GitHub Release
+      # dev 专用：发布到 dev-* prerelease（不抢 main 的 Latest，产物带 -dev）
+      - name: Publish GitHub Release (dev)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          if gh release view "v${VERSION}" >/dev/null 2>&1; then
-            gh release upload "v${VERSION}" release/* --clobber
+          # dev tag 使用干净的 dev-<数字版本>（如 dev-1.1.5），产物文件名仍带 -dev
+          DEV_VERSION="${VERSION%-dev}"
+          DEV_TAG="dev-${DEV_VERSION}"
+          NOTES=$(git log --oneline --no-merges -10 | sed 's/^/- /')
+          if gh release view "$DEV_TAG" >/dev/null 2>&1; then
+            gh release upload "$DEV_TAG" release/* --clobber
+            gh release edit "$DEV_TAG" --prerelease --notes "iWebPlayer-S dev 构建 v${VERSION}
+
+          ${NOTES}"
           else
-            gh release create "v${VERSION}" release/* \
-              --title "v${VERSION}" \
-              --notes "iWebPlayer-S Android APK v${VERSION}"
+            gh release create "$DEV_TAG" release/* \
+              --prerelease \
+              --title "iWebPlayer-S dev v${VERSION}" \
+              --notes "iWebPlayer-S dev 构建 v${VERSION}
+
+          ${NOTES}"
           fi
