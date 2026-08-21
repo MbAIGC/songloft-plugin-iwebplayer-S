@@ -81,11 +81,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # 使用 auto-version 脚本自动生成版本号，无需手动修改 plugin.json
-          PLUGIN_VERSION=$(node scripts/auto-version.mjs)
+          PLUGIN_VERSION=$(python3 -c "import json;print(json.load(open('plugin.json'))['version'])")
           # The package version carries a -dev suffix, while the persistent release tag does not.
-          DEV_RELEASE_VERSION=$(node scripts/auto-version.mjs --base)
-          DEV_TAG=$(node scripts/auto-version.mjs --tag)
+          DEV_RELEASE_VERSION="${PLUGIN_VERSION%-dev}"
+          DEV_TAG="dev-${DEV_RELEASE_VERSION}"
           cp dist/iwebplayer-s.jsplugin.zip "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip"
           NOTES=$(git log --oneline --no-merges -10 | sed 's/^/- /')
           RELEASE_NOTES="$(cat DEV_RELEASE_NOTES.md)
