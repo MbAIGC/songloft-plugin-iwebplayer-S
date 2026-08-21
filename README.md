@@ -2,7 +2,7 @@
 
 > iWebplayer-S 是以 [birdstudy-nj](https://github.com/birdstudy-nj) 大佬的 [iwebplayer](https://github.com/songloft-org/songloft-plugin-iwebplayer) 为基础，Vibe-Coding 适配的宽屏设备（例如笔记本、安卓平板等），并打包成 APK。
 
-![Plugin](https://img.shields.io/badge/plugin-v1.1.5-ec4899)
+![Plugin](https://img.shields.io/badge/plugin-v1.1.6-ec4899)
 ![Android APK](https://img.shields.io/badge/apk-v0.0.1+-8b5cf6)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 
@@ -60,7 +60,7 @@ iWebPlayer-S 保留原版的播放、歌单、歌词、封面刮削、倍速、�
 2. 首次打开：填写服务器地址、账号、密码，勾选协议后登录，直达播放器；
 3. 服务器更新插件后，App 打开即为最新页面，无需重新安装 APK。
 
-> 📌 APK 与插件在同一 Release 中发布：APK 从 **v0.0.1** 开始计数，插件版本为 **1.1.5**。
+> 📌 APK 与插件在同一 Release 中发布：APK 从 **v0.0.1** 开始计数，插件版本为 **1.1.6**。
 
 ## 🛠️ 构建
 
@@ -77,7 +77,7 @@ npm run build
 推送到 `main`（改动 `android/**` 或 workflow）即自动构建并发布，同一 Release 同时产出：
 
 - `iWebPlayer-S-vX.Y.Z.apk` — 固定签名，可覆盖安装
-- `iwebplayer-s-v1.1.5.jsplugin.zip` — 可直接安装到 SongLoft
+- `iwebplayer-s-v1.1.6.jsplugin.zip` — 可直接安装到 SongLoft
 
 也可在 Actions 页面手动触发，并支持手动指定版本号。
 
