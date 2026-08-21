@@ -129,7 +129,7 @@ jobs:
           path: release/*
           if-no-files-found: error
 
-      - name: Publish GitHub Release
+      - name: Publish GitHub Release (main)
         if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -141,4 +141,28 @@ jobs:
             gh release create "v${VERSION}" release/* \
               --title "v${VERSION}" \
               --notes "iWebPlayer-S Android APK v${VERSION}"
+          fi
+
+      # dev 分支：发布到独立的 dev-* release 线（不抢 main 的 latest，产物带 -dev）
+      - name: Publish GitHub Release (dev)
+        if: github.ref == 'refs/heads/dev'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          # dev tag 使用干净的 dev-<数字版本>（如 dev-1.1.5），产物文件名仍带 -dev
+          DEV_VERSION="${VERSION%-dev}"
+          DEV_TAG="dev-${DEV_VERSION}"
+          NOTES=$(git log --oneline --no-merges -10 | sed 's/^/- /')
+          if gh release view "$DEV_TAG" >/dev/null 2>&1; then
+            gh release upload "$DEV_TAG" release/* --clobber
+            gh release edit "$DEV_TAG" --notes "iWebPlayer-S dev 构建 v${VERSION}
+
+${NOTES}"
+          else
+            gh release create "$DEV_TAG" release/* \
+              --title "iWebPlayer-S dev v${VERSION}" \
+              --notes "iWebPlayer-S dev 构建 v${VERSION}
+
+${NOTES}"
           fi

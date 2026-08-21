@@ -41,8 +41,8 @@ jobs:
           path: dist/iwebplayer-s.jsplugin.zip
           if-no-files-found: error
 
-      # 发布插件 zip 到 GitHub Release（与 APK 同一个 release 线；仅 main 分支发布，dev 分支只产 artifact）
-      - name: Publish plugin to release
+      # 发布插件 zip 到 GitHub Release（main：与 APK 同一个 release 线 v*；dev：独立 dev-* release 线）
+      - name: Publish plugin to release (main)
         if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -70,5 +70,28 @@ jobs:
           else
             gh release create "plugin-v${PLUGIN_VERSION}" "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip" \
               --title "iWebPlayer-S v${PLUGIN_VERSION}" \
+              --notes "$PLUGIN_NOTES"
+          fi
+
+      # dev 分支：发布到独立的 dev-* release 线（不抢 main 的 latest，产物带 -dev）
+      - name: Publish plugin to release (dev)
+        if: github.ref == 'refs/heads/dev'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PLUGIN_VERSION=$(python3 -c "import json;print(json.load(open('plugin.json'))['version'])")
+          DEV_TAG="dev-${PLUGIN_VERSION}"
+          cp dist/iwebplayer-s.jsplugin.zip "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip"
+          NOTES=$(git log --oneline --no-merges -10 | sed 's/^/- /')
+          PLUGIN_NOTES="## iWebPlayer-S dev 构建 v${PLUGIN_VERSION}
+
+          ${NOTES}"
+          if gh release view "$DEV_TAG" >/dev/null 2>&1; then
+            # 已存在 → 覆盖上传新版，更新正文
+            gh release upload "$DEV_TAG" "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip" --clobber
+            gh release edit "$DEV_TAG" --notes "$PLUGIN_NOTES"
+          else
+            gh release create "$DEV_TAG" "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip" \
+              --title "iWebPlayer-S dev v${PLUGIN_VERSION}" \
               --notes "$PLUGIN_NOTES"
           fi
