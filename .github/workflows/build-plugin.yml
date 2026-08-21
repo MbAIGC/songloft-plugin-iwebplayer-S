@@ -3,13 +3,15 @@ name: Build iWebPlayer-S Plugin
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - 'src/**'
       - 'static/**'
       - 'plugin.json'
       - 'package.json'
       - 'package-lock.json'
+      - 'DEV_RELEASE_NOTES.md'
+      - '.github/workflows/build-plugin.yml'
 
 permissions:
   contents: write
@@ -41,8 +43,9 @@ jobs:
           path: dist/iwebplayer-s.jsplugin.zip
           if-no-files-found: error
 
-      # 发布插件 zip 到 GitHub Release（与 APK 同一个 release 线）
-      - name: Publish plugin to release
+      # main：发布插件 zip 到与 APK 共用的稳定 release 线。
+      - name: Publish plugin to release (main)
+        if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -70,4 +73,29 @@ jobs:
             gh release create "plugin-v${PLUGIN_VERSION}" "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip" \
               --title "iWebPlayer-S v${PLUGIN_VERSION}" \
               --notes "$PLUGIN_NOTES"
+          fi
+
+      # dev：发布到独立 dev-* 预发布线，并保留仓库中的固定预发布说明。
+      - name: Publish plugin to release (dev)
+        if: github.ref == 'refs/heads/dev'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PLUGIN_VERSION=$(python3 -c "import json;print(json.load(open('plugin.json'))['version'])")
+          DEV_TAG="dev-${PLUGIN_VERSION}"
+          cp dist/iwebplayer-s.jsplugin.zip "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip"
+          NOTES=$(git log --oneline --no-merges -10 | sed 's/^/- /')
+          RELEASE_NOTES="$(cat DEV_RELEASE_NOTES.md)
+
+          ## 本次构建提交
+
+          ${NOTES}"
+          if gh release view "$DEV_TAG" >/dev/null 2>&1; then
+            gh release upload "$DEV_TAG" "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip" --clobber
+            gh release edit "$DEV_TAG" --title "iWebPlayer-S dev v${PLUGIN_VERSION}" --prerelease --notes "$RELEASE_NOTES"
+          else
+            gh release create "$DEV_TAG" "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip" \
+              --title "iWebPlayer-S dev v${PLUGIN_VERSION}" \
+              --prerelease \
+              --notes "$RELEASE_NOTES"
           fi
