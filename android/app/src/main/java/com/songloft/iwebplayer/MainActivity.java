@@ -74,7 +74,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean authRefreshing = false;
     private String cachedArtworkUrl = "";
     private Bitmap cachedArtwork = null;
-    private ValueCallback<String[]> filePathCallback = null;
+    private ValueCallback<Uri[]> filePathCallback = null;
 
     private final Runnable tokenChecker = new Runnable() {
         @Override
@@ -169,7 +169,7 @@ public class MainActivity extends AppCompatActivity {
 
             // 🌟 支持 <input type="file"> 文件选择（导入音源脚本等）
             @Override
-            public boolean onShowFileChooser(WebView webView, ValueCallback<String[]> filePathCallback, FileChooserParams fileChooserParams) {
+            public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback, FileChooserParams fileChooserParams) {
                 if (MainActivity.this.filePathCallback != null) {
                     MainActivity.this.filePathCallback.onReceiveValue(null);
                 }
@@ -659,8 +659,8 @@ public class MainActivity extends AppCompatActivity {
             if (resultCode == RESULT_OK && data != null && data.getData() != null) {
                 Uri uri = data.getData();
                 if (filePathCallback != null) {
-                    // WebView 期望收到 file:// URI（通过回调写回触发 <input type="file"> 的 change 事件）
-                    filePathCallback.onReceiveValue(new String[]{ uri.toString() });
+                    // WebView 期望收到 Uri[]（触发 <input type="file"> 的 change 事件）
+                    filePathCallback.onReceiveValue(new Uri[]{ uri });
                 }
             } else if (filePathCallback != null) {
                 // 用户取消选择
