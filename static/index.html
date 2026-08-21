@@ -1194,7 +1194,10 @@
       max-width: 100%;
       max-height: min(48vh, 440px);
       aspect-ratio: 1;
-      border-radius: 8px;
+      /* Keep the wide immersive player cover aligned with the home player-cover treatment. */
+      border-radius: 20px !important;
+      border: 1px solid #222 !important;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2) !important;
     }
     body.player-open .fp-lyrics-wrapper {
       flex: 1;
