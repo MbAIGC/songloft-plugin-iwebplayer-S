@@ -57,37 +57,73 @@ window.LyricsEngine = (function() {
 
                 let words = [];
                 let pureText = '';
-                let isKtv = text.includes('[[');
+                // KTV 逐字歌词识别，支持两种实际歌词格式：
+                //   格式B(上游原逻辑): word[[mm:ss.xx]]word[[mm:ss.xx]]...   —— 双括号
+                //   格式A(实测单括号): word[mm:ss.xxx]word[mm:ss.xxx]...     —— 每个字自带绝对时间
+                let isKtv = text.includes('[[') || /\]\S+\[\d{1,2}:\d{2}/.test(text);
 
                 if (isKtv) {
-                    const parts = text.split('[[');
+                    if (text.includes('[[')) {
+                        // —— 格式B：双括号逐字解析（保持上游逻辑不变）——
+                        const parts = text.split('[[');
 
-                    parts.forEach((part, index) => {
-                        if (index === 0) {
-                            if (part) {
-                                words.push({ offset: 0, text: part, duration: 0 });
-                                pureText += part;
-                            }
-                        } else {
-                            const closeIdx = part.indexOf(']]');
-                            if (closeIdx !== -1) {
-                                const timeParts = part.substring(0, closeIdx).split(':');
-                                const absTime = parseInt(timeParts[0], 10) * 60 + parseFloat(timeParts[1]);
-                                // 🌟 智能判断：如果括号内的时间远小于行首时间，说明它是相对时间(格式2)，直接用；否则是绝对时间(格式1)，减去行首。
-                                const offset = (absTime < baseTime - 1) ? absTime : Math.max(0, absTime - baseTime);
-                                const wText = part.substring(closeIdx + 2);
+                        parts.forEach((part, index) => {
+                            if (index === 0) {
+                                if (part) {
+                                    words.push({ offset: 0, text: part, duration: 0 });
+                                    pureText += part;
+                                }
+                            } else {
+                                const closeIdx = part.indexOf(']]');
+                                if (closeIdx !== -1) {
+                                    const timeParts = part.substring(0, closeIdx).split(':');
+                                    const absTime = parseInt(timeParts[0], 10) * 60 + parseFloat(timeParts[1]);
+                                    // 🌟 智能判断：如果括号内的时间远小于行首时间，说明它是相对时间(格式2)，直接用；否则是绝对时间(格式1)，减去行首。
+                                    const offset = (absTime < baseTime - 1) ? absTime : Math.max(0, absTime - baseTime);
+                                    const wText = part.substring(closeIdx + 2);
 
-                                words.push({ offset: offset, text: wText, duration: 0 });
-                                pureText += wText;
+                                    words.push({ offset: offset, text: wText, duration: 0 });
+                                    pureText += wText;
+                                }
                             }
+                        });
+                    } else {
+                        // —— 格式A：单括号逐字解析。例：
+                        //    [00:37.465]让[00:37.652]我[00:37.877]再[00:38.134]看[00:38.440]你
+                        //    行内每个 [mm:ss.xxx] 为该字绝对时间，以行首时间换算相对 offset ——
+                        const segRegex = /([^\[]+?)\[(\d{1,2}):(\d{2}(?:\.\d{1,3})?)\]/g;
+                        let segMatch;
+                        let lastAbs = null;
+                        let lastSegEnd = 0;
+                        while ((segMatch = segRegex.exec(text)) !== null) {
+                            const abs = parseInt(segMatch[2], 10) * 60 + parseFloat(segMatch[3]);
+                            const wText = segMatch[1];
+                            words.push({ offset: Math.max(0, abs - baseTime), text: wText, duration: 0 });
+                            pureText += wText;
+                            lastAbs = abs;
+                            lastSegEnd = segRegex.lastIndex;
                         }
-                    });
+                        // 最后一个字后通常没有时间标签，作为尾部词条并入
+                        // 注意: exec 返回 null 会重置 lastIndex 为 0，故用 lastSegEnd 保存最后一轮值
+                        const tail = text.slice(lastSegEnd);
+                        if (tail) {
+                            words.push({ offset: (lastAbs !== null ? Math.max(0, lastAbs - baseTime) : 0), text: tail, duration: 0 });
+                            pureText += tail;
+                        }
+                    }
 
                     for (let i = 0; i < words.length - 1; i++) {
-                        words[i].duration = words[i+1].offset - words[i].offset;
+                        // 加 0.01 下限，防止同时间戳相邻字出现 0 时长导致进度除零
+                        words[i].duration = Math.max(0.01, words[i+1].offset - words[i].offset);
                     }
                 } else {
-                    pureText = text;
+                    // 行尾结束时间标记处理："词[mm:ss.xxx]" 且尾标签晚于行首 → 属行时长标记，剥掉避免原文展示
+                    const endMark = /^(.*?)\[(\d{1,2}):(\d{2}(?:\.\d{1,3})?)\]$/.exec(text);
+                    if (endMark && endMark[1] && (parseInt(endMark[2], 10) * 60 + parseFloat(endMark[3])) > baseTime) {
+                        pureText = endMark[1];
+                    } else {
+                        pureText = text;
+                    }
                 }
 
                 parsedLyrics.push({ time: baseTime, text: pureText, isKtv, words });
