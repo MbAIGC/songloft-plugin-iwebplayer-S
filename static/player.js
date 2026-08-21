@@ -446,6 +446,8 @@
                     if (window.showToast) window.showToast("❌ 打包推送失败，请重试");
                     return; // 打包失败，阻断播放
                 }
+                // 覆盖持久进度提示，避免“正在打包”一直停留在界面上。
+                if (window.showToast) window.showToast("✅ 列表已推送到音箱");
             }
 
             window.highlightSongUI(index);

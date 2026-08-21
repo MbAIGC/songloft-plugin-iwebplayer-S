@@ -295,7 +295,17 @@ syncListToPushPlaylist: async function(currentList) {
 
 **注意：** 该探针只能确认 HTML 中的 `APP_VERSION`，不能替代构建脚本中的 JS 内容哈希。插件构建仍需执行 `scripts/inject-version-hashes.mjs`，确保静态 JS 内容变化时 URL 变化。
 
-### 4.5 验证记录
+### 4.5 MIoT 打包推送进度提示修复
+
+**问题：** `player.js` 在虚拟列表推送到音箱前使用 `showToast(message, true)` 显示持久提示“正在将列表打包推送到音箱...”。推送成功后没有成功状态覆盖，导致提示可能一直停留，用户误以为任务仍未完成。
+
+**思路：** 保留推送期间的持久进度提示；成功获得推送歌单 ID 后立即覆盖为普通成功提示，失败路径继续覆盖为错误提示。普通提示会按现有 toast 机制自动消失。
+
+**实现：** `static/player.js` 在 `syncListToPushPlaylist()` 返回有效 ID 后调用 `showToast("✅ 列表已推送到音箱")`。
+
+**结果：** 推送完成后不再残留“正在打包”状态，同时保留失败提示和播放阻断逻辑。
+
+### 4.6 验证记录
 
 本轮整改完成后应执行：
 
