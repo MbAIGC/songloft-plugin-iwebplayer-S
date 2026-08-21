@@ -1,12 +1,13 @@
 {
   "name": "iwebplayer-s",
-  "version": "1.1.5-dev",
+  "version": "1.1.6-dev",
   "description": "以 birdstudy-nj 的 iWebPlayer 为基础，Vibe-Coding 适配宽屏设备（笔记本、安卓平板等）并打包 APK 的 SongLoft 播放器插件。支持自建歌单、封面/歌词刮削、倍速、记忆续播、LXMusic、WebDAV 与小爱音箱推送。",
   "private": true,
   "scripts": {
- "build": "songloft-plugin build && node scripts/inject-version-hashes.mjs",
+    "build": "songloft-plugin build && node scripts/inject-version-hashes.mjs",
     "dev": "songloft-plugin dev",
     "validate": "songloft-plugin validate",
+    "version": "node scripts/auto-version.mjs",
     "publish:release": "songloft-plugin publish"
   },
   "devDependencies": {

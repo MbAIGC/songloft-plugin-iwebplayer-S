@@ -1,9 +1,10 @@
-# iWebPlayer-S dev v1.1.5
+# iWebPlayer-S dev v1.1.6
 
-这是 `dev` 分支的预发布版本，用于验证尚未合入 `main` 稳定版的宽屏界面、Android WebView 和播放体验改进。
+这是 `dev` 分支的预发布版本，用于验证尚未合入 `main` 稳定版的宽屏界面、Android WebView、播放体验改进和逐字歌词（KTV）引擎。
 
 ## 相比 main 的调整
 
+- ✨ **新增逐字歌词（KTV）引擎**：移植上游 60FPS `requestAnimationFrame` 同步循环，支持 `[[mm:ss.xx]]` 双括号和 `[mm:ss.xxx]` 单括号两种逐字时间戳格式，支持渐变扫光（普通/平板）和逐字跳动流光（手机沉浸模式）两种渲染模式。
 - 修复主题模式切换，以及 Android WebView 下深色和浅色显示不一致的问题。
 - 修复 APK 中音源相关脚本的导入与加载。
 - 优化静默刷新流程和专辑封面缓存，减少重复请求与封面闪烁。
