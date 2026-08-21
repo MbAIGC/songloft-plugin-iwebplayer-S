@@ -2,6 +2,21 @@
 (function(window) {
     'use strict';
 
+    function getPushPlaylistSignature(currentList) {
+        return (Array.isArray(currentList) ? currentList : []).map(song => {
+            let source = song && song.source_data;
+            if (source && typeof source === 'object') {
+                try { source = JSON.stringify(source); } catch (e) { source = ''; }
+            }
+            return [
+                song && song.id || '',
+                song && song.plugin_entry_path || '',
+                source || '',
+                song && song.name || ''
+            ].join('|');
+        }).join('||');
+    }
+
     // 🌟 MIoT 智能音箱全局管理器
     window.MiotManager = {
         devices: [],
@@ -22,6 +37,8 @@
         lastWsTime: 0,
         isWsPlaying: false,
         _stateLockTime: 0,
+        _pushPlaylistSignature: '',
+        _pushPlaylistId: null,
 
         // 初始化入口
         init: async function() {
@@ -373,8 +390,21 @@
         // 🌟 新增：将前端的虚拟列表，动态打包注入到专属推送歌单中！
         syncListToPushPlaylist: async function(currentList) {
             try {
-                // 1. 无情斩杀旧的推送歌单（确保数据干净，比一首首删快一万倍）
+                const currentSignature = getPushPlaylistSignature(currentList);
+                const knownPushPlaylist = Array.isArray(window.playlistMeta)
+                    ? window.playlistMeta.find(p => p && p.name === 'iWebPlayer-S推送')
+                    : null;
+                const cachedPlaylistStillExists = !Array.isArray(window.playlistMeta)
+                    || Boolean(knownPushPlaylist && knownPushPlaylist.id === this._pushPlaylistId);
+                if (this._pushPlaylistId
+                    && this._pushPlaylistSignature === currentSignature
+                    && cachedPlaylistStillExists) {
+                    return this._pushPlaylistId;
+                }
+
+                // 1. 只在虚拟列表内容变化或服务端歌单失效时重建推送歌单
                 let pushPl = window.playlistMeta ? window.playlistMeta.find(p => p.name === 'iWebPlayer-S推送') : null;
+                if (!pushPl && this._pushPlaylistId) this._pushPlaylistId = null;
                 if (pushPl) {
                     await fetch(`/api/v1/playlists/${pushPl.id}`, { method: 'DELETE' });
                 }
@@ -437,6 +467,8 @@
                     window.reloadGlobalData().catch(e => console.warn(e));
                 }
 
+                this._pushPlaylistId = plId;
+                this._pushPlaylistSignature = currentSignature;
                 return plId; // 立刻返回全新的 ID 给播放器用
             } catch (e) {
                 console.error("[MIoT] 打包推送失败", e);

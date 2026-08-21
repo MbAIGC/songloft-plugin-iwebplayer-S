@@ -1322,12 +1322,49 @@
     let _reloadGlobalDataPromise = null;
     let _backgroundSyncPromise = null;
 
+    const COVER_CACHE_LIMIT = 500;
+
     function getSongListSignature(list) {
         return (Array.isArray(list) ? list : []).map(song => [
             song && song.id || '',
             typeof window.getSongNameObj === 'function' ? window.getSongNameObj(song) : '',
             song && song.plugin_entry_path || ''
         ].join('|')).join('||');
+    }
+
+    function isPersistableCover(value) {
+        return typeof value === 'string'
+            && value.length > 0
+            && value !== window.defaultCover
+            && !value.startsWith('data:')
+            && value.length <= 4096;
+    }
+
+    function collectCoverCache() {
+        const coverMap = {};
+        const sources = [];
+        const addSongs = list => {
+            if (Array.isArray(list)) sources.push(...list);
+        };
+        if (window.allPlaylists) Object.values(window.allPlaylists).forEach(addSongs);
+        addSongs(window.songList);
+
+        for (const song of sources) {
+            if (!song || !isPersistableCover(song._scrapedCover)) continue;
+            const key = song.id || (typeof window.getSongNameObj === 'function' ? window.getSongNameObj(song) : '');
+            if (key && !coverMap[key]) coverMap[key] = song._scrapedCover;
+        }
+
+        const entries = Object.entries(coverMap);
+        return Object.fromEntries(entries.slice(-COVER_CACHE_LIMIT));
+    }
+
+    function restoreCoverCache(songs, coverMap) {
+        if (!coverMap || typeof coverMap !== 'object') return;
+        for (const song of Array.isArray(songs) ? songs : []) {
+            const key = song && (song.id || (typeof window.getSongNameObj === 'function' ? window.getSongNameObj(song) : ''));
+            if (key && isPersistableCover(coverMap[key])) song._scrapedCover = coverMap[key];
+        }
     }
 
     async function performReloadGlobalData() {
@@ -1355,7 +1392,9 @@
                     window.customPlaylistNames = cache.customPlaylistNames || [];
                     window.playlistMeta = cache.playlistMeta || [];
 
-                    const poolMap = new Map((cache.songsPool || []).map(s => [s.id, s]));
+                    const pool = cache.songsPool || [];
+                    restoreCoverCache(pool, cache.coverMap);
+                    const poolMap = new Map(pool.map(s => [s.id, s]));
 
                     // 🌟 核心修复 1：在覆盖 allPlaylists 之前，必须先将内存中现存的 WebDAV/搜索数据保护起来！
                     const tempOnlineCache = window.allPlaylists ? (window.allPlaylists["在线资源"] || []) : [];
@@ -1479,7 +1518,8 @@
                             customPlaylistNames: window.customPlaylistNames,
                             playlistMeta: window.playlistMeta,
                             songsPool: Array.from(syncSongsMap.values()),
-                            playlistsMap: playlistsMap
+                            playlistsMap: playlistsMap,
+                            coverMap: collectCoverCache()
                         };
 
                         // 🌟 核心：将 JSON 字符串进行 UTF-16 极限压缩

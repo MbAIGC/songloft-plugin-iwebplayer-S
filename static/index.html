@@ -3887,22 +3887,69 @@
     }
 
     function checkLocalVersionUpdate() {
-        fetch(window.location.pathname + '?t=' + Date.now(), { cache: 'no-store' })
-            .then(res => res.text())
+        const attemptKey = 'iwebplayer-s.iwp_update_attempt';
+        const maxAttempts = 2;
+        const now = Date.now();
+        const probeUrl = new URL(window.location.href);
+        probeUrl.searchParams.set('iwp_version_probe', String(now));
+
+        fetch(probeUrl.toString(), {
+            cache: 'no-store',
+            credentials: 'same-origin',
+            headers: { 'Cache-Control': 'no-cache' }
+        })
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.text();
+            })
             .then(html => {
                 const match = html.match(/window\.APP_VERSION\s*=\s*['"](.*?)['"]/);
-                if (match && match[1] && match[1] !== APP_VERSION) {
-                    const newVersion = match[1];
-                    const lastAttempt = localStorage.getItem('iwebplayer-s.iwp_update_attempt');
-                    if (lastAttempt !== newVersion) {
-                        localStorage.setItem('iwebplayer-s.iwp_update_attempt', newVersion);
-                        window.showToast(`🚀 发现后端已更新至 ${newVersion}，正在自动为您刷新...`, true);
-                        setTimeout(() => { window.location.reload(true); }, 2000);
-                    } else { window.showToast(`⚠️ 后端已是 ${newVersion}，但 iOS 缓存固化。请重新生成桌面配置！`, true); }
-                } else if (match && match[1] === APP_VERSION) {
-                    localStorage.removeItem('iwebplayer-s.iwp_update_attempt');
+                if (!match || !match[1]) return;
+
+                const remoteVersion = match[1];
+                const currentScripts = [...document.querySelectorAll('script[src]')]
+                    .map(script => new URL(script.src, window.location.href).pathname + new URL(script.src, window.location.href).search)
+                    .filter(src => src.includes('/static/') && /\.js\?v=[^&]+$/.test(src))
+                    .join('|');
+                const remoteScripts = [...html.matchAll(/<script[^>]+src=["']([^"']+)["']/g)]
+                    .map(matchItem => matchItem[1])
+                    .filter(src => src.includes('./static/') && /\.js\?v=[^"']+$/.test(src))
+                    .map(src => {
+                        const resolved = new URL(src, probeUrl.toString());
+                        return resolved.pathname + resolved.search;
+                    })
+                    .join('|');
+                const scriptsChanged = currentScripts !== remoteScripts;
+                if (remoteVersion === APP_VERSION && !scriptsChanged) {
+                    localStorage.removeItem(attemptKey);
+                    return;
                 }
-            }).catch(err => console.log("本地更新探针检测失败:", err));
+
+                let attempt = {};
+                try { attempt = JSON.parse(localStorage.getItem(attemptKey) || '{}'); } catch (e) {}
+                const sameVersion = attempt.version === remoteVersion;
+                const attempts = sameVersion ? Number(attempt.count || 0) : 0;
+                const recentlyAttempted = sameVersion && now - Number(attempt.at || 0) < 3000;
+
+                if (attempts >= maxAttempts) {
+                    window.showToast(`⚠️ 检测到新版本 ${remoteVersion}，自动刷新未生效，请手动刷新页面。`, true);
+                    return;
+                }
+                if (recentlyAttempted) return;
+
+                localStorage.setItem(attemptKey, JSON.stringify({
+                    version: remoteVersion,
+                    count: attempts + 1,
+                    at: now
+                }));
+                window.showToast(`🚀 发现后端已更新至 ${remoteVersion}，正在自动刷新...`, true);
+                setTimeout(() => {
+                    const reloadUrl = new URL(window.location.href);
+                    reloadUrl.searchParams.set('iwp_reload', String(Date.now()));
+                    window.location.replace(reloadUrl.toString());
+                }, 1500);
+            })
+            .catch(err => console.log("本地更新探针检测失败:", err));
     }
 
     async function init() {
