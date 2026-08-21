@@ -310,7 +310,7 @@
 
   .player-container { max-width: 800px; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: space-evenly; }
   .time-row { width: 100%; display: flex; justify-content: space-between; }
-  .time-current, .time-duration { font-size: 11px; color: var(--text-sub); opacity: 0.8; font-variant-numeric: tabular-nums; }
+  .time-current, .time-duration { font-size: 13px; color: var(--text-sub); opacity: 0.85; font-variant-numeric: tabular-nums; }
 
   .now-playing-info { display: flex; align-items: center; width: 100%; cursor: pointer; padding: 0 10px; position: relative; box-sizing: border-box; justify-content: center; }
   .up-arrow { width: 40px; display: flex; justify-content: center; color: var(--text-sub); animation: bounce 2s infinite; }
@@ -380,6 +380,8 @@
   .fp-corner-tools { position: absolute; bottom: 20px; left: 0; right: 0; padding: 0 24px; display: flex; justify-content: space-between; align-items: center; z-index: 100; pointer-events: none; }
   .fp-corner-btn { pointer-events: auto; width: 40px; height: 40px; border-radius: 50%; background: var(--bg-color); border: 1px solid var(--border); display: flex; justify-content: center; align-items: center; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.08); transition: all 0.2s; color: var(--text-main); font-weight: bold; font-size: 13px; }
   .fp-corner-btn:active { transform: scale(0.9); }
+  /* 首页横屏时收藏按钮保持原位，仅给右侧倍速按钮补齐视觉外边距。 */
+  body.split-view-active:not(.player-open) #fp-corner-speed { margin-right: 10px; }
   .fp-fav-btn.is-fav { color: var(--primary); }
 
   /* 音量与速度控制的垂直滑块弹窗 */
@@ -1122,14 +1124,14 @@
       top: 0 !important;
       bottom: 130px !important;
       height: auto !important;
-      padding: calc(56px + env(safe-area-inset-top)) 5vw 28px !important;
+      padding: calc(56px + env(safe-area-inset-top)) clamp(16px, 4vw, 64px) 28px !important;
       flex-direction: row;
       align-items: stretch;
-      gap: clamp(28px, 5vw, 96px);
+      gap: clamp(12px, 2.5vw, 48px);
       background: transparent !important;
     }
     body.player-open .desktop-player-main {
-      flex: 0 0 32%;
+      flex: 0 1 32%;
       width: 32%;
       min-width: 0;
       display: flex;
@@ -1187,7 +1189,7 @@
       flex: 0 1 auto;
     }
     body.player-open .fp-cover {
-      width: min(34vw, 440px);
+      width: min(100%, 34vw, 440px);
       height: auto;
       max-width: 100%;
       max-height: min(48vh, 440px);
@@ -1215,12 +1217,15 @@
       left: 0 !important;
       margin-left: 0 !important;
       height: 130px;
-      padding: 0 12vw;
+      padding: 0 clamp(12px, 2vw, 32px);
       background: transparent !important;
       border: 0 !important;
       box-shadow: none !important;
     }
-    body.player-open .player-container { max-width: 960px; }
+    body.player-open .player-container { max-width: none; }
+    body.player-open .time-row { padding: 0 4px; }
+    body.player-open .time-current,
+    body.player-open .time-duration { font-size: 14px; }
     body.player-open .now-playing-info { padding: 0; }
 
     /* A previously selected split view must yield to immersive playback only. */
@@ -1251,9 +1256,9 @@
       top: 0 !important;
       bottom: 130px !important;
       height: auto !important;
-      padding: calc(56px + env(safe-area-inset-top)) 5vw 28px !important;
+      padding: calc(56px + env(safe-area-inset-top)) clamp(16px, 4vw, 64px) 28px !important;
       flex-direction: row;
-      gap: clamp(28px, 5vw, 96px);
+      gap: clamp(12px, 2.5vw, 48px);
       border: 0 !important;
       z-index: 190 !important;
     }
@@ -1262,15 +1267,15 @@
       left: 0 !important;
       margin-left: 0 !important;
       height: 130px;
-      padding: 0 12vw;
+      padding: 0 clamp(12px, 2vw, 32px);
       border: 0 !important;
       box-shadow: none !important;
       z-index: 200 !important;
     }
-    body.split-view-active.player-open .desktop-player-main { flex: 0 1 620px; width: min(45%, 620px); min-width: min(38vw, 420px); display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: clamp(12px, 3vh, 32px); overflow: hidden; }
+    body.split-view-active.player-open .desktop-player-main { flex: 0 1 32%; width: 32%; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: clamp(8px, 2vh, 24px); overflow: hidden; }
     body.split-view-active.player-open .fp-cover-wrapper { width: 100%; padding: 0; flex: 0 1 auto; }
-    body.split-view-active.player-open .fp-lyrics-wrapper { flex: 1; width: auto; max-width: none; height: min(58vh, 580px); margin: 0; align-self: center; }
-    body.split-view-active.player-open .fp-cover { width: min(34vw, 440px); height: auto; max-width: 100%; max-height: min(48vh, 440px); }
+    body.split-view-active.player-open .fp-lyrics-wrapper { flex: 1 1 0; width: auto; min-width: 0; max-width: none; height: min(58vh, 580px); margin: 0; align-self: center; }
+    body.split-view-active.player-open .fp-cover { width: min(100%, 34vw, 440px); height: auto; max-width: 100%; max-height: min(48vh, 440px); }
   }
 
   /* Keep the original split-home composition, but scale both columns with the viewport. */
