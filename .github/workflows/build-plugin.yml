@@ -80,18 +80,22 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           PLUGIN_VERSION=$(python3 -c "import json;print(json.load(open('plugin.json'))['version'])")
-          DEV_TAG="dev-${PLUGIN_VERSION}"
+          # dev tag 使用干净的 dev-<数字版本>（如 dev-1.1.5），产物文件名仍带 -dev
+          DEV_WITH_SUFFIX="${PLUGIN_VERSION}"
+          DEV_VERSION="${DEV_WITH_SUFFIX%-dev}"
+          DEV_TAG="dev-${DEV_VERSION}"
           cp dist/iwebplayer-s.jsplugin.zip "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip"
           NOTES=$(git log --oneline --no-merges -10 | sed 's/^/- /')
           PLUGIN_NOTES="## iWebPlayer-S dev 构建 v${PLUGIN_VERSION}
 
           ${NOTES}"
           if gh release view "$DEV_TAG" >/dev/null 2>&1; then
-            # 已存在 → 覆盖上传新版，更新正文
+            # 已存在 → 覆盖上传新版，更新正文（保持 prerelease，不抢 main 的 Latest）
             gh release upload "$DEV_TAG" "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip" --clobber
-            gh release edit "$DEV_TAG" --notes "$PLUGIN_NOTES"
+            gh release edit "$DEV_TAG" --prerelease --notes "$PLUGIN_NOTES"
           else
             gh release create "$DEV_TAG" "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip" \
+              --prerelease \
               --title "iWebPlayer-S dev v${PLUGIN_VERSION}" \
               --notes "$PLUGIN_NOTES"
           fi

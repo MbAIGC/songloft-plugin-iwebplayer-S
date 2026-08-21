@@ -156,11 +156,12 @@ jobs:
           NOTES=$(git log --oneline --no-merges -10 | sed 's/^/- /')
           if gh release view "$DEV_TAG" >/dev/null 2>&1; then
             gh release upload "$DEV_TAG" release/* --clobber
-            gh release edit "$DEV_TAG" --notes "iWebPlayer-S dev 构建 v${VERSION}
+            gh release edit "$DEV_TAG" --prerelease --notes "iWebPlayer-S dev 构建 v${VERSION}
 
           ${NOTES}"
           else
             gh release create "$DEV_TAG" release/* \
+              --prerelease \
               --title "iWebPlayer-S dev v${VERSION}" \
               --notes "iWebPlayer-S dev 构建 v${VERSION}
 
