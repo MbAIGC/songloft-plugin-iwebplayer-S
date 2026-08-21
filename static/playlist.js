@@ -1319,7 +1319,20 @@
     // =========================================================================
     // 🌟 终极预存分流引擎 V3.1：首屏秒开 + 智能双擎 + 401权限击杀修复
     // =========================================================================
-    window.reloadGlobalData = async function() {
+    let _reloadGlobalDataPromise = null;
+    let _backgroundSyncPromise = null;
+
+    function getSongListSignature(list) {
+        return (Array.isArray(list) ? list : []).map(song => [
+            song && song.id || '',
+            typeof window.getSongNameObj === 'function' ? window.getSongNameObj(song) : '',
+            song && song.plugin_entry_path || ''
+        ].join('|')).join('||');
+    }
+
+    async function performReloadGlobalData() {
+        const beforePlaylistName = window.currentPlaylist || '';
+        const beforeSongListSignature = getSongListSignature(window.songList);
         try {
             const prefs = typeof window.getPreferences === 'function' ? window.getPreferences() : {};
             const isHighPerf = prefs.highPerf !== false;
@@ -1462,9 +1475,6 @@
                     }
 
                     try {
-                        localStorage.removeItem('iwebplayer-s.global_cache_v2');
-                        localStorage.removeItem('iwebplayer-s.global_cache');
-
                         const cacheObj = {
                             customPlaylistNames: window.customPlaylistNames,
                             playlistMeta: window.playlistMeta,
@@ -1521,7 +1531,12 @@
                     if (typeof window.initPlaylistDropdown === 'function') window.initPlaylistDropdown();
                     if (window.currentPlaylist && window.currentPlaylist !== '在线资源' && window.currentPlaylist !== '曲库搜索') {
                         window.songList = window.getMergedSongList(window.currentPlaylist);
-                        if (typeof window.renderPlaylist === 'function') window.renderPlaylist();
+                        const afterSongListSignature = getSongListSignature(window.songList);
+                        const playlistChanged = beforePlaylistName !== window.currentPlaylist
+                            || beforeSongListSignature !== afterSongListSignature;
+                        if (playlistChanged && typeof window.renderPlaylist === 'function') {
+                            window.renderPlaylist();
+                        }
                     }
 
                     if (typeof window.showToast === 'function') {
@@ -1548,12 +1563,19 @@
             // 5. 🔀 双轨分流路由
             if (hasCache) {
                 // 如果是后台静默拉取时发生 401，强制清空假缓存，并瞬间刷新页面，让首页拦截器接管！
-                doBackgroundSync().catch(e => {
-                    if (e.message === "AUTH_FAILED") {
-                        localStorage.removeItem('iwebplayer-s.global_cache');
-                        window.location.reload();
-                    }
-                });
+                if (!_backgroundSyncPromise) {
+                    _backgroundSyncPromise = doBackgroundSync().catch(e => {
+                        if (e.message === "AUTH_FAILED") {
+                            localStorage.removeItem('iwebplayer-s.global_cache');
+                            window.location.reload();
+                        } else {
+                            console.warn("后台静默同步失败:", e);
+                        }
+                    }).finally(() => {
+                        _backgroundSyncPromise = null;
+                    });
+                }
+                // 有缓存时保持首屏秒开：后台同步不阻塞当前调用方。
                 return;
             } else {
                 await doBackgroundSync();
@@ -1563,6 +1585,16 @@
             console.error("重载全局数据致命崩溃:", e);
             throw e;
         }
+    }
+
+    // 并发调用共享同一个 Promise，避免重复全量请求和缓存写入。
+    window.reloadGlobalData = function() {
+        if (!_reloadGlobalDataPromise) {
+            _reloadGlobalDataPromise = performReloadGlobalData().finally(() => {
+                _reloadGlobalDataPromise = null;
+            });
+        }
+        return _reloadGlobalDataPromise;
     };
 
 })(window);
