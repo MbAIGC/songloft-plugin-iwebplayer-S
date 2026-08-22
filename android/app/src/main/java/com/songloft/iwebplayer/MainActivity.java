@@ -18,6 +18,9 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.DisplayMetrics;
+import android.util.TypedValue;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
@@ -76,6 +79,16 @@ public class MainActivity extends AppCompatActivity {
     private Bitmap cachedArtwork = null;
     private ValueCallback<Uri[]> filePathCallback = null;
 
+    // ===== 边缘滑动返回（左缘→右、右缘→左，等同系统返回键）=====
+    private static final int EDGE_GESTURE_ZONE_DP = 40;   // 触摸起点落在屏幕左右边缘多少 dp 内
+    private static final int EDGE_SWIPE_THRESHOLD_DP = 60; // 横向滑动超过多少 dp 判定为返回
+    private float edgeGestureZonePx;
+    private float edgeSwipeThresholdPx;
+    private float gestureDownX = -1;
+    private float gestureDownY = -1;
+    private int gestureEdge = 0;                 // 0=无, 1=左缘, 2=右缘
+    private boolean edgeGestureConsumed = false; // 已判定为返回后，吞掉剩余滑动
+
     private final Runnable tokenChecker = new Runnable() {
         @Override
         public void run() {
@@ -101,6 +114,7 @@ public class MainActivity extends AppCompatActivity {
 
         setupMediaSession();
         createPlaybackChannel();
+        initEdgeGesture();
 
         webView = new WebView(this);
         setContentView(webView);
@@ -716,6 +730,52 @@ public class MainActivity extends AppCompatActivity {
         public void onAuthFailed() {
             runOnUiThread(MainActivity.this::handleAuthFailed);
         }
+    }
+
+    private void initEdgeGesture() {
+        DisplayMetrics dm = getResources().getDisplayMetrics();
+        edgeGestureZonePx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, EDGE_GESTURE_ZONE_DP, dm);
+        edgeSwipeThresholdPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, EDGE_SWIPE_THRESHOLD_DP, dm);
+    }
+
+    // 边缘滑动返回：触摸从屏幕左/右边缘向内横向滑动超过阈值时，触发返回
+    // 方向要求：左缘必须向右滑、右缘必须向左滑，且横向位移显著大于纵向，避免误触
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        switch (ev.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                gestureDownX = ev.getX();
+                gestureDownY = ev.getY();
+                if (gestureDownX <= edgeGestureZonePx) {
+                    gestureEdge = 1;
+                } else if (gestureDownX >= getResources().getDisplayMetrics().widthPixels - edgeGestureZonePx) {
+                    gestureEdge = 2;
+                } else {
+                    gestureEdge = 0;
+                }
+                edgeGestureConsumed = false;
+                break;
+            case MotionEvent.ACTION_MOVE:
+                if (edgeGestureConsumed) return true; // 已判定返回，吞掉剩余滑动
+                if (gestureEdge != 0) {
+                    float dx = ev.getX() - gestureDownX;
+                    float dy = ev.getY() - gestureDownY;
+                    boolean inward = (gestureEdge == 1 && dx > edgeSwipeThresholdPx)
+                            || (gestureEdge == 2 && dx < -edgeSwipeThresholdPx);
+                    if (inward && Math.abs(dx) > Math.abs(dy) * 1.5f) {
+                        edgeGestureConsumed = true;
+                        onBackPressed();
+                        return true;
+                    }
+                }
+                break;
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                gestureEdge = 0;
+                edgeGestureConsumed = false;
+                break;
+        }
+        return super.dispatchTouchEvent(ev);
     }
 
     @Override
