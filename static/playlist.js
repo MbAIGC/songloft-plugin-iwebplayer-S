@@ -1504,8 +1504,7 @@
                                 }
                             } catch (err) { console.error(`拉取 [${pl.name}] 失败:`, err); }
                         }
-                        syncReconstructed["所有歌曲"] = Array.from(syncSongsMap.values())
-                            .sort((a, b) => (b._addedAt || 0) - (a._addedAt || 0));
+                        syncReconstructed["所有歌曲"] = Array.from(syncSongsMap.values());
                     }
 
                     // 3. 💾 统一极限压缩存盘 (骨肉分离)
