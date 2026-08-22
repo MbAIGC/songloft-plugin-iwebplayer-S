@@ -2,7 +2,6 @@ package com.songloft.iwebplayer;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
-import android.app.AlertDialog;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -721,6 +720,11 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
+        public void changeServer() {
+            runOnUiThread(() -> webView.loadUrl(SETTINGS_URL));
+        }
+
+        @JavascriptInterface
         public void onMedia(String json) {
             android.util.Log.d("iWebPlayer-S", "onMedia raw: " + json);
             runOnUiThread(() -> updateMediaNotification(json));
@@ -781,20 +785,24 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onBackPressed() {
         String url = webView.getUrl() == null ? "" : webView.getUrl();
-        boolean onPlayer = url.contains(PLUGIN_PATH);
-
         if (webView.canGoBack()) {
             webView.goBack();
-        } else if (onPlayer) {
-            new AlertDialog.Builder(this)
-                    .setTitle("iWebPlayer-S")
-                    .setMessage("要修改服务器地址吗？")
-                    .setPositiveButton("修改服务器", (d, w) -> webView.loadUrl(SETTINGS_URL))
-                    .setNegativeButton("退出", (d, w) -> finish())
-                    .show();
-        } else {
-            super.onBackPressed();
+            return;
         }
+        if (!url.contains(PLUGIN_PATH)) {
+            // 设置页：直接退出
+            super.onBackPressed();
+            return;
+        }
+        // 播放器页：先关全屏播放器回首页；已在首页则退回系统桌面（应用进后台），不再弹修改服务器对话框
+        webView.evaluateJavascript(
+                "(function(){if(document.body.classList.contains('player-open')){if(window.toggleFullPlayer)window.toggleFullPlayer(false);return 'player';}return 'home';})()",
+                value -> {
+                    String r = value == null ? "" : value.replace("\"", "");
+                    if (!"player".equals(r)) {
+                        moveTaskToBack(true);
+                    }
+                });
     }
 
     @Override
