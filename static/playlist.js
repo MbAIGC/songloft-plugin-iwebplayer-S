@@ -489,6 +489,7 @@
             uniqueBaseNames.add(k);
         });
         uniqueBaseNames.add('我的歌单'); // 🌟 核心补漏：强制确保“我的歌单”海报墙入口永远存在！
+        uniqueBaseNames.add('曲库搜索'); // 确保搜索入口始终在歌单下拉菜单中
 
         const allCleanKeys = Array.from(uniqueBaseNames);
         let defaultKey = (window.localState.playlist && allCleanKeys.includes(window.localState.playlist)) ? window.localState.playlist : '';
