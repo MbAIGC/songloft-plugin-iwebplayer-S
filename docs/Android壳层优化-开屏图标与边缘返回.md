@@ -1,11 +1,11 @@
 # Android 壳层优化：开屏图标透明化 + 边缘滑动返回
 
-> 对应提交：`0fdb3eb`（dev 分支），APK 由 `build-apk-dev.yml` 在 dev 上自动构建验证。
-> 涉及目录：`android/`（Android WebView 壳层），web 插件 `static/` 未改动。
+> 对应提交：`0fdb3eb`（边缘滑动返回，dev 分支）；开屏图标方案修正见本文件 3.1（dev 分支后续提交）。
+> APK 由 `build-apk-dev.yml` 在 dev 上自动构建验证；涉及目录：`android/`，web 插件 `static/` 未改动。
 
 ## 一、需求
 
-1. **开屏 Logo 四角带黑边**：App 开屏/桌面图标四角是黑色，应改为与 web 端一致的透明四角。
+1. **开屏 Logo 四角带黑边**：App **开屏**显示的四角是黑色，需换成透明四角的图标 logo；**桌面图标**保持「原图满幅版」不变（见 `docs/OPTIMIZATION_RECORD.md` 7.6 的用户偏好）。
 2. **应用内边缘滑动返回**：在应用内，从屏幕**左边缘向右滑**、**右边缘向左滑**，默认触发「返回」功能（等同系统返回键）。
 3. 用户确认方案后才动代码；APK 先在 dev 分支验证，**不修改 main**。
 
@@ -13,9 +13,11 @@
 
 ### 2.1 开屏 Logo 黑边
 
-- 图标文件：`android/app/src/main/res/drawable-nodpi/ic_launcher.png`，由 `AndroidManifest.xml` 的 `android:icon="@drawable/ic_launcher"` 引用，系统开屏与桌面图标共用。
-- 根因：提交 `d9ccf73` 把它换成了「原图全出血」版本 —— **512×512 不透明 RGB**，逐像素采样确认四角为纯黑 `(0,0,0)`，系统开屏把图标显示出来后黑角裸露。
-- 对比：`static/icon-512.png` 是**同一 Logo 的透明四角版**（RGBA，四角 alpha=0，中心色值一致），正是 `d9ccf73` 之前使用的版本。
+- **桌面图标**：`android/app/src/main/res/drawable-nodpi/ic_launcher.png`，由 `AndroidManifest.xml` 的 `android:icon` 引用，按用户偏好使用**原图满幅版**（512×512 不透明 RGB，四角纯黑 `(0,0,0)`）。启动器会施加遮罩（圆形/圆角），所以桌面上看不到黑角、观感正常。
+- **开屏**：Android 12+ 系统开屏直接显示 App 图标（不经过启动器遮罩），满幅版的黑角因此裸露 → 「开屏 logo 四角带黑边」。
+- 对比：`static/icon-512.png` 是**同一 Logo 的透明四角版**（RGBA，四角 alpha=0，中心色值一致），适合用作开屏图标。
+
+> ⚠️ 注意：最初误把 `ic_launcher.png` 换成透明版（`0fdb3eb`），违反了文档里"桌面图标用满幅版"的偏好，已还原（`git show 0fdb3eb~1:...ic_launcher.png` 恢复满幅版）。
 
 ### 2.2 边缘滑动返回
 
@@ -24,9 +26,16 @@
 
 ## 三、解决方案
 
-### 3.1 图标：替换为透明四角版
+### 3.1 开屏图标：桌面满幅不变，开屏单独用透明图标
 
-把 `static/icon-512.png` 复制覆盖到 `android/app/src/main/res/drawable-nodpi/ic_launcher.png`。单文件改动，APK 构建自动带上。
+- **桌面图标不动**：`ic_launcher.png` 保持原图满幅版。
+- **新增开屏图标**：`android/app/src/main/res/drawable-nodpi/ic_splash.png`（= `static/icon-512.png` 透明四角版）。
+- **新增主题** `android/app/src/main/res/values/themes.xml`：
+  - `android:windowSplashScreenBackground` = `#111827`（深色背景，让浅色 logo 清晰可见）
+  - `android:windowSplashScreenAnimatedIcon` = `@drawable/ic_splash`
+- **Manifest**：`android:theme="@style/Theme.IWebPlayerSplash"`（父主题仍是 `Theme.AppCompat.NoActionBar`，仅叠加开屏项，不影响其它）。
+
+效果：开屏 = 深色背景 + 透明四角浅色 logo（无黑边）；桌面图标 = 满幅版（保持原偏好）。
 
 ### 3.2 边缘滑动返回：MainActivity 手势识别
 
@@ -51,4 +60,4 @@
 ## 五、验证
 
 - APK 由 `build-apk-dev.yml` 在 dev 分支自动构建（`iWebPlayer-S-v1.1.6-dev.apk`），未触碰 main。
-- 验证要点：开屏/桌面图标四角干净；播放器页左/右边缘向内滑触发返回；列表竖向滚动、抽屉、进度条拖动不误触返回。
+- 验证要点：开屏 = 深色背景 + 透明 logo（四角干净）；桌面图标保持满幅版；播放器页左/右边缘向内滑触发返回；列表竖向滚动、抽屉、进度条拖动不误触返回。

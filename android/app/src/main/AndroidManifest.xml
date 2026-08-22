@@ -9,7 +9,7 @@
         android:allowBackup="true"
         android:icon="@drawable/ic_launcher"
         android:label="iWebPlayer-S"
-        android:theme="@style/Theme.AppCompat.NoActionBar"
+        android:theme="@style/Theme.IWebPlayerSplash"
         android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
