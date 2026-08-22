@@ -228,6 +228,7 @@
   /* 左栏：引擎/平台选择器 — 默认隐藏，展开后显示 */
   .tbs-online #engine-container,
   .tbs-online #mf-plugin-container { display: none; }
+  .tbs-online.expanded { overflow: visible; }
   .tbs-online.expanded #engine-container,
   .tbs-online.expanded #mf-plugin-container { flex: 0 0 auto; height: 100%; display: flex; align-items: center; }
   .tbs-online.expanded #engine-val,
@@ -812,6 +813,8 @@
     body.split-view-active .header { width: 100% !important; left: 0 !important; margin-left: 0 !important; right: auto !important; border-bottom: 1px solid var(--border); z-index: 260 !important; }
     body.split-view-active .playlist-row { position: sticky !important; width: 50% !important; left: auto !important; right: auto !important; margin-left: 50% !important; margin-right: 0 !important; z-index: 200 !important; padding-top: 8px !important; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.1), 0 4px 12px rgba(0, 0, 0, 0.05) !important; background: rgba(243, 244, 246, 0.7); border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important; }
     body.split-view-active #playlist-opts { top: 48px !important; }
+    /* 宽屏右栏：歌单下拉锚定右栏，左右贴合（不依赖 ambient-active） */
+    body.split-view-active .tbs-playlist #playlist-opts { top: 38px !important; left: 0 !important; right: 0 !important; margin-top: 2px; }
     @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) body.split-view-active .playlist-row { background: rgba(17, 24, 39, 0.65) !important; border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.3) !important; } }
     :root[data-theme="dark"] body.split-view-active .playlist-row { background: rgba(17, 24, 39, 0.65) !important; border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.3) !important; }
 
@@ -932,7 +935,10 @@
 
     /* 宽屏三栏工具栏 */
     body.split-view-active .toolbar-split-only { display: flex; }
-    body.split-view-active .tbs-playlist { position: static; }
+    body.split-view-active .toolbar-wrapper { display: none !important; }
+    body.split-view-active .toolbar-main-box { display: none !important; }
+    body.split-view-active #online-toolbar-container { display: none !important; }
+    body.split-view-active .tbs-playlist { position: relative !important; }
 
     /* 经济舱结界：限制列表滑动高度，超出直接隐形，绝不污染头部 */
     body.ambient-active.split-view-active .playlist,
@@ -3532,6 +3538,7 @@
         const tbsLxSearchBtn = document.getElementById('tbs-lx-search-btn');
         const tbsLxPlaylistBtn = document.getElementById('tbs-lx-playlist-btn');
         const tbsOnline = document.getElementById('tbs-online');
+        const tbsLibrary = document.getElementById('tbs-library');
         const rootStyle = document.documentElement.style;
 
         function tbsReset() {
@@ -3539,6 +3546,7 @@
             rootStyle.setProperty('--tbs-lib-w', '50%');
             rootStyle.setProperty('--tbs-pl-w', '25%');
             if (tbsOnline) tbsOnline.classList.remove('expanded');
+            if (tbsLibrary) tbsLibrary.classList.remove('expanded');
         }
 
         function tbsExpandOnline() {
@@ -3546,12 +3554,15 @@
             rootStyle.setProperty('--tbs-lib-w', '15%');
             rootStyle.setProperty('--tbs-pl-w', '25%');
             if (tbsOnline) tbsOnline.classList.add('expanded');
+            if (tbsLibrary) tbsLibrary.classList.remove('expanded');
         }
 
         function tbsExpandLibrary() {
             rootStyle.setProperty('--tbs-online-w', '25%');
             rootStyle.setProperty('--tbs-lib-w', '50%');
             rootStyle.setProperty('--tbs-pl-w', '25%');
+            if (tbsOnline) tbsOnline.classList.remove('expanded');
+            if (tbsLibrary) tbsLibrary.classList.add('expanded');
         }
 
         if (tbsLxInput) {
@@ -3601,6 +3612,19 @@
             tbsLxPlaylistBtn.addEventListener('click', () => tbsDoLxSearch(true));
         }
 
+        // 曲库搜索框（原 #search-input）在宽屏模式下点击时展开中栏
+        const tbsSearchInputEl = document.getElementById('search-input');
+        if (tbsSearchInputEl) {
+            tbsSearchInputEl.addEventListener('focus', () => {
+                if (document.body.classList.contains('split-view-active')) {
+                    tbsExpandLibrary();
+                }
+            });
+            tbsSearchInputEl.addEventListener('blur', () => {
+                if (!tbsSearchInputEl.value.trim()) tbsReset();
+            });
+        }
+
         // ==========================================
         // 共享控件移动：根据 split-view 模式切换
         // 在手机版和宽屏版之间移动
@@ -3648,10 +3672,18 @@
                     else toolbarMainBox.appendChild(sw);
                 }
                 if (ec && ec.parentNode !== mfRow) {
-                    if (mfRow) mfRow.appendChild(ec);
+                    if (mfRow) {
+                        const firstDivider = mfRow.querySelector(':scope > .divider-v');
+                        if (firstDivider && firstDivider.nextSibling) mfRow.insertBefore(ec, firstDivider.nextSibling);
+                        else mfRow.appendChild(ec);
+                    }
                 }
                 if (mc && mc.parentNode !== mfRow) {
-                    if (mfRow) mfRow.appendChild(mc);
+                    if (mfRow) {
+                        const dividers = mfRow.querySelectorAll(':scope > .divider-v');
+                        if (dividers.length >= 2 && dividers[1].nextSibling) mfRow.insertBefore(mc, dividers[1].nextSibling);
+                        else mfRow.appendChild(mc);
+                    }
                 }
             }
         }
