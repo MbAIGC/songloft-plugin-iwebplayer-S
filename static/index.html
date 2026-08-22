@@ -221,8 +221,10 @@
   .tbs-lx-btn:active { opacity: 0.7; }
 
   /* 中栏：原 search-inline-wrap 样式覆盖 */
+  .search-inline-icon { display: none; flex-shrink: 0; color: var(--text-sub); }
   .tbs-library #search-inline-wrap { display: flex; flex: 1; height: 100%; align-items: center; border: none; background: transparent; padding: 0; gap: 6px; }
   .tbs-library #search-inline-wrap .divider-v { display: none; }
+  .tbs-library #search-inline-wrap .search-inline-icon { display: block; }
   .tbs-library #search-inline-wrap input { font-size: 13px; }
 
   /* 左栏：引擎/平台选择器 — 默认隐藏，展开后显示 */
@@ -1728,6 +1730,7 @@
 
         <div class="search-inline-wrap" id="search-inline-wrap">
           <div class="divider-v mx-4"></div>
+          <svg class="search-inline-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
           <input type="text" id="search-input" placeholder="请输入关键字..." autocomplete="off">
           <div class="search-actions">
             <button class="search-icon-btn" id="search-clear" title="清除">
@@ -3633,12 +3636,25 @@
         // 曲库搜索框（原 #search-input）在宽屏模式下点击时展开中栏并切到曲库搜索
         const tbsSearchInputEl = document.getElementById('search-input');
         if (tbsSearchInputEl) {
+            const ensureLibrarySearchMode = () => {
+                if (document.body.classList.contains('split-view-active')
+                    && window.currentPlaylist !== '曲库搜索'
+                    && typeof window.switchPlaylistSilently === 'function') {
+                    window.switchPlaylistSilently('曲库搜索');
+                }
+            };
             tbsSearchInputEl.addEventListener('focus', () => {
                 if (!document.body.classList.contains('split-view-active')) return;
                 tbsExpandLibrary();
-                if (window.currentPlaylist !== '曲库搜索' && window.currentPlaylist !== '在线资源'
-                    && typeof window.switchPlaylistSilently === 'function') {
-                    window.switchPlaylistSilently('曲库搜索');
+                ensureLibrarySearchMode();
+            });
+            tbsSearchInputEl.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    ensureLibrarySearchMode();
+                    const kw = tbsSearchInputEl.value.trim();
+                    localStorage.setItem('iwebplayer-s.local_search_keyword', kw);
+                    window.performLocalSearch(kw);
+                    e.preventDefault();
                 }
             });
             tbsSearchInputEl.addEventListener('blur', () => {
@@ -3657,6 +3673,10 @@
             const sw = document.getElementById('search-inline-wrap');
             const ec = document.getElementById('engine-container');
             const mc = document.getElementById('mf-plugin-container');
+
+            // 中栏搜索框提示文字：宽屏改为「本地曲库搜索」，手机版恢复原样
+            const si = document.getElementById('search-input');
+            if (si) si.placeholder = isSplit ? '本地曲库搜索' : '请输入关键字...';
             const tbsPlaylist = document.getElementById('tbs-playlist');
             const tbsLibrary = document.getElementById('tbs-library');
             const tbsOnline = document.getElementById('tbs-online');
