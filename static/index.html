@@ -885,7 +885,11 @@
 
     /* 宽屏模式三栏工具栏 */
     body.split-view-active .toolbar-split-only { display: flex; }
-    body.split-view-active .toolbar-main-box { display: none; }
+    /* 手机版工具栏在不显示时改为零尺寸绝对定位，保证 dropdown 仍可弹出 */
+    body.ambient-active.split-view-active .toolbar-wrapper,
+    body.ambient-active.split-view-active .toolbar-main-box { position: absolute !important; width: 0; height: 0; overflow: visible; border: none; background: transparent; box-shadow: none; z-index: 1; }
+    body.ambient-active.split-view-active #playlist-container { position: absolute; width: 0; height: 0; overflow: visible; }
+    body.ambient-active.split-view-active #menu-dropzone-row1 { display: none; }
     .toolbar-split-only { display: none; height: 40px; align-items: stretch; }
     .toolbar-split-inner { display: flex; flex: 1; align-items: center; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; height: 40px; overflow: hidden; }
     .tbs { display: flex; align-items: center; transition: width 0.25s ease; overflow: hidden; height: 100%; }
@@ -1686,78 +1690,86 @@
   </div>
 
   <div class="playlist-row" id="playlist-row">
-    <div class="flex-y-center w-full toolbar-wrapper">
-      <div class="toolbar-main-box">
-        <div class="custom-select h-full" id="playlist-container">
-          <div class="select-value" id="playlist-val">加载中</div>
-          <ul class="select-options" id="playlist-opts"></ul>
-        </div>
 
-        <div class="search-inline-wrap" id="search-inline-wrap">
-          <div class="divider-v mx-4"></div>
-          <input type="text" id="search-input" placeholder="请输入关键字..." autocomplete="off">
-          <div class="search-actions">
-            <button class="search-icon-btn" id="search-clear" title="清除">
-              <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-            </button>
+    <div class="playlist-row-inner" id="playlist-row-inner">
+
+      <!-- =============================================
+           手机版工具栏 (宽屏模式隐藏)
+           ============================================= -->
+      <div class="flex-y-center w-full toolbar-wrapper">
+        <div class="toolbar-main-box">
+          <div class="custom-select h-full" id="playlist-container">
+            <div class="select-value" id="playlist-val">加载中</div>
+            <ul class="select-options" id="playlist-opts"></ul>
           </div>
-        </div>
 
-        <div class="search-inline-wrap" id="mf-plugin-row">
-          <div class="divider-v mx-4"></div>
-          <div class="custom-select h-full" id="engine-container">
-            <div class="select-value" id="engine-val" data-value="LXMusic">LXMusic</div>
-            <ul class="select-options" id="engine-opts">
-              <li class="select-option active" data-value="LXMusic">LXMusic</li>
-              <li class="select-option" data-value="WebDAV">WebDAV</li>
-            </ul>
+          <div class="search-inline-wrap" id="search-inline-wrap">
+            <div class="divider-v mx-4"></div>
+            <input type="text" id="search-input" placeholder="请输入关键字..." autocomplete="off">
+            <div class="search-actions">
+              <button class="search-icon-btn" id="search-clear" title="清除">
+                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            </div>
           </div>
-          <div class="divider-v mx-4"></div>
-          <div class="custom-select h-full" id="mf-plugin-container">
-            <div class="select-value" id="mf-plugin-val" data-value="wy">网易云</div>
-            <ul class="select-options" id="mf-plugin-opts">
-                <li class="select-option active" data-value="wy">网易云</li>
-                <li class="select-option" data-value="tx">QQ</li>
-                <li class="select-option" data-value="kg">酷狗</li>
-                <li class="select-option" data-value="kw">酷我</li>
-                <li class="select-option" data-value="mg">咪咕</li>
-            </ul>
-          </div>
-        </div>
 
-        <div id="back-to-grid-wrap" class="flex-y-center">
-          <div class="divider-v mx-2"></div>
-          <div class="song-more-btn btn-return" id="back-to-grid-btn" title="返回我的歌单">返回</div>
-        </div>
-
-        <div id="menu-dropzone-row1" class="flex-y-center h-full">
-          <div id="global-menu-1-wrapper" class="flex-y-center h-full">
-            <div class="divider-v mx-2"></div>
-            <div class="custom-select flex-y-center h-full" id="global-menu-1-container">
-              <div class="song-more-btn" id="global-menu-1-btn" title="列表操作">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" stroke="none"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg>
-              </div>
-              <ul class="select-options" id="global-menu-1-opts">
-                <li class="select-option" id="setting-refresh"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="svg-mr-8"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>刷新曲库</li>
-                <li class="select-option global-cover-btn disabled-text"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="svg-mr-8"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>设置封面</li>
-                <li class="select-option global-add-btn"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" class="svg-mr-8"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3"></circle><path d="M12 6a6 6 0 0 0-6 6"></path></svg>新建/加入歌单</li>
-                <li class="select-option disabled global-dev-btn"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="svg-mr-8"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><line x1="12" y1="11" x2="16" y2="11"></line><line x1="12" y1="16" x2="16" y2="16"></line><line x1="8" y1="11" x2="8.01" y2="11"></line><line x1="8" y1="16" x2="8.01" y2="16"></line></svg>调速&续播</li>
-                <li class="select-option hidden" id="menu-config-engine">
-                  <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="svg-mr-8"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-                  <span id="menu-config-engine-text">配置引擎</span>
-                </li>
+          <div class="search-inline-wrap" id="mf-plugin-row">
+            <div class="divider-v mx-4"></div>
+            <div class="custom-select h-full" id="engine-container">
+              <div class="select-value" id="engine-val" data-value="LXMusic">LXMusic</div>
+              <ul class="select-options" id="engine-opts">
+                <li class="select-option active" data-value="LXMusic">LXMusic</li>
+                <li class="select-option" data-value="WebDAV">WebDAV</li>
+              </ul>
+            </div>
+            <div class="divider-v mx-4"></div>
+            <div class="custom-select h-full" id="mf-plugin-container">
+              <div class="select-value" id="mf-plugin-val" data-value="wy">网易云</div>
+              <ul class="select-options" id="mf-plugin-opts">
+                  <li class="select-option active" data-value="wy">网易云</li>
+                  <li class="select-option" data-value="tx">QQ</li>
+                  <li class="select-option" data-value="kg">酷狗</li>
+                  <li class="select-option" data-value="kw">酷我</li>
+                  <li class="select-option" data-value="mg">咪咕</li>
               </ul>
             </div>
           </div>
+
+          <div id="back-to-grid-wrap" class="flex-y-center">
+            <div class="divider-v mx-2"></div>
+            <div class="song-more-btn btn-return" id="back-to-grid-btn" title="返回我的歌单">返回</div>
+          </div>
+
+          <div id="menu-dropzone-row1" class="flex-y-center h-full">
+            <div id="global-menu-1-wrapper" class="flex-y-center h-full">
+              <div class="divider-v mx-2"></div>
+              <div class="custom-select flex-y-center h-full" id="global-menu-1-container">
+                <div class="song-more-btn" id="global-menu-1-btn" title="列表操作">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" stroke="none"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg>
+                </div>
+                <ul class="select-options" id="global-menu-1-opts">
+                  <li class="select-option" id="setting-refresh"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="svg-mr-8"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>刷新曲库</li>
+                  <li class="select-option global-cover-btn disabled-text"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="svg-mr-8"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>设置封面</li>
+                  <li class="select-option global-add-btn"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" class="svg-mr-8"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3"></circle><path d="M12 6a6 6 0 0 0-6 6"></path></svg>新建/加入歌单</li>
+                  <li class="select-option disabled global-dev-btn"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="svg-mr-8"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><line x1="12" y1="11" x2="16" y2="11"></line><line x1="12" y1="16" x2="16" y2="16"></line><line x1="8" y1="11" x2="8.01" y2="11"></line><line x1="8" y1="16" x2="8.01" y2="16"></line></svg>调速&续播</li>
+                  <li class="select-option hidden" id="menu-config-engine">
+                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="svg-mr-8"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                    <span id="menu-config-engine-text">配置引擎</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
         </div>
-
       </div>
-    </div>
 
-    <!-- ==========================================
-         宽屏模式三栏工具栏 (仅在 split-view 可见)
-         ========================================== -->
-    <div class="toolbar-split-only" id="toolbar-split">
+      </div><!-- /playlist-row-inner -->
+
+      <!-- =============================================
+           宽屏模式三栏工具栏 (仅在 split-view 可见)
+           ============================================= -->
+      <div class="toolbar-split-only" id="toolbar-split">
       <div class="toolbar-split-inner">
         <!-- 左栏：在线资源搜索 -->
         <div class="tbs tbs-online" id="tbs-online">
