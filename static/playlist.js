@@ -1500,11 +1500,12 @@
 
                                 const isBuiltIn = pl.labels && pl.labels.includes("built_in");
                                 if (!isBuiltIn) {
-                                    for (const s of cleanedSongs) { if (s && s.id) syncSongsMap.set(s.id, s); }
+                                    for (const s of cleanedSongs) { if (s && s.id) { if (!syncSongsMap.has(s.id)) s._addedAt = Date.now(); syncSongsMap.set(s.id, s); } }
                                 }
                             } catch (err) { console.error(`拉取 [${pl.name}] 失败:`, err); }
                         }
-                        syncReconstructed["所有歌曲"] = Array.from(syncSongsMap.values());
+                        syncReconstructed["所有歌曲"] = Array.from(syncSongsMap.values())
+                            .sort((a, b) => (b._addedAt || 0) - (a._addedAt || 0));
                     }
 
                     // 3. 💾 统一极限压缩存盘 (骨肉分离)

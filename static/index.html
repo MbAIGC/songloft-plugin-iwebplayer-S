@@ -880,6 +880,30 @@
     body.ambient-active.split-view-active #online-toolbar-container,
     body.ambient-active.split-view-active .search-input-box { position: relative !important; z-index: 210 !important; }
 
+    /* 宽屏模式隐藏在线工具栏（改用三栏工具栏） */
+    body.split-view-active #online-toolbar-container { display: none !important; }
+
+    /* 宽屏模式三栏工具栏 */
+    body.split-view-active .toolbar-split-only { display: flex; }
+    body.split-view-active .toolbar-main-box { display: none; }
+    .toolbar-split-only { display: none; height: 40px; align-items: stretch; }
+    .toolbar-split-inner { display: flex; flex: 1; align-items: center; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; height: 40px; overflow: hidden; }
+    .tbs { display: flex; align-items: center; transition: width 0.25s ease; overflow: hidden; height: 100%; }
+    .tbs-inner { display: flex; align-items: center; height: 100%; width: 100%; padding: 0 8px; gap: 6px; }
+    .tbs-online { width: var(--tbs-online-w, 25%); }
+    .tbs-library { width: var(--tbs-lib-w, 50%); flex: 1; }
+    .tbs-playlist { width: var(--tbs-pl-w, 25%); justify-content: flex-end; padding-right: 4px; }
+    .tbs-icon { flex-shrink: 0; color: var(--text-sub); }
+    .tbs-input { flex: 1; border: none; outline: none; background: transparent; font-size: 13px; color: var(--text-main); min-width: 0; }
+    .tbs-input::placeholder { color: var(--text-sub); }
+    .tbs-clear { display: none; flex-shrink: 0; border: none; background: none; cursor: pointer; padding: 4px; color: var(--text-sub); border-radius: 4px; }
+    .tbs-clear:hover { background: var(--hover-bg); }
+    .tbs-input:not(:placeholder-shown) ~ .tbs-clear { display: flex; }
+    .tbs-divider { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
+    .tbs-pl-val { font-size: 14px; font-weight: 500; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 8px; }
+    .tbs-menu-btn { flex-shrink: 0; padding: 4px; cursor: pointer; color: var(--text-sub); border-radius: 4px; }
+    .tbs-menu-btn:hover { background: var(--hover-bg); }
+
     /* 修正三大菜单统一下拉框错位 */
     body.ambient-active.split-view-active #playlist-opts { top: 100% !important; margin-top: 6px !important; left: 0 !important; right: 0 !important; }
 
@@ -1727,6 +1751,38 @@
           </div>
         </div>
 
+      </div>
+    </div>
+
+    <!-- ==========================================
+         宽屏模式三栏工具栏 (仅在 split-view 可见)
+         ========================================== -->
+    <div class="toolbar-split-only" id="toolbar-split">
+      <div class="toolbar-split-inner">
+        <!-- 左栏：在线资源搜索 -->
+        <div class="tbs tbs-online" id="tbs-online">
+          <div class="tbs-inner">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" class="tbs-icon"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" class="tbs-input" id="tbs-lx-input" placeholder="在线资源搜索" autocomplete="off">
+          </div>
+        </div>
+        <div class="tbs-divider"></div>
+        <!-- 中栏：曲库搜索 -->
+        <div class="tbs tbs-library" id="tbs-library">
+          <div class="tbs-inner">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" class="tbs-icon"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" class="tbs-input" id="tbs-search-input" placeholder="搜索曲库..." autocomplete="off">
+            <button class="tbs-clear" id="tbs-search-clear" title="清除">
+              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </div>
+        </div>
+        <div class="tbs-divider"></div>
+        <!-- 右栏：所有歌曲 -->
+        <div class="tbs tbs-playlist" id="tbs-playlist">
+          <div class="tbs-pl-val" id="tbs-pl-val">所有歌曲</div>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" stroke="none" class="tbs-menu-btn" id="tbs-menu-btn"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg>
+        </div>
       </div>
     </div>
 
@@ -3438,6 +3494,97 @@
                 searchClear.classList.remove('show');
             });
         }
+
+        // ==========================================
+        // 宽屏模式三栏工具栏
+        // ==========================================
+
+        const tbsOnline = document.getElementById('tbs-online');
+        const tbsLibrary = document.getElementById('tbs-library');
+        const tbsLxInput = document.getElementById('tbs-lx-input');
+        const tbsSearchInput = document.getElementById('tbs-search-input');
+        const tbsSearchClear = document.getElementById('tbs-search-clear');
+        const tbsMenuBtn = document.getElementById('tbs-menu-btn');
+        const tbsPlVal = document.getElementById('tbs-pl-val');
+        const rootStyle = document.documentElement.style;
+
+        function tbsReset() {
+            rootStyle.setProperty('--tbs-online-w', '25%');
+            rootStyle.setProperty('--tbs-lib-w', '50%');
+            rootStyle.setProperty('--tbs-pl-w', '25%');
+        }
+
+        function tbsExpandOnline() {
+            rootStyle.setProperty('--tbs-online-w', '50%');
+            rootStyle.setProperty('--tbs-lib-w', '25%');
+            rootStyle.setProperty('--tbs-pl-w', '25%');
+        }
+
+        function tbsExpandLibrary() {
+            rootStyle.setProperty('--tbs-online-w', '25%');
+            rootStyle.setProperty('--tbs-lib-w', '50%');
+            rootStyle.setProperty('--tbs-pl-w', '25%');
+        }
+
+        if (tbsLxInput) {
+            tbsLxInput.addEventListener('focus', tbsExpandOnline);
+            tbsLxInput.addEventListener('blur', () => {
+                if (!tbsLxInput.value.trim()) tbsReset();
+            });
+            tbsLxInput.addEventListener('input', (e) => {
+                const lxInput = document.getElementById('lx-search-input');
+                if (lxInput) {
+                    lxInput.value = e.target.value;
+                    lxInput.dispatchEvent(new Event('input'));
+                }
+            });
+        }
+
+        if (tbsSearchInput) {
+            tbsSearchInput.addEventListener('focus', tbsExpandLibrary);
+            tbsSearchInput.addEventListener('blur', () => {
+                if (!tbsSearchInput.value.trim()) tbsReset();
+            });
+            tbsSearchInput.addEventListener('input', (e) => {
+                const keyword = e.target.value;
+                if (tbsSearchClear) tbsSearchClear.style.display = keyword.trim().length > 0 ? 'flex' : 'none';
+                localStorage.setItem('iwebplayer-s.local_search_keyword', keyword);
+                window.performLocalSearch(keyword);
+            });
+        }
+
+        if (tbsSearchClear) {
+            tbsSearchClear.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                if (tbsSearchInput) {
+                    tbsSearchInput.value = '';
+                    tbsSearchInput.dispatchEvent(new Event('input'));
+                    tbsSearchInput.focus();
+                }
+            });
+        }
+
+        if (tbsMenuBtn) {
+            tbsMenuBtn.addEventListener('click', (e) => {
+                const btn = document.getElementById('global-menu-1-btn');
+                if (btn) btn.click();
+            });
+        }
+
+        if (tbsPlVal) {
+            tbsPlVal.addEventListener('click', (e) => {
+                const container = document.getElementById('playlist-container');
+                const val = container && container.querySelector('.select-value');
+                if (val) val.click();
+            });
+        }
+
+        // 同步 playlist 名称到三栏工具栏
+        const origUpdateSearchUI = window.updateSearchUI;
+        window.updateSearchUI = function(playlistName) {
+            if (origUpdateSearchUI) origUpdateSearchUI(playlistName);
+            if (tbsPlVal) tbsPlVal.textContent = playlistName || '所有歌曲';
+        };
 
         // 🌟 物理隔离 1：LXMusic 专属搜索逻辑
         const lxSearchBtn = document.getElementById('lx-search-btn');
