@@ -199,9 +199,9 @@
   .toolbar-split-inner { display: flex; flex: 1; align-items: center; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; height: 40px; overflow: visible; min-width: 0; }
   .tbs { display: flex; align-items: center; transition: width 0.25s ease; overflow: hidden; height: 100%; min-width: 0; }
   .tbs-inner { display: flex; align-items: center; height: 100%; width: 100%; padding: 0 8px; gap: 6px; }
-  .tbs-online { width: var(--tbs-online-w, 25%); }
-  .tbs-library { width: var(--tbs-lib-w, 50%); flex: 1; }
-  .tbs-playlist { width: var(--tbs-pl-w, 25%); display: flex; align-items: center; gap: 2px; overflow: visible; position: relative; }
+  .tbs-online { width: var(--tbs-online-w, 30%); }
+  .tbs-library { width: var(--tbs-lib-w, 40%); flex: 1; }
+  .tbs-playlist { width: var(--tbs-pl-w, 30%); display: flex; align-items: center; gap: 2px; overflow: visible; position: relative; }
   .tbs-playlist #playlist-container { flex: 1; position: static; min-width: 0; overflow: visible; }
   .tbs-playlist #playlist-val { padding: 0 24px 0 8px; font-size: 13px; background-position: right 4px center; background-size: 12px; }
   .tbs-playlist #menu-dropzone-row1 { display: flex; height: 100%; flex: 0 0 auto; }
@@ -3561,25 +3561,25 @@
         const rootStyle = document.documentElement.style;
 
         function tbsReset() {
-            rootStyle.setProperty('--tbs-online-w', '25%');
-            rootStyle.setProperty('--tbs-lib-w', '50%');
-            rootStyle.setProperty('--tbs-pl-w', '25%');
+            rootStyle.setProperty('--tbs-online-w', '30%');
+            rootStyle.setProperty('--tbs-lib-w', '40%');
+            rootStyle.setProperty('--tbs-pl-w', '30%');
             if (tbsOnline) tbsOnline.classList.remove('expanded');
             if (tbsLibrary) tbsLibrary.classList.remove('expanded');
         }
 
         function tbsExpandOnline() {
             rootStyle.setProperty('--tbs-online-w', '60%');
-            rootStyle.setProperty('--tbs-lib-w', '15%');
-            rootStyle.setProperty('--tbs-pl-w', '25%');
+            rootStyle.setProperty('--tbs-lib-w', '10%');
+            rootStyle.setProperty('--tbs-pl-w', '30%');
             if (tbsOnline) tbsOnline.classList.add('expanded');
             if (tbsLibrary) tbsLibrary.classList.remove('expanded');
         }
 
         function tbsExpandLibrary() {
-            rootStyle.setProperty('--tbs-online-w', '25%');
-            rootStyle.setProperty('--tbs-lib-w', '50%');
-            rootStyle.setProperty('--tbs-pl-w', '25%');
+            rootStyle.setProperty('--tbs-online-w', '30%');
+            rootStyle.setProperty('--tbs-lib-w', '40%');
+            rootStyle.setProperty('--tbs-pl-w', '30%');
             if (tbsOnline) tbsOnline.classList.remove('expanded');
             if (tbsLibrary) tbsLibrary.classList.add('expanded');
         }
