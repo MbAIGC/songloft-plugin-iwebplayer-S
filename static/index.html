@@ -201,7 +201,7 @@
   .tbs-inner { display: flex; align-items: center; height: 100%; width: 100%; padding: 0 8px; gap: 6px; }
   .tbs-online { width: var(--tbs-online-w, 25%); }
   .tbs-library { width: var(--tbs-lib-w, 50%); flex: 1; }
-  .tbs-playlist { width: var(--tbs-pl-w, 25%); justify-content: flex-end; padding-right: 4px; display: flex; align-items: center; gap: 2px; }
+  .tbs-playlist { width: var(--tbs-pl-w, 25%); justify-content: flex-end; padding-right: 4px; display: flex; align-items: center; gap: 2px; overflow: visible; }
   .tbs-playlist #playlist-container { flex: 1; position: static; min-width: 0; }
   .tbs-playlist #playlist-val { padding: 0 24px 0 8px; font-size: 13px; background-position: right 4px center; background-size: 12px; }
   .tbs-playlist #menu-dropzone-row1 { display: flex; height: 100%; flex: 0 0 auto; }
@@ -213,6 +213,11 @@
   .tbs-clear:hover { background: var(--hover-bg); }
   .tbs-input:not(:placeholder-shown) ~ .tbs-clear { display: flex; }
   .tbs-divider { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
+  .tbs-divider-v { width: 1px; height: 14px; background: var(--border); flex-shrink: 0; margin: 0 4px; }
+  .tbs-lx-actions { display: flex; align-items: center; gap: 0; flex-shrink: 0; }
+  .tbs-lx-btn { border: none; background: none; cursor: pointer; font-size: 12px; color: var(--primary); padding: 2px 6px; white-space: nowrap; border-radius: 4px; }
+  .tbs-lx-btn:hover { background: var(--hover-bg); }
+  .tbs-lx-btn:active { opacity: 0.7; }
 
   #playlist-container { position: static !important; flex: 1; min-width: 0; transition: all 0.2s; }
   #playlist-val { display: flex; align-items: center; width: 100%; border: none; background-color: transparent; height: 100%; box-shadow: none; padding: 0 28px 0 12px; margin: 0; line-height: normal; background-position: right 10px center; }
@@ -1772,6 +1777,14 @@
           <div class="tbs-inner">
             <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" class="tbs-icon"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
             <input type="text" class="tbs-input" id="tbs-lx-input" placeholder="在线资源搜索" autocomplete="off">
+            <button class="tbs-clear" id="tbs-lx-clear" title="清除">
+              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <div class="tbs-lx-actions" id="tbs-lx-actions">
+              <button class="tbs-lx-btn" id="tbs-lx-search-btn">搜歌</button>
+              <div class="tbs-divider-v"></div>
+              <button class="tbs-lx-btn" id="tbs-lx-playlist-btn">搜单</button>
+            </div>
           </div>
         </div>
         <div class="tbs-divider"></div>
@@ -3506,6 +3519,9 @@
         // ==========================================
 
         const tbsLxInput = document.getElementById('tbs-lx-input');
+        const tbsLxClear = document.getElementById('tbs-lx-clear');
+        const tbsLxSearchBtn = document.getElementById('tbs-lx-search-btn');
+        const tbsLxPlaylistBtn = document.getElementById('tbs-lx-playlist-btn');
         const tbsSearchInput = document.getElementById('tbs-search-input');
         const tbsSearchClear = document.getElementById('tbs-search-clear');
         const rootStyle = document.documentElement.style;
@@ -3540,6 +3556,39 @@
                     lxInput.dispatchEvent(new Event('input'));
                 }
             });
+            tbsLxInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    const btn = document.getElementById('lx-search-btn');
+                    if (btn) btn.click();
+                }
+            });
+        }
+
+        if (tbsLxClear) {
+            tbsLxClear.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                if (tbsLxInput) {
+                    tbsLxInput.value = '';
+                    tbsLxInput.dispatchEvent(new Event('input'));
+                    tbsLxInput.focus();
+                }
+            });
+        }
+
+        function tbsDoLxSearch(isPlaylist) {
+            const keyword = tbsLxInput ? tbsLxInput.value : '';
+            const lxInput = document.getElementById('lx-search-input');
+            if (lxInput) lxInput.value = keyword;
+            const btn = document.getElementById(isPlaylist ? 'lx-search-playlist-btn' : 'lx-search-btn');
+            if (btn) { btn.click(); }
+        }
+
+        if (tbsLxSearchBtn) {
+            tbsLxSearchBtn.addEventListener('click', () => tbsDoLxSearch(false));
+        }
+
+        if (tbsLxPlaylistBtn) {
+            tbsLxPlaylistBtn.addEventListener('click', () => tbsDoLxSearch(true));
         }
 
         if (tbsSearchInput) {
@@ -3612,6 +3661,17 @@
         // 同步 playlist 名称到右栏（更新 #playlist-val 由原 updateSearchUI 自动处理）
         // #playlist-container 移入右栏后，原 updateSearchUI 会更新 #playlist-val，
         // 无需额外逻辑
+
+        // 同步保存的关键词到 tbs-search-input
+        window.updateSearchUI = (function(orig) {
+            return function(playlistName) {
+                if (orig) orig(playlistName);
+                if (playlistName === '曲库搜索' && tbsSearchInput) {
+                    const saved = localStorage.getItem('iwebplayer-s.local_search_keyword') || '';
+                    if (tbsSearchInput.value !== saved) tbsSearchInput.value = saved;
+                }
+            };
+        })(window.updateSearchUI);
 
         // 🌟 物理隔离 1：LXMusic 专属搜索逻辑
         const lxSearchBtn = document.getElementById('lx-search-btn');
