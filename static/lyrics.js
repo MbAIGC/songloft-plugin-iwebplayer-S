@@ -266,6 +266,7 @@ window.LyricsEngine = (function() {
                     let segMatch;
                     let lastAbs = null;
                     let lastSegEnd = 0;
+                    let firstWord = true;
 
                     while (
                         (segMatch = segRegex.exec(text)) !== null
@@ -276,11 +277,14 @@ window.LyricsEngine = (function() {
 
                         const wText = segMatch[1];
 
+                        // 格式 A 语义：字[时间] 中的时间是该字的结束时间，
+                        // 因此第一个字从行首开始，后续字的 offset = 前一个字的时间 - 行首
+                        const offset = firstWord
+                            ? 0
+                            : Math.max(0, lastAbs - baseTime);
+
                         words.push({
-                            offset: Math.max(
-                                0,
-                                abs - baseTime
-                            ),
+                            offset,
                             text: wText,
                             duration: 0
                         });
@@ -289,6 +293,7 @@ window.LyricsEngine = (function() {
 
                         lastAbs = abs;
                         lastSegEnd = segRegex.lastIndex;
+                        firstWord = false;
                     }
 
                     // 最后一个没有时间标签的尾部
