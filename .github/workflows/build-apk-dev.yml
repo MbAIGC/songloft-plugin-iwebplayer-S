@@ -127,9 +127,9 @@ jobs:
           # 保留人工维护的说明，末尾再追加本次构建的提交列表
           RELEASE_NOTES="$(cat DEV_RELEASE_NOTES.md)
 
-## 本次构建提交
+          ## 本次构建提交
 
-$(git log --oneline --no-merges -10 | sed 's/^/- /')"
+          $(git log --oneline --no-merges -10 | sed 's/^/- /')"
           if gh release view "$DEV_TAG" >/dev/null 2>&1; then
             gh release upload "$DEV_TAG" release/* --clobber
             gh release edit "$DEV_TAG" --prerelease --notes "$RELEASE_NOTES"
