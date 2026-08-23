@@ -31,47 +31,23 @@ window.LyricsEngine = (function() {
     let lastProgress = -1;
 
     // ------------------------------------------------------------
-    // AudioContext 精确时间补偿
+    // 歌词时间基准（安全时钟）
     //
-    // 浏览器 audio.currentTime 反映的是解码缓冲区位置，比扬声器
-    // 实际输出提前 50-150ms。通过 AudioContext 获取硬件输出时钟
-    // 来抵消这个延迟，让歌词与听到的声音同步。
+    // 🔐 不再用 AudioContext.createMediaElementSource 接管真实音频输出：
+    // 该方案会把所有播放路由进 Web Audio 图，跨域且无 CORS 的音频
+    // 会输出静音，AudioContext 挂起/恢复失败也可能影响播放。
+    // 改为以 audio.currentTime 为唯一时间基准，叠加可配置的固定偏移
+    // 粗略补偿解码缓冲区延迟（默认 0，可通过 config lyrics.offset_ms 调）。
     // ------------------------------------------------------------
 
-    let audioCtx = null;
-    let audioSource = null;
-
-    function initAudioContext() {
-        try {
-            const AC = window.AudioContext || window.webkitAudioContext;
-            if (!AC) return;
-            audioCtx = new AC();
-            audioSource = audioCtx.createMediaElementSource(audioEl);
-            audioSource.connect(audioCtx.destination);
-        } catch (e) {
-            // createMediaElementSource 只能调用一次，被占用则回退
-            audioCtx = null;
-            audioSource = null;
-        }
-    }
-
-    // 获取扬声器实际输出时刻对应的媒体时间
+    // 获取当前用于歌词渲染的媒体时间（永不接管真实输出，失败天然回退）
     function getSpeakerTime() {
-        if (audioCtx && audioCtx.state === 'running' && audioEl) {
-            try {
-                const ts = audioCtx.getOutputTimestamp();
-                // ts.contextTime = AudioContext 时钟上此刻正在输出的位置
-                // audioCtx.currentTime - ts.contextTime = 缓冲区延迟（秒）
-                const bufferLatency = audioCtx.currentTime - ts.contextTime;
-                // 扬声器输出 ≈ 解码位置 - 缓冲区延迟
-                if (bufferLatency >= 0 && bufferLatency < 1) {
-                    return audioEl.currentTime - bufferLatency;
-                }
-            } catch (e) {
-                // getOutputTimestamp 不可用，回退
-            }
-        }
-        return audioEl ? audioEl.currentTime : 0;
+        if (!audioEl) return 0;
+        let offsetMs = 0;
+        try {
+            offsetMs = parseFloat(window.ConfigManager && window.ConfigManager.get('config', 'lyrics.offset_ms')) || 0;
+        } catch (e) {}
+        return Math.max(0, audioEl.currentTime - offsetMs / 1000);
     }
 
     // ------------------------------------------------------------
@@ -82,8 +58,6 @@ window.LyricsEngine = (function() {
         wrapperEl = document.getElementById(wrapperId);
         containerEl = document.getElementById(containerId);
         audioEl = document.getElementById('audio');
-
-        initAudioContext();
 
         bindEvents();
         startLoop();
@@ -105,11 +79,6 @@ window.LyricsEngine = (function() {
         function loop() {
             if (!audioEl || !document.contains(audioEl)) {
                 audioEl = document.getElementById('audio');
-            }
-
-            // AudioContext 被挂起时尝试恢复（自动播放策略）
-            if (audioCtx && audioCtx.state === 'suspended' && audioEl && !audioEl.paused) {
-                audioCtx.resume();
             }
 
             if (
