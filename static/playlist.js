@@ -1375,21 +1375,11 @@
             const prefs = typeof window.getPreferences === 'function' ? window.getPreferences() : {};
             const isHighPerf = prefs.highPerf !== false;
 
-            // 1. 🔍 尝试读取 V2 版极简压缩缓存
-            const cachedDataStr = localStorage.getItem('iwebplayer-s.global_cache');
+            // 1. 🔍 尝试读取曲库缓存（#11：优先 IndexedDB 分批缓存，回退 localStorage 压缩缓存）
             let hasCache = false;
 
-            if (cachedDataStr) {
+            const applyGlobalCache = (cache) => {
                 try {
-                    let parsedStr = cachedDataStr;
-                    if (window.LZString) {
-                        const decompressed = window.LZString.decompressFromUTF16(cachedDataStr);
-                        if (decompressed) parsedStr = decompressed;
-                    }
-
-                    // 🌟 修复：必须解析解压后的 parsedStr，而不是原始的 cachedDataStr
-                    const cache = JSON.parse(parsedStr);
-
                     window.customPlaylistNames = cache.customPlaylistNames || [];
                     window.playlistMeta = cache.playlistMeta || [];
 
@@ -1416,9 +1406,44 @@
 
                     window.favoriteList = window.allPlaylists["收藏"].map(item => window.getSongNameObj(item));
 
-                    hasCache = true;
+                    return true;
                 } catch (e) {
-                    console.error("缓存解析失败，准备重建:", e);
+                    console.error("缓存应用失败，准备重建:", e);
+                    return false;
+                }
+            };
+
+            if (window.IDBCache) {
+                try {
+                    const [idbMeta, idbPool] = await Promise.all([
+                        window.IDBCache.getMeta('cache'),
+                        window.IDBCache.getAllSongs()
+                    ]);
+                    if (idbMeta && Array.isArray(idbPool)) {
+                        hasCache = applyGlobalCache(Object.assign({}, idbMeta, { songsPool: idbPool }));
+                    }
+                } catch (e) {
+                    // IndexedDB 不可用/损坏 → 静默回落 localStorage
+                    console.warn("IndexedDB 缓存读取失败，回落 localStorage:", e);
+                }
+            }
+
+            if (!hasCache) {
+                const cachedDataStr = localStorage.getItem('iwebplayer-s.global_cache');
+                if (cachedDataStr) {
+                    try {
+                        let parsedStr = cachedDataStr;
+                        if (window.LZString) {
+                            const decompressed = window.LZString.decompressFromUTF16(cachedDataStr);
+                            if (decompressed) parsedStr = decompressed;
+                        }
+
+                        // 🌟 修复：必须解析解压后的 parsedStr，而不是原始的 cachedDataStr
+                        const cache = JSON.parse(parsedStr);
+                        hasCache = applyGlobalCache(cache);
+                    } catch (e) {
+                        console.error("缓存解析失败，准备重建:", e);
+                    }
                 }
             }
 
@@ -1520,19 +1545,29 @@
                     }
 
                     try {
+                        const songsPool = Array.from(syncSongsMap.values());
                         const cacheObj = {
                             customPlaylistNames: window.customPlaylistNames,
                             playlistMeta: window.playlistMeta,
-                            songsPool: Array.from(syncSongsMap.values()),
                             playlistsMap: playlistsMap,
                             coverMap: collectCoverCache()
                         };
 
-                        // 🌟 核心：将 JSON 字符串进行 UTF-16 极限压缩
-                        const jsonStr = JSON.stringify(cacheObj);
-                        const finalStorageStr = window.LZString ? window.LZString.compressToUTF16(jsonStr) : jsonStr;
+                        // 🔐 #11：优先 IndexedDB 分批写入（大曲库不阻塞主线程、不受 localStorage 配额限制）
+                        let idbOk = false;
+                        if (window.IDBCache) {
+                            const metaOk = await window.IDBCache.putMeta('cache', cacheObj);
+                            const songsOk = await window.IDBCache.putSongs(songsPool);
+                            idbOk = !!metaOk && !!songsOk;
+                        }
 
-                        localStorage.setItem('iwebplayer-s.global_cache', finalStorageStr);
+                        // IDB 不可用/失败 → 回退 localStorage + LZString 压缩（同步写，仅兜底）
+                        if (!idbOk) {
+                            const fullObj = Object.assign({}, cacheObj, { songsPool: songsPool });
+                            const jsonStr = JSON.stringify(fullObj);
+                            const finalStorageStr = window.LZString ? window.LZString.compressToUTF16(jsonStr) : jsonStr;
+                            localStorage.setItem('iwebplayer-s.global_cache', finalStorageStr);
+                        }
 
                         // 可选：在控制台打印一下压缩成果，你会非常有成就感
                         //console.log(`🗜️ 压缩率: ${((finalStorageStr.length / jsonStr.length) * 100).toFixed(1)}% | 压缩后大小: ${(finalStorageStr.length / 1024).toFixed(1)} KB`);
@@ -1613,6 +1648,7 @@
                     _backgroundSyncPromise = doBackgroundSync().catch(e => {
                         if (e.message === "AUTH_FAILED") {
                             localStorage.removeItem('iwebplayer-s.global_cache');
+                            if (window.IDBCache) window.IDBCache.clear(); // 🔐 #11：同步清空 IndexedDB 缓存
                             window.location.reload();
                         } else {
                             console.warn("后台静默同步失败:", e);
