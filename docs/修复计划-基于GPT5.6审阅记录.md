@@ -25,9 +25,10 @@
 
 ## 阶段二：数据正确性
 
-- [ ] ⏸ ✅ 5. 修复「所有歌曲按添加日期倒序」（用户暂缓）
+- [x] ✅ 5. 修复「所有歌曲按添加日期倒序」
   - 保留宿主 `Song.added_at`（`cleanedSongs` 不再丢弃）；高性能模式同样本地 `(added_at DESC, id DESC)` 稳定排序；修复重复歌曲丢 `_addedAt`、用同步时间冒充添加时间；一次足够大 `limit` 取全 + 检测 `truncated`/`warnings`，不静默丢歌
   - 显式 `orderBy/order` 需宿主 ≥ v2.8.9（HTTP ≥ v2.9.5）；`playlists.getSongs` 的 `sort/order` 需 ≥ v2.11.4 → 维持 2.6.3 兼容则本地排序
+  - ✅ 已修（`4807b69`）：后端 `cleanedSongs` 保留 `added_at`（`toAddedAtMs`：秒×1000/毫秒原样/ISO→毫秒/非法→0）；`meta_bulk` 用 `(added_at DESC, id DESC)` 稳定排序（不再受并发完成时序影响），`structure['所有歌曲']` 与分片缓存顺序确定；前端共享 `sortSongsByAddedAt`（`added_at` 优先、`_addedAt` 兜底、id 次级、非变异）两种模式同键排序保证一致；兼容模式重复歌曲保留首次 `_addedAt`（真实 `added_at`）、新歌用宿主 `added_at` 而非 `Date.now()`；+11 单测
   - 已核实：`src/main.ts:87-91` `cleanedSongs` 丢 `added_at`；`:109-138` 高性能 `Promise.all` 无排序；`static/playlist.js:1504` `Date.now()` 冒充添加时间、重复歌 `set` 覆盖丢 `_addedAt`
 - [ ] ✅ 6. WebDAV 同名目录覆盖
   - 内部键改相对完整路径（或稳定目录 ID），basename 仅展示；重名 UI 显示父路径
