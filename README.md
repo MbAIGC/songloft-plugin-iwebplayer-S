@@ -50,7 +50,7 @@ iWebPlayer-S 保留原版的播放、歌单、歌词、封面刮削、倍速、�
 
 ### 1. 安装插件（SongLoft 服务器）
 
-1. 从 [Releases](https://github.com/MbAIGC/songloft-plugin-iwebplayer-S/releases) 下载 `iwebplayer-s-v1.1.5.jsplugin.zip`；
+1. 从 [Releases](https://github.com/MbAIGC/songloft-plugin-iwebplayer-S/releases) 下载 `iwebplayer-s-v1.1.6.jsplugin.zip`；
 2. 在 SongLoft 后台 **JS 插件** 页面上传该 zip 安装——**直接上传，无需解压**；
 3. 安装后浏览器访问 `/api/v1/jsplugin/iwebplayer-s/static/index.html` 即可使用。
 
