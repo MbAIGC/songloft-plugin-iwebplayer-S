@@ -35,9 +35,10 @@
 - [ ] ✅ 7. WebDAV 单目录错误不再中断整次扫描
   - `songloft.logger.error` → `songloft.log.error`；记录失败目录后继续；区分 `completed_with_warnings` 与真失败
   - 已核实：`src/webdav.ts:103` `songloft.logger.error`（该 API 不存在，会抛错进外层 catch 中断扫描）
-- [ ] ⚠️ 8. 隔离全局状态（分片缓存 / WebDAV 扫描状态）
+- [x] ✅ 8. 隔离全局状态（分片缓存 / WebDAV 扫描状态）
   - `meta_bulk` 返回 `sessionId`，`chunk`/`destroy` 携带；WebDAV 按 `scanId`/`davId` 维护状态 Map，含取消/超时/清理
   - 已核实：`src/main.ts:49` 模块级 `flashSongsCache`；`src/webdav.ts:5-8,140-151` 模块级扫描状态。⚠️ "宿主串行队列、不跨插件共享"为宿主行为（❓待实测）
+  - ✅ 已修（`d342ec7`）：WebDAV 4 个模块级变量收敛为单个 `WebDavScanSession`（`scanId`+`version`+`status`+`foldersCount`+`davId`），新扫描原子替换 active 会话，旧任务在 `activeScanSession !== session` 检查点自取消，重叠扫描不再污染共享计数；`/dav/status` 追加 `scanId`。分片缓存加 `generation` 标记，`meta_bulk` 返回 `_session`，`chunk`/`destroy` 带可选 `session` 参数仅在标记匹配时读/清（缺省维持旧行为），前端透传 session
 - [ ] ✅ 9. 一万首静默截断 + HEAD 探测
   - `limit/offset` 分页 + 返回总数或 `truncated`/`warnings`；探测改 AbortController + `Range: bytes=0-0` GET 或直接返回播放 URL；区分临时网络失败与永久失效
   - 已核实：`src/main.ts:85,111` `limit: 10000` 静默截断。❓ HEAD 宿主支持（审阅 §6.4）为宿主侧，待实测
@@ -54,8 +55,9 @@
   - 已核实：`src/webdav.ts:43` `queue.shift()`；扫描 `while` 全串行
 - [ ] ✅ 14. 歌词解析结果先稳定排序再二分查找，定义同时间戳合并规则
   - 已核实：`static/lyrics.js:419` 只前置占位行**未排序**；`:512-534` `findActiveLine` 二分依赖有序前提不成立
-- [ ] 15. 拆 `normalizeSong`/`createSongListItem`/`createPlaylistCard`/`updateNowPlaying` + 事件委托，替代大块 innerHTML（与 #1 合并）
+- [x] ✅ 15. 拆 `normalizeSong`/`createSongListItem`/`createPlaylistCard`/`updateNowPlaying` + 事件委托，替代大块 innerHTML（与 #1 合并）
   - 涉及：`static/playlist.js`、`online.js`（工程重构，与 #1 一起评估）
+  - ✅ 已复核（`f987a46`）：逐项审计确认目标架构已基本就位——逐项 `createElement` DOM 构建（含转义）、分片 Time-Slicing 渲染、`dataset.action`/`data-action` 事件委托、专属 `updateNpTitleUI`/`updateMediaSession` 更新现播；全部 `innerHTML` 插值复核**无未转义用户数据残留**（#1 已覆盖 XSS）。落地项：提取共享 `normalizeSong`（utils.js）消除 online.js 两处重复内联归一化，行为等价 +5 单测
 
 ## 阶段四：工程与发布
 
