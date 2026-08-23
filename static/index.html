@@ -971,14 +971,7 @@
     body.ambient-active.split-view-active .song-item .song-more-btn { color: var(--text-main) !important; font-weight: 600 !important; }
     body.ambient-active.split-view-active .song-item .song-cover-img { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important; }
     body.ambient-active.split-view-active .song-item.playing {
-      background-color: rgba(236, 72, 153, 0.10) !important; border: 2px solid var(--primary) !important;
-      box-shadow: inset 3px 0 0 var(--primary), 0 4px 14px rgba(0, 0, 0, 0.08) !important;
-    }
-    /* 非氛围模式（无背景画报）下的宽屏高亮：同样给足强调，避免白底上只有细边框看不清 */
-    body.split-view-active:not(.ambient-active) .song-item.playing {
-      background-color: rgba(236, 72, 153, 0.10) !important;
       border: 2px solid var(--primary) !important;
-      box-shadow: inset 3px 0 0 var(--primary) !important;
     }
   }
 
@@ -1055,8 +1048,6 @@
   :root:not([data-theme="light"]) body.ambient-active.split-view-active .song-item.playing,
   :root[data-theme="dark"] body.ambient-active.split-view-active .song-item.playing {
     border: 2px solid var(--primary) !important;
-    box-shadow: inset 3px 0 0 var(--primary) !important;
-    background-color: rgba(236, 72, 153, 0.16) !important;
   }
 
   /* 暗色氛围模式下三栏工具栏卡片：边框/阴影淡处理，与浅色一致不显方框 */
