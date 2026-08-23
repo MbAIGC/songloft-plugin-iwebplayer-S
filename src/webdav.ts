@@ -99,13 +99,28 @@ async function runScanTask(session: WebDavScanSession, hostUrl: string, token: s
     const fetchDirItems = async (apiUrl: string): Promise<any[] | null> => {
         for (let attempt = 0; attempt < 2; attempt++) {
             if (activeScanSession !== session) return null;
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), 15000);
+            let res: Response | null = null;
             try {
-                const res = await fetch(apiUrl, {
-                    headers: { 'Authorization': `Bearer ${token}` },
-                    signal: controller.signal
-                });
+                if (typeof AbortController !== 'undefined') {
+                    const controller = new AbortController();
+                    const timer = setTimeout(() => controller.abort(), 15000);
+                    try {
+                        res = await fetch(apiUrl, {
+                            headers: { 'Authorization': `Bearer ${token}` },
+                            signal: controller.signal
+                        });
+                    } finally {
+                        clearTimeout(timer);
+                    }
+                } else {
+                    // 🔐 QuickJS 精简运行时无 AbortController：Promise.race 超时兜底
+                    // （底层请求后台继续），避免 new AbortController() 抛 ReferenceError
+                    res = await Promise.race([
+                        fetch(apiUrl, { headers: { 'Authorization': `Bearer ${token}` } }),
+                        new Promise<null>((resolve) => setTimeout(() => resolve(null), 15000))
+                    ]);
+                }
+                if (!res) continue; // 超时 → 重试一次
                 if (!res.ok) {
                     if (res.status >= 400 && res.status < 500 && res.status !== 429) return null; // 永久失败
                     continue; // 5xx/429：重试一次
@@ -115,8 +130,6 @@ async function runScanTask(session: WebDavScanSession, hostUrl: string, token: s
             } catch (err) {
                 if (activeScanSession !== session) return null;
                 // 超时/网络错误：重试一次
-            } finally {
-                clearTimeout(timer);
             }
         }
         return null; // 重试仍失败

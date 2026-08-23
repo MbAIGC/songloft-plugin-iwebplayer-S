@@ -134,7 +134,13 @@ export async function fetchAllPlaylistSongs(id: number): Promise<{ songs: any[];
 
 // 🔐 探测音频直链：AbortController 真中止 + Range GET 兜底（兼容不支持 HEAD 的服务器），
 // 区分永久失效（404/403）与临时网络问题（超时/连接失败），临时问题不误杀歌曲
-export async function probeAudioUrl(fullUrl: string): Promise<'ok' | 'dead' | 'transient'> {
+export async function probeAudioUrl(fullUrl: string): Promise<'ok' | 'dead' | 'transient' | 'skip'> {
+    // 🔐 QuickJS 精简运行时不提供 AbortController（SDK polyfill 仅 fetch/setTimeout/Buffer/crypto/zlib）。
+    // 没有中止能力就不探测：否则 new AbortController() 抛 ReferenceError，整条 /musicinfo 失败
+    // （表现为全库「获取链接失败，自动跳过」）。跳过探测直接下发直链，由播放器自带错误处理兜底。
+    if (typeof AbortController === 'undefined') {
+        return 'skip'; // 由 /musicinfo 统一记录并直接下发直链
+    }
     const attempt = async (init: RequestInit): Promise<'ok' | 'dead' | 'transient' | 'unsupported'> => {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 3000);
@@ -325,10 +331,12 @@ router.get('/musicinfo', async (req) => {
     const fullUrl = `${await songloft.plugin.getHostUrl()}${audioUrl}`;
 
     // 🔐 探测直链可用性：AbortController 真中止；仅 404/403 判死，
-    // 超时/网络等临时问题不误杀，直接下发直链由播放器自行重试
+    // 超时/网络等临时问题不误杀，直接下发直链由播放器自行重试；
+    // 'skip'（运行时无 AbortController）同样直接下发，不做探测
     const probeResult = await probeAudioUrl(fullUrl);
     if (probeResult === 'dead') throw new Error(`资源拒绝访问`);
     if (probeResult === 'transient') songloft.log.error(`[探测] ${fullUrl} 临时网络问题，按可用下发`);
+    if (probeResult === 'skip') songloft.log.warn(`[探测] ${fullUrl} 跳过直链探测（运行时不支持 AbortController），按可用下发`);
 
     // 探测通过，清空上一次的错误记录，下发直链
     lastSystemError = null;

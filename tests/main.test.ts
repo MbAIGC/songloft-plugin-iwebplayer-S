@@ -104,6 +104,18 @@ describe('probeAudioUrl', () => {
         vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('fetch failed')));
         expect(await probeAudioUrl('http://x/audio')).toBe('transient');
     });
+    it('运行时无 AbortController → skip（不抛 ReferenceError，不误杀）', async () => {
+        const realAbort = globalThis.AbortController;
+        vi.stubGlobal('AbortController', undefined);
+        vi.stubGlobal('fetch', vi.fn());
+        try {
+            expect(await probeAudioUrl('http://x/audio')).toBe('skip');
+            expect(fetch).not.toHaveBeenCalled(); // 直接跳过，不做网络请求
+        } finally {
+            vi.stubGlobal('AbortController', realAbort);
+            vi.unstubAllGlobals();
+        }
+    });
 });
 
 // ---------------------------------------------------------------------------
