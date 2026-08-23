@@ -52,6 +52,56 @@ let flashTimeout: any = null;
 // 🌟 新增：搞一个全局变量，用来专门记录最新一次探测失败的底层原始错误
 let lastSystemError: any = null;
 
+// 🔐 分页拉取歌单全部歌曲：避免 limit 静默截断；宿主忽略 offset 导致死循环时标记 truncated
+async function fetchAllPlaylistSongs(id: number): Promise<{ songs: any[]; truncated: boolean; warnings: string[] }> {
+    const PAGE = 10000;
+    const songs: any[] = [];
+    const warnings: string[] = [];
+    let offset = 0;
+    let truncated = false;
+    let prevIds: any[] | null = null;
+    while (true) {
+        const batch = (await songloft.playlists.getSongs(id, { limit: PAGE, offset })) ?? [];
+        if (batch.length === 0) break;
+        const batchIds = batch.map((s: any) => s.id);
+        const prev: any[] | null = prevIds;
+        // 宿主忽略 offset（返回与上一页完全相同的批次）→ 防死循环
+        if (prev && batchIds.length === prev.length && batchIds.every((v, i) => v === prev[i])) {
+            truncated = true;
+            warnings.push(`playlist#${id} 宿主未按 offset 分页，仅取回 ${songs.length} 首`);
+            break;
+        }
+        songs.push(...batch);
+        prevIds = batchIds;
+        if (batch.length < PAGE) break;
+        offset += PAGE;
+    }
+    return { songs, truncated, warnings };
+}
+
+// 🔐 探测音频直链：AbortController 真中止 + Range GET 兜底（兼容不支持 HEAD 的服务器），
+// 区分永久失效（404/403）与临时网络问题（超时/连接失败），临时问题不误杀歌曲
+async function probeAudioUrl(fullUrl: string): Promise<'ok' | 'dead' | 'transient'> {
+    const attempt = async (init: RequestInit): Promise<'ok' | 'dead' | 'transient' | 'unsupported'> => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 3000);
+        try {
+            const res = await fetch(fullUrl, { ...init, signal: controller.signal });
+            if (res.status === 404 || res.status === 403) return 'dead';
+            if (res.ok || res.status === 206) return 'ok';
+            return res.status === 405 ? 'unsupported' : 'transient'; // 405=不支持 HEAD
+        } catch (e) {
+            return 'transient'; // 超时/网络错误均视为临时
+        } finally {
+            clearTimeout(timer);
+        }
+    };
+    let r = await attempt({ method: 'HEAD' });
+    if (r === 'unsupported') r = await attempt({ method: 'GET', headers: { Range: 'bytes=0-0' } });
+    if (r === 'unsupported') return 'transient'; // HEAD/GET 均不支持，按临时处理
+    return r;
+}
+
 router.get('/musiclist', async (req) => {
   try {
     const urlParams = new URLSearchParams(String(req.query));
@@ -82,7 +132,7 @@ router.get('/musiclist', async (req) => {
       const id = parseInt(idStr, 10);
       if (isNaN(id)) return jsonResponse({ error: "Invalid playlist id format" }, 400);
 
-      const plSongs = (await songloft.playlists.getSongs(id, { limit: 10000 })) ?? [];
+      const { songs: plSongs, truncated, warnings } = await fetchAllPlaylistSongs(id);
 
       const cleanedSongs = plSongs.map((s: any) => ({
           id: s.id, title: s.title || "", artist: s.artist || "", album: s.album || "",
@@ -90,7 +140,11 @@ router.get('/musiclist', async (req) => {
           plugin_entry_path: s.plugin_entry_path || "", dedup_key: s.dedup_key || ""
       }));
 
-      return jsonResponse(cleanedSongs);
+      // 响应体保持数组以兼容前端；截断/警告信息经响应头回传
+      const headers: Record<string, string> = { 'Content-Type': 'application/json; charset=utf-8' };
+      if (truncated) headers['X-SongLoft-Truncated'] = '1';
+      if (warnings.length) headers['X-SongLoft-Warnings'] = warnings.join(';');
+      return { statusCode: 200, headers, body: JSON.stringify(cleanedSongs) };
     }
 
     // ==========================================
@@ -103,12 +157,16 @@ router.get('/musiclist', async (req) => {
       const structure: any = {};
       const customNames: string[] = [];
       const songMap = new Map();
+      const bulkWarnings: string[] = [];
+      let anyTruncated = false;
 
       const playlists = (await songloft.playlists.list()) ?? [];
 
       await Promise.all(playlists.map(async (pl) => {
         try {
-          const plSongs = (await songloft.playlists.getSongs(pl.id, { limit: 10000 })) ?? [];
+          const { songs: plSongs, truncated, warnings } = await fetchAllPlaylistSongs(pl.id);
+          if (truncated) anyTruncated = true;
+          if (warnings.length) bulkWarnings.push(...warnings);
           const cleanedSongs = plSongs.map((s: any) => ({
               id: s.id, title: s.title || "", artist: s.artist || "", album: s.album || "",
               file_path: s.file_path || "", cover_url: s.cover_url || "", duration: s.duration || 0, type: s.type || "local",
@@ -144,7 +202,9 @@ router.get('/musiclist', async (req) => {
       return jsonResponse({
           structure: structure,
           _custom_playlists: customNames,
-          _playlist_meta: playlists
+          _playlist_meta: playlists,
+          _truncated: anyTruncated,
+          _warnings: bulkWarnings
       });
     }
 
@@ -179,14 +239,11 @@ router.get('/musicinfo', async (req) => {
     const audioUrl = `/api/v1/songs/${id}/play?access_token=${token}`;
     const fullUrl = `${await songloft.plugin.getHostUrl()}${audioUrl}`;
 
-    // 🌟 赛跑机制探测 (3秒超时)
-    const probeRes: any = await Promise.race([
-        fetch(fullUrl, { method: 'HEAD' }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("探测超时")), 3000))
-    ]);
-
-    // 如果文件丢失或拒绝访问，直接抛出错误
-    if (!probeRes.ok) throw new Error(`资源拒绝访问 (HTTP ${probeRes.status})`);
+    // 🔐 探测直链可用性：AbortController 真中止；仅 404/403 判死，
+    // 超时/网络等临时问题不误杀，直接下发直链由播放器自行重试
+    const probeResult = await probeAudioUrl(fullUrl);
+    if (probeResult === 'dead') throw new Error(`资源拒绝访问`);
+    if (probeResult === 'transient') songloft.log.error(`[探测] ${fullUrl} 临时网络问题，按可用下发`);
 
     // 探测通过，清空上一次的错误记录，下发直链
     lastSystemError = null;
