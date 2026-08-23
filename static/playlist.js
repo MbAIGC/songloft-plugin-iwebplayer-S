@@ -772,6 +772,33 @@
         }
     };
 
+    // 🔐 当前播放歌曲高亮同步（宽屏/分栏修复）：
+    // 以 <audio> 实际播放身份（dataset.playingSongName）为准重新定位 .playing。
+    // 修复重渲染后 findIndex 用陈旧 currentSongName 匹配失败、跨歌单/远程/恢复播放时
+    // 列表无高亮的问题；当前列表不包含正在播的歌时不动现有高亮（不误清）。
+    window.syncPlayingHighlight = function(scroll = false) {
+        if (!window.songList || window.songList.length === 0) return;
+        const audioEl = document.getElementById('audio');
+        const playingName = (audioEl && audioEl.dataset.playingSongName) || window.currentSongName || '';
+        if (!playingName) return;
+
+        const found = window.songList.findIndex(item => item && window.getSongNameObj(item) === playingName);
+        if (found === -1) return; // 当前列表没有正在播的歌：保留现有高亮
+
+        if (window.currentIndex !== found && window.currentIndex !== undefined && window.currentIndex !== -1) {
+            const oldEl = document.getElementById('song-' + window.currentIndex);
+            if (oldEl) oldEl.classList.remove('playing');
+        }
+        window.currentIndex = found;
+        const el = document.getElementById('song-' + found);
+        if (el) {
+            el.classList.add('playing');
+            if (scroll) {
+                try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
+            }
+        }
+    };
+
     window.renderPlaylist = function() {
         const grid = document.getElementById('playlist-grid');
         const list = document.getElementById('playlist');
@@ -1281,6 +1308,9 @@
         if (renderIndex < totalSongs) {
             // 核心：让出主线程给浏览器，5毫秒后继续渲染下一批
             window._renderTimer = setTimeout(renderChunk, 5);
+        } else if (typeof window.syncPlayingHighlight === 'function') {
+            // 渲染完成：以音频实际播放身份校正当前播放高亮（宽屏/分栏修复）
+            window.syncPlayingHighlight(false);
         }
     };
 

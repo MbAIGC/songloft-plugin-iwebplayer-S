@@ -971,7 +971,14 @@
     body.ambient-active.split-view-active .song-item .song-more-btn { color: var(--text-main) !important; font-weight: 600 !important; }
     body.ambient-active.split-view-active .song-item .song-cover-img { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important; }
     body.ambient-active.split-view-active .song-item.playing {
-      background-color: rgba(255, 255, 255, 0.95) !important; border: 2px solid var(--primary) !important;
+      background-color: rgba(236, 72, 153, 0.10) !important; border: 2px solid var(--primary) !important;
+      box-shadow: inset 3px 0 0 var(--primary), 0 4px 14px rgba(0, 0, 0, 0.08) !important;
+    }
+    /* 非氛围模式（无背景画报）下的宽屏高亮：同样给足强调，避免白底上只有细边框看不清 */
+    body.split-view-active:not(.ambient-active) .song-item.playing {
+      background-color: rgba(236, 72, 153, 0.10) !important;
+      border: 2px solid var(--primary) !important;
+      box-shadow: inset 3px 0 0 var(--primary) !important;
     }
   }
 
@@ -3071,6 +3078,8 @@
           window.updatePlayButtonUI(true);
           if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
           window.setupMediaSession(audioEl, btnPrev, btnNext);
+          // 🔐 宽屏/分栏修复：每次开始播放都以音频实际身份校正列表高亮并滚动到当前歌
+          if (typeof window.syncPlayingHighlight === 'function') window.syncPlayingHighlight(true);
           const conf = window.getPlaylistConfig(currentPlaylist);
           if (conf.resumeLocal === 'off') {
               const currentDeadList = deadSongIndexes[currentPlaylist] || [];
