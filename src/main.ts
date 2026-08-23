@@ -1,7 +1,40 @@
 /// <reference types="@songloft/plugin-sdk" />
 import { jsonResponse, createRouter } from '@songloft/plugin-sdk';
+import type { HTTPRequest, HTTPResponse } from '@songloft/plugin-sdk';
 import { setupWebDAVRoutes } from './webdav';
 import { scrapeCover, scrapeLyric, getLastScrapeLog } from './scraper';
+
+// 🔐 字节/未知值 → 字符串（QuickJS 无 TextDecoder，沿用 String.fromCharCode 模式）
+function bytesToStr(v: unknown): string {
+    if (typeof v === 'string') return v;
+    if (v === null || v === undefined) return '';
+    if (v instanceof Uint8Array) return String.fromCharCode.apply(null, Array.from(v));
+    if (v instanceof ArrayBuffer) return String.fromCharCode.apply(null, Array.from(new Uint8Array(v)));
+    if (Array.isArray(v) && v.every((b: any) => typeof b === 'number')) return String.fromCharCode.apply(null, v as number[]);
+    return String(v);
+}
+
+// 🔐 存储读取字符串（兼容 get/getItem 两种 API，字节自动转字符串）
+async function storageGetString(key: string): Promise<string | null> {
+    const s: any = songloft.storage;
+    if (typeof s.get === 'function') {
+        const v = await s.get(key);
+        return v == null ? null : bytesToStr(v);
+    }
+    if (typeof s.getItem === 'function') {
+        const v = await s.getItem(key);
+        return v == null ? null : bytesToStr(v);
+    }
+    return null;
+}
+
+// 🔐 存储写入字符串（兼容 set/setItem 两种 API）
+async function storageSetString(key: string, value: string): Promise<void> {
+    const s: any = songloft.storage;
+    if (typeof s.set === 'function') return s.set(key, value);
+    if (typeof s.setItem === 'function') return s.setItem(key, value);
+    throw new Error("存储引擎不支持写入");
+}
 
 // 👇 新增：定义兄弟插件的入口名
 const TWIN_PLUGIN_ID = 'miot-helper';
@@ -288,12 +321,7 @@ router.get('/sync', async (req) => {
         let dataStr = "";
         const key = `sync_${playlist}`;
 
-        // 稳妥探测底层 API
-        if (typeof songloft.storage.getItem === 'function') {
-            dataStr = await songloft.storage.getItem(key);
-        } else if (typeof songloft.storage.get === 'function') {
-            dataStr = await songloft.storage.get(key);
-        }
+        dataStr = (await storageGetString(key)) || "";
 
         if (!dataStr) return jsonResponse({ data: null });
         return jsonResponse({ data: JSON.parse(dataStr) });
@@ -304,12 +332,8 @@ router.get('/sync', async (req) => {
 
 router.post('/sync', async (req) => {
     try {
-        // 🌟 修复 1：规避 req.json() 不是函数的问题，直接手撕 req.body 字符串
-        let bodyStr = req.body;
-        if (typeof bodyStr !== 'string') {
-            bodyStr = String(bodyStr);
-        }
-        const body = JSON.parse(bodyStr);
+        // 🌟 修复 1：规避 req.json() 不是函数的问题，直接手撕 req.body（字节→字符串）
+        const body = JSON.parse(bytesToStr(req.body));
 
         const playlist = body.playlist;
         if (!playlist) return jsonResponse({ error: "Missing playlist" }, 400);
@@ -323,14 +347,7 @@ router.post('/sync', async (req) => {
         const key = `sync_${playlist}`;
         const val = JSON.stringify(dataToSave);
 
-        // 🌟 修复 2：稳妥调用，不玩 .call() 的花活
-        if (typeof songloft.storage.setItem === 'function') {
-            await songloft.storage.setItem(key, val);
-        } else if (typeof songloft.storage.set === 'function') {
-            await songloft.storage.set(key, val);
-        } else {
-            throw new Error("存储引擎不支持写入");
-        }
+        await storageSetString(key, val);
 
         return jsonResponse({ ret: "OK" });
     } catch (error) {
@@ -348,11 +365,7 @@ router.get('/store', async (req) => {
         if (!key) return jsonResponse({ error: "Missing key" }, 400);
 
         let dataStr = "";
-        if (typeof songloft.storage.getItem === 'function') {
-            dataStr = await songloft.storage.getItem(key);
-        } else if (typeof songloft.storage.get === 'function') {
-            dataStr = await songloft.storage.get(key);
-        }
+        dataStr = (await storageGetString(key)) || "";
 
         return jsonResponse({ data: dataStr });
     } catch (error) {
@@ -362,23 +375,13 @@ router.get('/store', async (req) => {
 
 router.post('/store', async (req) => {
     try {
-        let bodyStr = req.body;
-        if (typeof bodyStr !== 'string') {
-            bodyStr = String(bodyStr);
-        }
-        const body = JSON.parse(bodyStr);
+        const body = JSON.parse(bytesToStr(req.body));
 
         const key = body.key;
         const value = body.value;
         if (!key) return jsonResponse({ error: "Missing key" }, 400);
 
-        if (typeof songloft.storage.setItem === 'function') {
-            await songloft.storage.setItem(key, value);
-        } else if (typeof songloft.storage.set === 'function') {
-            await songloft.storage.set(key, value);
-        } else {
-            throw new Error("存储引擎不支持写入");
-        }
+        await storageSetString(key, String(value));
 
         // 🌟 核心升级：无论是老版的 webdav_ 还是新版的 iwp_webdav，统统广播给小爱音箱插件！
         if (key.startsWith('webdav_') || key === 'iwebplayer-s.webdav' || key.startsWith('iwebplayer-s.')) {
@@ -503,29 +506,21 @@ function onInit(): void {
     songloft.log.info('iWebPlayer-S 原生架构已就绪！');
 
     // 👇 新增：注册 P2P 双子星监听器，接收 miot-helper 的数据
-    songloft.comm.onMessage("sync_webdav_data", async (payload, from) => {
+    songloft.comm.onMessage("sync_webdav_data", async (payload: any, from) => {
         // 只认自家兄弟，防伪造
         if (from !== TWIN_PLUGIN_ID) return;
 
         try {
             if (payload.type === 'config') {
                 // 同步配置 (如默认节点、根目录)
-                if (typeof songloft.storage.set === 'function') {
-                    await songloft.storage.set(payload.key, payload.value);
-                } else if (typeof songloft.storage.setItem === 'function') {
-                    await songloft.storage.setItem(payload.key, payload.value);
-                }
+                await storageSetString(payload.key, typeof payload.value === 'string' ? payload.value : JSON.stringify(payload.value ?? ''));
                 songloft.log.info(`📥 镜像同步配置成功: ${payload.key}`);
             }
             else if (payload.type === 'library' && payload.davId) {
                 // 同步扫库结果 (将对象转成字符串存入)
                 const cacheKey = `webdav_lib_${payload.davId}`;
                 const cacheVal = JSON.stringify(payload.library);
-                if (typeof songloft.storage.set === 'function') {
-                    await songloft.storage.set(cacheKey, cacheVal);
-                } else if (typeof songloft.storage.setItem === 'function') {
-                    await songloft.storage.setItem(cacheKey, cacheVal);
-                }
+                await storageSetString(cacheKey, cacheVal);
                 songloft.log.info(`📥 镜像同步曲库成功: ${payload.davId}`);
             }
         } catch (e) {
@@ -534,11 +529,8 @@ function onInit(): void {
     });
 }
 function onDeinit(): void {}
-function onHTTPRequest(req: HTTPRequest): HTTPResponse { return router.handle(req); }
+function onHTTPRequest(req: HTTPRequest): HTTPResponse | Promise<HTTPResponse> { return router.handle(req); }
 
-// @ts-expect-error
 globalThis.onInit = onInit;
-// @ts-expect-error
 globalThis.onDeinit = onDeinit;
-// @ts-expect-error
 globalThis.onHTTPRequest = onHTTPRequest;

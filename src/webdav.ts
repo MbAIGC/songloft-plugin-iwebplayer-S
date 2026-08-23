@@ -209,7 +209,15 @@ export function setupWebDAVRoutes(router: any) {
         }
         if (!davId) return jsonResponse({ error: "Missing davId" }, 400);
         const cache = await songloft.storage.get(`webdav_lib_${davId}`);
-        return jsonResponse(cache ? JSON.parse(cache) : {});
+        if (cache == null) return jsonResponse({});
+        // 🔐 损坏/空缓存不崩溃：字节转字符串 + try/catch 兜底
+        try {
+            const str = typeof cache === 'string' ? cache : String.fromCharCode.apply(null, Array.from(cache as Uint8Array));
+            const parsed = JSON.parse(str);
+            return jsonResponse(parsed && typeof parsed === 'object' ? parsed : {});
+        } catch (e) {
+            return jsonResponse({});
+        }
     });
 
 }
