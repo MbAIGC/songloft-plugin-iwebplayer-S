@@ -60,21 +60,36 @@ window.LyricsEngine = (function() {
         audioEl = document.getElementById('audio');
 
         bindEvents();
-        startLoop();
+
+        // 🎬 RAF 按播放状态启停：播放中才跑，暂停/结束/页面隐藏即停
+        if (audioEl) {
+            const syncLoopState = () => {
+                if (audioEl && !audioEl.paused) startLoop();
+                else stopLoop();
+            };
+            audioEl.addEventListener('play', syncLoopState);
+            audioEl.addEventListener('playing', syncLoopState);
+            audioEl.addEventListener('pause', syncLoopState);
+            audioEl.addEventListener('ended', stopLoop);
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) stopLoop();
+                else if (audioEl && !audioEl.paused) startLoop();
+            });
+            // 初始化时若音频已在播放（热重载/重复 init），补一次启动
+            if (!audioEl.paused) startLoop();
+        }
     }
 
     // ------------------------------------------------------------
-    // RAF 同步循环
+    // RAF 同步循环（按播放状态启停）
     //
     // 音频 currentTime 是唯一时间基准。
-    // RAF 只负责尽可能高频地把当前时间反映到歌词 UI。
+    // RAF 只负责尽可能高频地把当前时间反映到歌词 UI；
+    // 暂停/结束/页面隐藏时完全停止，避免无意义的 60fps 空转。
     // ------------------------------------------------------------
 
     function startLoop() {
-        if (animationFrameId) {
-            cancelAnimationFrame(animationFrameId);
-            animationFrameId = null;
-        }
+        if (animationFrameId) return;
 
         function loop() {
             if (!audioEl || !document.contains(audioEl)) {
@@ -92,7 +107,14 @@ window.LyricsEngine = (function() {
             animationFrameId = requestAnimationFrame(loop);
         }
 
-        loop();
+        animationFrameId = requestAnimationFrame(loop);
+    }
+
+    function stopLoop() {
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
     }
 
     // ------------------------------------------------------------
@@ -743,6 +765,9 @@ window.LyricsEngine = (function() {
                     'ktv-word';
             }
         }
+
+        // 🔐 无变化帧直接跳过，避免每帧重复写 CSS 变量
+        if (progress === lastProgress) return;
 
         // 当前字每帧只修改一次 CSS 变量
         //
