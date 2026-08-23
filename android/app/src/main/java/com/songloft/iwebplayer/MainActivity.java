@@ -121,8 +121,11 @@ public class MainActivity extends AppCompatActivity {
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
-        s.setAllowFileAccess(true);
+        // 🔐 关闭 file:// 子资源访问，仅允许顶层加载本地设置页（攻击面收窄）
+        s.setAllowFileAccess(false);
         s.setMediaPlaybackRequiresUserGesture(false);
+        // ⚠️ 权衡：保留 MIXED_CONTENT_ALWAYS_ALLOW —— 插件页为 https 时仍需播放 http 局域网音源
+        // （WebDAV/LXMusic 直链）。Bridge 已做来源校验 + 主框架导航受限，风险可控。
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         // 🌟 关键：禁用 HTTP 缓存，保证服务器更新插件后 App 立即拿到最新页面
         // （否则 WebView 会一直显示旧的 index.html/CSS）
@@ -144,6 +147,19 @@ public class MainActivity extends AppCompatActivity {
         }
 
         webView.setWebViewClient(new WebViewClient() {
+            // 🔐 主框架导航限制：只允许本地设置页 + 配置的 SongLoft origin，
+            // 其它 HTTP(S) 交系统浏览器，其余协议一律拦截
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                return MainActivity.this.shouldOverrideUrlLoading(view, request.getUrl().toString());
+            }
+
+            @SuppressWarnings("deprecation")
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                return MainActivity.this.shouldOverrideUrlLoading(view, url);
+            }
+
             @Override
             public void onPageFinished(WebView view, String url) {
                 String base = getServerBase();
@@ -235,6 +251,32 @@ public class MainActivity extends AppCompatActivity {
         String server = prefs.getString(KEY_SERVER, "").trim();
         if (server.isEmpty()) return "";
         return server.endsWith("/") ? server : server + "/";
+    }
+
+    // 🔐 主框架导航白名单：本地设置页 + 配置的 SongLoft origin；其它 HTTP(S) 交系统浏览器；其余协议拦截
+    private boolean shouldOverrideUrlLoading(WebView view, String url) {
+        if (url == null) return true;
+        if (url.startsWith("file:///android_asset/") || url.startsWith("about:")) return false;
+        String base = getServerBase();
+        if (!base.isEmpty() && url.startsWith(base)) return false;
+        if (url.startsWith("http://") || url.startsWith("https://")) {
+            try {
+                view.getContext().startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+            } catch (Exception ignored) {
+            }
+            return true;
+        }
+        return true;
+    }
+
+    // 🔐 Bridge 来源校验：仅本地设置页与配置的服务器 origin 可信
+    private boolean isTrustedPage() {
+        if (webView == null) return false;
+        String url = webView.getUrl();
+        if (url == null) return false;
+        if (url.startsWith("file:///android_asset/")) return true;
+        String base = getServerBase();
+        return !base.isEmpty() && url.startsWith(base);
     }
 
     private String doLogin(String server, String username, String password) {
@@ -686,16 +728,19 @@ public class MainActivity extends AppCompatActivity {
     private class Bridge {
         @JavascriptInterface
         public String getServer() {
+            if (!isTrustedPage()) return "";
             return prefs.getString(KEY_SERVER, "");
         }
 
         @JavascriptInterface
         public String getUsername() {
+            if (!isTrustedPage()) return "";
             return prefs.getString(KEY_USERNAME, "");
         }
 
         @JavascriptInterface
         public void login(String server, String username, String password, int callbackId) {
+            if (!isTrustedPage()) return;
             new Thread(() -> {
                 String result = doLogin(server, username, password);
                 runOnUiThread(() -> {
@@ -709,6 +754,7 @@ public class MainActivity extends AppCompatActivity {
 
         @JavascriptInterface
         public void openPlayer() {
+            if (!isTrustedPage()) return;
             runOnUiThread(() -> {
                 String server = prefs.getString(KEY_SERVER, "").trim();
                 if (server.isEmpty()) {
@@ -721,17 +767,20 @@ public class MainActivity extends AppCompatActivity {
 
         @JavascriptInterface
         public void changeServer() {
+            if (!isTrustedPage()) return;
             runOnUiThread(() -> webView.loadUrl(SETTINGS_URL));
         }
 
         @JavascriptInterface
         public void onMedia(String json) {
+            if (!isTrustedPage()) return;
             android.util.Log.d("iWebPlayer-S", "onMedia raw: " + json);
             runOnUiThread(() -> updateMediaNotification(json));
         }
 
         @JavascriptInterface
         public void onAuthFailed() {
+            if (!isTrustedPage()) return;
             runOnUiThread(MainActivity.this::handleAuthFailed);
         }
     }
