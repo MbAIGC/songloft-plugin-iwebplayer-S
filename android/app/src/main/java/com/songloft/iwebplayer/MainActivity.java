@@ -72,6 +72,9 @@ public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
     private SharedPreferences prefs;
+    // 🔐 当前页面 URL（UI 线程在 onPageStarted 更新）。Bridge 在后台线程读取此字段判断来源，
+    // 不再在桥线程调 webView.getUrl() —— 部分 OEM WebView 非 UI 线程调用会抛异常
+    private volatile String currentPageUrl = "";
     private MediaSessionCompat mediaSession;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean wasLoggedOut = false;
@@ -160,6 +163,12 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 return MainActivity.this.shouldOverrideUrlLoading(view, url);
+            }
+
+            @Override
+            public void onPageStarted(WebView view, String url) {
+                // 🔐 UI 线程缓存当前页 URL，供 Bridge（后台线程）只读判断来源
+                currentPageUrl = url == null ? "" : url;
             }
 
             @Override
@@ -290,13 +299,18 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // 🔐 Bridge 来源校验：仅本地设置页与配置的服务器 origin 可信
+    // 读取 UI 线程缓存的 currentPageUrl（volatile），不在桥线程调 WebView API；
+    // 任何异常一律失败关闭（返回 false）
     private boolean isTrustedPage() {
-        if (webView == null) return false;
-        String url = webView.getUrl();
-        if (url == null) return false;
-        if (url.startsWith("file:///android_asset/")) return true;
-        String base = getServerBase();
-        return !base.isEmpty() && url.startsWith(base);
+        try {
+            String url = currentPageUrl;
+            if (url == null || url.isEmpty()) return false;
+            if (url.startsWith("file:///android_asset/")) return true;
+            String base = getServerBase();
+            return !base.isEmpty() && url.startsWith(base);
+        } catch (Throwable t) {
+            return false;
+        }
     }
 
     private String doLogin(String server, String username, String password) {
