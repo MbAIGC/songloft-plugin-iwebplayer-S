@@ -166,7 +166,7 @@ public class MainActivity extends AppCompatActivity {
             }
 
             @Override
-            public void onPageStarted(WebView view, String url) {
+            public void onPageStarted(WebView view, String url, Bitmap favicon) {
                 // 🔐 UI 线程缓存当前页 URL，供 Bridge（后台线程）只读判断来源
                 currentPageUrl = url == null ? "" : url;
             }
