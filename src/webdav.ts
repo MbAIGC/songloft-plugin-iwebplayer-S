@@ -40,6 +40,7 @@ async function runScanTask(version: number, hostUrl: string, token: string, davI
     // 🔐 同名目录防覆盖：记录每个已用 key 对应的完整相对路径
     const pathOwners: Record<string, string> = {};
     let lastWriteTime = Date.now();
+    let scanHadWarnings = false;
 
     try {
         while (queue.length > 0) {
@@ -114,7 +115,9 @@ async function runScanTask(version: number, hostUrl: string, token: string, davI
                 }
 
             } catch (err) {
-                songloft.logger.error(`[WebDAV] 扫描出错 ${currentPath}:`, String(err));
+                // 记录失败目录并继续扫描，不因单个目录错误中断整次扫描
+                songloft.log.error(`[WebDAV] 扫描出错 ${currentPath}: ${String(err)}`);
+                scanHadWarnings = true;
             }
         }
 
@@ -130,7 +133,8 @@ async function runScanTask(version: number, hostUrl: string, token: string, davI
             };
             await songloft.storage.set(`webdav_lib_${davId}`, JSON.stringify(libData));
             broadcastWebDavLibrary(davId, libData);
-            scanStatus = 'completed';
+            // 部分目录失败仍算完成，但标记 warnings 供前端区分
+            scanStatus = scanHadWarnings ? 'completed_with_warnings' : 'completed';
         }
     } catch (fatalErr) {
         if (currentScanVersion === version) scanStatus = 'failed';
