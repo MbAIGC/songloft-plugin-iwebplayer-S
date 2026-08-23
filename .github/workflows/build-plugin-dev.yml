@@ -37,8 +37,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # 🔐 质量门禁：类型检查 → 单测 → 构建 → 产物一致性
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
       - name: Build plugin
         run: npm run build
+
+      - name: Verify build artifacts
+        run: node scripts/verify-build.mjs
 
       - name: Upload plugin zip
         uses: actions/upload-artifact@v4

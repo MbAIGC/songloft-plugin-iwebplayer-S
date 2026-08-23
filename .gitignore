@@ -11,3 +11,4 @@ Screenshot_*.jpg
 iwps-logo.png
 IWPS_logo.svg
 TestDemo/
+.npm-*-cache*/  # npm 本地缓存（只读全局缓存回退）

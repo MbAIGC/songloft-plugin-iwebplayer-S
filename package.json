@@ -7,11 +7,14 @@
     "build": "songloft-plugin build && node scripts/inject-version-hashes.mjs",
     "dev": "songloft-plugin dev",
     "validate": "songloft-plugin validate",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "publish:release": "songloft-plugin publish"
   },
   "devDependencies": {
-    "@songloft/plugin-sdk": "^2.0.0-alpha.1",
     "@songloft/plugin-builder": "^2.0.0-alpha.1",
-    "typescript": "^5.7.0"
+    "@songloft/plugin-sdk": "^2.0.0-alpha.1",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.11"
   }
 }

@@ -85,10 +85,13 @@ jobs:
       # ------------------------------------------------------------
       # 同步构建插件 zip（与 APK 发布到同一个 dev release，SongLoft 可直接上传安装）
       # ------------------------------------------------------------
-      - name: Build plugin zip
+      - name: Build plugin zip (with quality gates)
         run: |
           npm ci
+          npm run typecheck
+          npm test
           npm run build
+          node scripts/verify-build.mjs
           mkdir -p release
           PLUGIN_VERSION=$(python3 -c "import json;print(json.load(open('plugin.json'))['version'])")
           cp dist/iwebplayer-s.jsplugin.zip "release/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip"

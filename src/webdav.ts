@@ -26,6 +26,31 @@ function isAudioFile(filename: string): boolean {
     return AUDIO_EXTS.some(ext => lower.endsWith(ext));
 }
 
+// 🔐 同名目录防覆盖：内部键默认用 basename；同名冲突时用「父目录/basename」消歧，
+// 仍冲突则退化为完整相对路径，再冲突则追加序号，确保不同目录绝不互相覆盖（纯函数，便于单测）
+export function webdavKeyForFolder(pathOwners: Record<string, string>, currentPath: string): string {
+    const relativePath = currentPath === '/' ? '' : currentPath.replace(/^\/+/, '');
+    const basename = currentPath === '/' ? '根目录' : currentPath.split('/').pop() || '未知文件夹';
+    let key = basename;
+    const owner = pathOwners[key];
+    if (owner !== undefined && owner !== relativePath) {
+        const parent = relativePath.split('/').filter(Boolean).slice(-2, -1)[0];
+        let altKey = parent ? `${parent}/${basename}` : relativePath;
+        let altOwner = pathOwners[altKey];
+        if (altOwner !== undefined && altOwner !== relativePath) {
+            // 完整相对路径兜底；仍被不同目录占用则追加序号保证唯一
+            altKey = relativePath;
+            if (pathOwners[altKey] !== undefined && pathOwners[altKey] !== relativePath) {
+                let n = 2;
+                while (pathOwners[`${altKey} (${n})`] !== undefined && pathOwners[`${altKey} (${n})`] !== relativePath) n++;
+                altKey = `${altKey} (${n})`;
+            }
+        }
+        key = altKey;
+    }
+    return key;
+}
+
 // 辅助时间格式化函数
 function formatScanTime(): string {
     const now = new Date();
@@ -129,19 +154,8 @@ async function runScanTask(version: number, hostUrl: string, token: string, davI
                 }
 
                 if (audioItems.length > 0) {
-                    // 内部键默认用 basename；同名冲突时用「父目录/basename」消歧，
-                    // 仍冲突则退化为完整相对路径，确保不同目录绝不互相覆盖
-                    const relativePath = currentPath === '/' ? '' : currentPath.replace(/^\/+/, '');
-                    const basename = currentPath === '/' ? '根目录' : currentPath.split('/').pop() || '未知文件夹';
-                    let key = basename;
-                    const owner = pathOwners[key];
-                    if (owner !== undefined && owner !== relativePath) {
-                        const parent = relativePath.split('/').filter(Boolean).slice(-2, -1)[0];
-                        const altKey = parent ? `${parent}/${basename}` : relativePath;
-                        const altOwner = pathOwners[altKey];
-                        key = (altOwner === undefined || altOwner === relativePath) ? altKey : relativePath;
-                    }
-                    pathOwners[key] = relativePath;
+                    const key = webdavKeyForFolder(pathOwners, currentPath);
+                    pathOwners[key] = currentPath === '/' ? '' : currentPath.replace(/^\/+/, '');
                     resultLibrary[key] = audioItems;
                     scannedFoldersCount++;
                 }

@@ -5,7 +5,7 @@ import { setupWebDAVRoutes } from './webdav';
 import { scrapeCover, scrapeLyric, getLastScrapeLog } from './scraper';
 
 // 🔐 字节/未知值 → 字符串（QuickJS 无 TextDecoder，沿用 String.fromCharCode 模式）
-function bytesToStr(v: unknown): string {
+export function bytesToStr(v: unknown): string {
     if (typeof v === 'string') return v;
     if (v === null || v === undefined) return '';
     if (v instanceof Uint8Array) return String.fromCharCode.apply(null, Array.from(v));
@@ -86,7 +86,7 @@ let flashTimeout: any = null;
 let lastSystemError: any = null;
 
 // 🔐 分页拉取歌单全部歌曲：避免 limit 静默截断；宿主忽略 offset 导致死循环时标记 truncated
-async function fetchAllPlaylistSongs(id: number): Promise<{ songs: any[]; truncated: boolean; warnings: string[] }> {
+export async function fetchAllPlaylistSongs(id: number): Promise<{ songs: any[]; truncated: boolean; warnings: string[] }> {
     const PAGE = 10000;
     const songs: any[] = [];
     const warnings: string[] = [];
@@ -114,7 +114,7 @@ async function fetchAllPlaylistSongs(id: number): Promise<{ songs: any[]; trunca
 
 // 🔐 探测音频直链：AbortController 真中止 + Range GET 兜底（兼容不支持 HEAD 的服务器），
 // 区分永久失效（404/403）与临时网络问题（超时/连接失败），临时问题不误杀歌曲
-async function probeAudioUrl(fullUrl: string): Promise<'ok' | 'dead' | 'transient'> {
+export async function probeAudioUrl(fullUrl: string): Promise<'ok' | 'dead' | 'transient'> {
     const attempt = async (init: RequestInit): Promise<'ok' | 'dead' | 'transient' | 'unsupported'> => {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 3000);
@@ -136,7 +136,7 @@ async function probeAudioUrl(fullUrl: string): Promise<'ok' | 'dead' | 'transien
 }
 
 // 🔐 有界并发映射：同一时刻最多 limit 个任务在跑，避免无界 Promise.all 压垮宿主
-async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+export async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
     const results: R[] = new Array(items.length);
     let idx = 0;
     const workerCount = Math.max(1, Math.min(limit, items.length));
