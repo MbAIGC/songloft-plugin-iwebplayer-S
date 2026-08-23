@@ -47,8 +47,9 @@
 
 - [ ] ✅ 10. 后端有界并发（3–5）替代 `Promise.all` 无界全量拉取，单歌单失败返回 warning
   - 已核实：`src/main.ts:109` `Promise.all(playlists.map(...))` 无界并发
-- [ ] 11. 曲库缓存迁移 IndexedDB 分批写入，避免同步 `localStorage` 压缩大曲库（大改动，可后置）
+- [x] ✅ 11. 曲库缓存迁移 IndexedDB 分批写入，避免同步 `localStorage` 压缩大曲库（大改动，可后置）
   - 涉及：`static/playlist.js:1425-1570`（建议性优化，非 bug，无需核实）
+  - ✅ 已修（`9ee2cce`）：新增 `static/idb.js`（`window.IDBCache`，歌曲池每批 500 事务写入、meta 单键、全 Promise 化静默回退）；读路径优先 IDB（meta+`getAllSongs`）失败回退 localStorage；写路径优先 IDB，localStorage+LZString 仅兜底；AUTH_FAILED 同时清 IDB；index.html 在 playlist.js 前加载。fake-IndexedDB 单测 5 例（meta 往返/分批读回/空批/clear/无 IDB null 回退）
 - [ ] ✅ 12. 歌词 RAF 按状态启停：play 启动；pause/ended/页面隐藏取消；仅 KTV 用 RAF；`lastProgress` 跳过无变化
   - 已核实：`static/lyrics.js:99-127` `startLoop` 无条件永久 `requestAnimationFrame`，无暂停/隐藏取消
 - [ ] ✅ 13. WebDAV 队列 `shift()` O(n²) → 数组游标；3–6 worker 有界并发 + 超时/重试/取消
@@ -61,9 +62,10 @@
 
 ## 阶段四：工程与发布
 
-- [ ] ⚠️ 16. 修复 TypeScript（实测 42 个错误，审阅记 38）
+- [x] ✅ 16. 修复 TypeScript（实测 42 个错误，审阅记 38）
   - 真 bug（✅ 已核实）：`songloft.logger` → `songloft.log`（`src/webdav.ts:103`）；请求体转换（`src/webdav.ts:163` 已见 `JSON.parse(cache)` 无兜底；TextDecoder 改造点待落实）
   - SDK 类型陈旧：`Song.added_at`、`Playlist.labels`、`songs.list` 的 `orderBy/order`、`storage` 的 `getItem/setItem` → 同步本地类型声明；版本相关调用做能力检测或升 minHostVersion
+  - ✅ 已修（`7f03363`）：tsc 42→0；`src/types.d.ts` 模块增强补 `Playlist.labels`/`Song.added_at`；/sync /store 请求体用 `bytesToStr`+`JSON.parse` 兜底（QuickJS 无 TextDecoder，沿用 `String.fromCharCode` 模式）；`songloft.logger`→`songloft.log`
 - [x] ✅ 17. 修复 `plugin.json` `download_url`（1.1.5-dev → 1.1.6-dev）+ README 引用
   - 已核实：`plugin.json` `download_url` 仍指向 `1.1.5-dev.jsplugin.zip`，`version` 为 `1.1.6-dev`
   - ✅ 已修（`8269db2`）：`download_url`→`1.1.6-dev`、README 引用→`1.1.6`；构建后 zip 内清单已含正确 URL
