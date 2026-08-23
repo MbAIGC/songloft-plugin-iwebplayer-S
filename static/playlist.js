@@ -32,7 +32,7 @@
                 const li = document.createElement('li');
                 li.style.cssText = 'padding: 12px 16px; border-bottom: 1px solid var(--border); cursor: pointer; color: var(--text-main); font-size: 14px; display: flex; align-items: center; gap: 10px; transition: background 0.2s;';
                 const songCount = window.getMergedSongList(k).length;
-                li.innerHTML = `<input type="radio" name="add_target_pl" style="pointer-events: none; margin: 0; width: 16px; height: 16px; accent-color: var(--primary);"> <span>${k} <span style="opacity: 0.6; font-size: 12px; margin-left: 2px;">(${songCount})</span></span>`;
+                li.innerHTML = `<input type="radio" name="add_target_pl" style="pointer-events: none; margin: 0; width: 16px; height: 16px; accent-color: var(--primary);"> <span>${window.escapeHtml(k)} <span style="opacity: 0.6; font-size: 12px; margin-left: 2px;">(${songCount})</span></span>`;
                 li.onmousedown = () => { li.style.backgroundColor = 'var(--border)'; };
                 li.onclick = () => {
                     Array.from(listEl.children).forEach(el => {
@@ -937,7 +937,7 @@
                 card.innerHTML = `
                   <img class="pl-cover-img" src="${window.defaultCover}" onerror="if(window.handlePlaylistCoverError) window.handlePlaylistCoverError(this, decodeURIComponent('${encodeURIComponent(pl.name)}'))" alt="cover">
                   <div class="pl-overlay">
-                    <div class="pl-name" style="display: flex; align-items: flex-start;">${nameIconHtml}<span style="flex: 1; min-width: 0; word-break: break-all;">${pl.name}</span></div>
+                    <div class="pl-name" style="display: flex; align-items: flex-start;">${nameIconHtml}<span style="flex: 1; min-width: 0; word-break: break-all;">${window.escapeHtml(pl.name)}</span></div>
                     <div class="pl-time">${subText}</div> </div>
                   <div class="pl-playcount">
                     <svg viewBox="0 0 24 24" width="10" height="10" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
@@ -1063,7 +1063,7 @@
             }
 
             const imgId = `list-cover-${index}`;
-            const coverHtml = `<img id="${imgId}" class="song-cover-img" src="${window.defaultCover}" ${coverUrl ? `data-src="${coverUrl}"` : ''} ${needsScrape ? `data-scrape="true"` : ''} onerror="if(window.handleListCoverError) window.handleListCoverError(this, ${index})" alt="cover">`;
+            const coverHtml = `<img id="${imgId}" class="song-cover-img" src="${window.defaultCover}" ${coverUrl ? `data-src="${window.escapeHtml(coverUrl)}"` : ''} ${needsScrape ? `data-scrape="true"` : ''} onerror="if(window.handleListCoverError) window.handleListCoverError(this, ${index})" alt="cover">`;
 
             const li = document.createElement('li');
             li.className = 'song-item';
@@ -1104,7 +1104,7 @@
                 }
                 // ✅ 2. 补上之前漏掉的赋值，让曲库搜索里的来源歌单名字正常显示
                 if (foundPl) {
-                    sourceTagHtml = `<div class="song-playlist-tag">${foundPl}</div>`;
+                    sourceTagHtml = `<div class="song-playlist-tag">${window.escapeHtml(foundPl)}</div>`;
                 }
             }
 
@@ -1156,9 +1156,9 @@
                         finalName = pName.substring(0, cutIdx) + '...';
                     }
 
-                    pluginTagHtml = `<div class="song-plugin-tag" style="color: #3B6FE0; border-color: rgba(59, 111, 224, 0.3); background: rgba(59, 111, 224, 0.08);">${targetSvg}${finalName}</div>`;
+                    pluginTagHtml = `<div class="song-plugin-tag" style="color: #3B6FE0; border-color: rgba(59, 111, 224, 0.3); background: rgba(59, 111, 224, 0.08);">${targetSvg}${window.escapeHtml(finalName)}</div>`;
                 } else {
-                    pluginTagHtml = `<div class="song-plugin-tag">${targetSvg}${pName}</div>`;
+                    pluginTagHtml = `<div class="song-plugin-tag">${targetSvg}${window.escapeHtml(pName)}</div>`;
                 }
             }
 
@@ -1187,7 +1187,7 @@
 
             li.innerHTML = `
               ${coverHtml}
-              <div class="song-info"><div class="song-name">${songName}</div></div>
+              <div class="song-info"><div class="song-name">${window.escapeHtml(songName)}</div></div>
               ${sourceTagHtml}
               ${pluginTagHtml}
               <div id="time-wrap-${index}" style="display: flex; align-items: center;">${timeTagHtml}</div>

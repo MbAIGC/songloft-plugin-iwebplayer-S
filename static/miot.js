@@ -194,10 +194,10 @@
                     const textStyle = dev.is_playing ? 'color: var(--primary); font-weight: bold;' : '';
 
                     html += `
-                    <li class="select-option ${isActive ? 'active' : ''}" data-value="${dev.deviceID}" data-account="${dev.account_id}" data-type="miot" data-name="${dev.name}" ${!isOnline ? 'style="opacity: 0.6;"' : ''}>
+                    <li class="select-option ${isActive ? 'active' : ''}" data-value="${window.escapeHtml(dev.deviceID)}" data-account="${window.escapeHtml(dev.account_id)}" data-type="miot" data-name="${window.escapeHtml(dev.name)}" ${!isOnline ? 'style="opacity: 0.6;"' : ''}>
                         <div style="display: flex; align-items: center; width: 100%;">
                             ${iconHtml}
-                            <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; ${textStyle}">${dev.name}</span>
+                            <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; ${textStyle}">${window.escapeHtml(dev.name)}</span>
                         </div>
                     </li>`;
                 });

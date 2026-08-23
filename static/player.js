@@ -202,7 +202,7 @@
 
         npTitle.innerHTML = `
           <div class="np-marquee-container" style="display: flex; align-items: center; white-space: nowrap;">
-            <span class="np-title-text">${text}</span>
+            <span class="np-title-text">${window.escapeHtml(text)}</span>
             <div class="np-title-extra" style="display: flex; align-items: center; flex-shrink: 0;">
               ${extHtml}${favSvg}
             </div>

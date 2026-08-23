@@ -150,7 +150,7 @@
                 list.forEach(plugin => {
                     const tagsHtml = (plugin.platforms || []).map(p => {
                         const pName = window.PLATFORM_MAP[p] || p;
-                        return `<span class="pl-status-tag" style="color: var(--text-sub); border-color: var(--border); background: var(--bg-color); margin: 0;">${pName}</span>`;
+                        return `<span class="pl-status-tag" style="color: var(--text-sub); border-color: var(--border); background: var(--bg-color); margin: 0;">${window.escapeHtml(pName)}</span>`;
                     }).join('');
 
                     const li = document.createElement('li');
@@ -160,8 +160,8 @@
                       <div class="plugin-normal-view" style="width: 100%; display: flex; align-items: center; justify-content: space-between; transition: opacity 0.2s;">
                         <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
                           <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
-                            <div style="font-size: 15px; font-weight: bold; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${plugin.name}</div>
-                            <div style="font-size: 11px; font-weight: 600; color: var(--primary); background: rgba(236, 72, 153, 0.1); padding: 2px 6px; border-radius: 6px; flex-shrink: 0;">${plugin.version}</div>
+                            <div style="font-size: 15px; font-weight: bold; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${window.escapeHtml(plugin.name)}</div>
+                            <div style="font-size: 11px; font-weight: 600; color: var(--primary); background: rgba(236, 72, 153, 0.1); padding: 2px 6px; border-radius: 6px; flex-shrink: 0;">${window.escapeHtml(plugin.version)}</div>
                           </div>
                           <div style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">${tagsHtml}</div>
                         </div>
@@ -178,7 +178,7 @@
 
                       <div class="plugin-delete-view" style="position: absolute; inset: 0; padding: 12px 18px; background: rgba(239, 68, 68, 0.05); display: flex; align-items: center; justify-content: space-between; transform: translateX(100%); transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);">
                         <div style="flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; overflow: hidden;">
-                          <div style="font-size: 15px; font-weight: bold; color: var(--text-main); opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${plugin.name}</div>
+                          <div style="font-size: 15px; font-weight: bold; color: var(--text-main); opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${window.escapeHtml(plugin.name)}</div>
                         </div>
                         <div class="edit-pl-actions" style="margin-left: 12px;">
                           <button class="edit-pl-text-btn btn-cancel-del" style="background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border);">取消</button>

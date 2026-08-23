@@ -4,6 +4,17 @@
     'use strict';
 
     // ==========================================
+    // 🔐 XSS 防护：HTML/属性双上下文转义
+    // 只用于"纯文本"插入 innerHTML 或属性值；
+    // 业务文本优先 textContent / createElement。
+    // ==========================================
+    window.escapeHtml = function(value) {
+        return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+        });
+    };
+
+    // ==========================================
     // 🏛️ 极简纯净版四象限沙盒存储引擎 (ConfigManager)
     // ==========================================
     const defaultConfig = {
@@ -168,7 +179,7 @@
           toast.className = 'toast-message';
           document.body.appendChild(toast);
         }
-        toast.innerHTML = msg;
+        toast.textContent = msg;
         toast.classList.remove('show');
         void toast.offsetWidth;
         toast.classList.add('show');
@@ -261,7 +272,7 @@
           icon = `<svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>`;
           displayName = '缓存歌曲';
       }
-      return `<span style="display:inline-flex; align-items:center; margin-right:6px; opacity:0.8; flex-shrink: 0;">${icon}</span><span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 1; min-width: 0;">${displayName}</span><span style="flex-shrink: 0; margin-left: 4px; opacity: 0.7; font-size: 14px;">(${count})</span>`;
+      return `<span style="display:inline-flex; align-items:center; margin-right:6px; opacity:0.8; flex-shrink: 0;">${icon}</span><span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 1; min-width: 0;">${window.escapeHtml(displayName)}</span><span style="flex-shrink: 0; margin-left: 4px; opacity: 0.7; font-size: 14px;">(${count})</span>`;
     };
 
     window.formatPlaylistTextWithTags = function(name, count) {

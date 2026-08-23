@@ -444,7 +444,7 @@ window.LyricsEngine = (function() {
 
                     const wordsHtml =
                         lyric.words.map((w, wIdx) =>
-                            `<span class="ktv-word" id="ktv-word-${idx}-${wIdx}">${w.text}</span>`
+                            `<span class="ktv-word" id="ktv-word-${idx}-${wIdx}">${window.escapeHtml(w.text)}</span>`
                         ).join('');
 
                     return `
@@ -460,7 +460,7 @@ window.LyricsEngine = (function() {
                     <div
                         class="lyric-line"
                         id="lyric-${idx}"
-                    >${lyric.text}</div>
+                    >${window.escapeHtml(lyric.text)}</div>
                 `;
 
             }).join('');

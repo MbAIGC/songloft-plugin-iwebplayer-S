@@ -544,12 +544,12 @@
                     const html = res.list.map(item => {
                         const rawName = item.name || '未知歌单'; const mainName = rawName.split(/\||｜/)[0];
                         const subName = item.author || ''; const playCount = item.play_count || '0';
-                        const songCountHtml = item.total ? `<div class="pl-time">共 ${item.total} 首</div>` : '';
+                        const songCountHtml = item.total ? `<div class="pl-time">共 ${window.escapeHtml(item.total)} 首</div>` : '';
                         return `
-                        <div class="pl-card-b" data-action="open_playlist" data-pl-id="${item.id}" data-pl-name="${mainName.replace(/"/g,"&quot;")}" data-pl-source="${source}" data-pl-engine="LXMusic">
-                          <img src="${item.img || ''}" alt="cover" loading="lazy" onerror="this.src=window.defaultCover">
-                          <div class="pl-overlay"><div class="pl-name">${mainName}${subName ? '<br>'+subName : ''}</div>${songCountHtml}</div>
-                          <div class="pl-playcount"><svg viewBox="0 0 24 24" width="9" height="9" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg> ${playCount}</div>
+                        <div class="pl-card-b" data-action="open_playlist" data-pl-id="${window.escapeHtml(item.id)}" data-pl-name="${window.escapeHtml(mainName)}" data-pl-source="${window.escapeHtml(source)}" data-pl-engine="LXMusic">
+                          <img src="${window.escapeHtml(item.img || '')}" alt="cover" loading="lazy" onerror="this.src=window.defaultCover">
+                          <div class="pl-overlay"><div class="pl-name">${window.escapeHtml(mainName)}${subName ? '<br>'+window.escapeHtml(subName) : ''}</div>${songCountHtml}</div>
+                          <div class="pl-playcount"><svg viewBox="0 0 24 24" width="9" height="9" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg> ${window.escapeHtml(playCount)}</div>
                         </div>`;
                     }).join('');
 
@@ -597,7 +597,7 @@
         window.refreshOnlineUI();
 
         const titleText = document.getElementById('detail-title-text');
-        if (titleText) titleText.innerHTML = `<span style="display:inline-flex; transform:translateY(2px);">${window.SVG_ICONS?.lx_plugin_line || ''}</span><span>${name}</span>`;
+        if (titleText) titleText.innerHTML = `<span style="display:inline-flex; transform:translateY(2px);">${window.SVG_ICONS?.lx_plugin_line || ''}</span><span>${window.escapeHtml(name)}</span>`;
 
         const grid = document.getElementById('playlist-grid');
         const list = document.getElementById('playlist');
@@ -1030,7 +1030,7 @@
         window.refreshOnlineUI();
 
         const titleText = document.getElementById('detail-title-text');
-        if (titleText) titleText.innerHTML = `<span style="display:inline-flex; transform:translateY(2px);">${window.SVG_ICONS.webdav.replace('width="15"', 'width="16"').replace('height="15"', 'height="16"')}</span><span>${folderName}</span>`;
+        if (titleText) titleText.innerHTML = `<span style="display:inline-flex; transform:translateY(2px);">${window.SVG_ICONS.webdav.replace('width="15"', 'width="16"').replace('height="15"', 'height="16"')}</span><span>${window.escapeHtml(folderName)}</span>`;
 
         const grid = document.getElementById('playlist-grid');
         const list = document.getElementById('playlist');
@@ -1378,14 +1378,27 @@
             const breadEl = document.getElementById('wd-dir-breadcrumbs');
             listEl.innerHTML = '<li style="padding: 10px; text-align: center; color: var(--text-sub);">正在拉取网盘目录...</li>';
 
-            if (path === '/') { breadEl.innerHTML = `<span style="cursor:pointer; padding: 2px 4px;" onclick="window._navigateDav('/')">🏠 根目录</span>`; }
-            else {
-                let parts = path.split('/').filter(Boolean);
-                let breadHtml = `<span style="cursor:pointer; padding: 2px 4px;" onclick="window._navigateDav('/')">🏠 根目录</span>`;
+            // 面包屑：用 DOM 构造 + 事件监听，避免内联 onclick 注入
+            breadEl.innerHTML = '';
+            const makeCrumb = (label, target, first) => {
+                if (!first) {
+                    const sep = document.createElement('span');
+                    sep.style.cssText = 'color: var(--text-sub); margin: 0 4px;';
+                    sep.textContent = '/';
+                    breadEl.appendChild(sep);
+                }
+                const crumb = document.createElement('span');
+                crumb.style.cssText = 'cursor:pointer; padding: 2px 4px;';
+                crumb.textContent = label;
+                crumb.addEventListener('click', () => window._navigateDav(target));
+                breadEl.appendChild(crumb);
+            };
+            makeCrumb('🏠 根目录', '/', true);
+            if (path !== '/') {
                 let buildPath = '';
-                parts.forEach((p) => { buildPath += '/' + p; breadHtml += `<span style="color: var(--text-sub); margin: 0 4px;">/</span><span style="cursor:pointer; padding: 2px 4px;" onclick="window._navigateDav('${buildPath}')">${p}</span>`; });
-                breadEl.innerHTML = breadHtml; setTimeout(() => breadEl.scrollLeft = breadEl.scrollWidth, 50);
+                path.split('/').filter(Boolean).forEach((p) => { buildPath += '/' + p; makeCrumb(p, buildPath, false); });
             }
+            setTimeout(() => breadEl.scrollLeft = breadEl.scrollWidth, 50);
 
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 15000);
@@ -1401,7 +1414,7 @@
                         const li = document.createElement('li');
                         li.style.cssText = 'padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--text-main); cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s;';
                         li.onmousedown = () => li.style.background = 'var(--bg-color)'; li.onmouseup = () => li.style.background = 'transparent';
-                        li.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="#FACC15"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg><span style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${d.name}</span>`;
+                        li.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="#FACC15"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg><span style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${window.escapeHtml(d.name)}</span>`;
                         li.addEventListener('click', () => { const nextPath = path === '/' ? '/' + d.name : path + '/' + d.name; currentBrowserPath = nextPath; renderDirBrowser(nextPath); });
                         listEl.appendChild(li);
                     });
