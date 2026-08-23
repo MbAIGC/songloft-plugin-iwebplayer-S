@@ -102,6 +102,22 @@ async function probeAudioUrl(fullUrl: string): Promise<'ok' | 'dead' | 'transien
     return r;
 }
 
+// 🔐 有界并发映射：同一时刻最多 limit 个任务在跑，避免无界 Promise.all 压垮宿主
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+    const results: R[] = new Array(items.length);
+    let idx = 0;
+    const workerCount = Math.max(1, Math.min(limit, items.length));
+    const workers = Array.from({ length: workerCount }, async () => {
+        while (true) {
+            const i = idx++;
+            if (i >= items.length) return;
+            results[i] = await fn(items[i]);
+        }
+    });
+    await Promise.all(workers);
+    return results;
+}
+
 router.get('/musiclist', async (req) => {
   try {
     const urlParams = new URLSearchParams(String(req.query));
@@ -162,7 +178,8 @@ router.get('/musiclist', async (req) => {
 
       const playlists = (await songloft.playlists.list()) ?? [];
 
-      await Promise.all(playlists.map(async (pl) => {
+      // 🔐 有界并发（4 worker），避免全量歌单同时拉取压垮宿主
+      await mapWithConcurrency(playlists, 4, async (pl) => {
         try {
           const { songs: plSongs, truncated, warnings } = await fetchAllPlaylistSongs(pl.id);
           if (truncated) anyTruncated = true;
@@ -186,8 +203,11 @@ router.get('/musiclist', async (req) => {
                   if (s && s.id) songMap.set(s.id, s);
               }
           }
-        } catch (e) {}
-      }));
+        } catch (e) {
+          // 单歌单失败不再静默吞掉，记录 warning 供前端提示
+          bulkWarnings.push(`歌单「${pl.name}」拉取失败，已跳过: ${String(e)}`);
+        }
+      });
 
       const allSongsArray = Array.from(songMap.values());
       structure["所有歌曲"] = allSongsArray.map((s: any) => s.id);
