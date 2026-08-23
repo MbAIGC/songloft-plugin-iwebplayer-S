@@ -18,7 +18,8 @@ permissions:
   contents: write
 
 concurrency:
-  group: build-apk-dev
+  # 🔐 与 build-plugin-dev.yml 共享同一组：两者同写 dev Release，须串行避免互相覆盖
+  group: dev-release
   cancel-in-progress: false
 
 jobs:
