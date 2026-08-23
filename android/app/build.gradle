@@ -50,6 +50,6 @@ android {
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'androidx.media:media:1.7.0'
-    // 🔐 凭据加密存储（Android Keystore 支撑）
-    implementation 'androidx.security:security-crypto:1.0.0'
+    // 🔐 凭据加密存储（Android Keystore 支撑；MasterKey API 需 1.1.x）
+    implementation 'androidx.security:security-crypto:1.1.0-alpha06'
 }
