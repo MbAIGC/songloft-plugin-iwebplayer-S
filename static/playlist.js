@@ -1497,6 +1497,8 @@
                         for (const [plName, idArray] of Object.entries(metaData.structure)) {
                             syncReconstructed[plName] = Array.isArray(idArray) ? idArray.map(id => syncSongsMap.get(id)).filter(Boolean) : idArray;
                         }
+                        // 🔐 #5：防御性同键排序，保证与兼容模式（及后端）顺序一致
+                        syncReconstructed["所有歌曲"] = window.sortSongsByAddedAt(syncReconstructed["所有歌曲"] || []);
 
                     } else {
                         // =======================================
@@ -1530,12 +1532,18 @@
 
                                 const isBuiltIn = pl.labels && pl.labels.includes("built_in");
                                 if (!isBuiltIn) {
-                                    for (const s of cleanedSongs) { if (s && s.id) { if (!syncSongsMap.has(s.id)) s._addedAt = Date.now(); syncSongsMap.set(s.id, s); } }
+                                    for (const s of cleanedSongs) {
+                                        if (!s || !s.id) continue;
+                                        // 🔐 #5：重复歌曲保留首次 _addedAt（真实 added_at），
+                                        // 不再用本次同步时间冒充添加时间，也不丢排序值
+                                        const existing = syncSongsMap.get(s.id);
+                                        const addedAt = (existing && existing._addedAt) || s.added_at || Date.now();
+                                        syncSongsMap.set(s.id, Object.assign({}, existing, s, { _addedAt: addedAt }));
+                                    }
                                 }
                             } catch (err) { console.error(`拉取 [${pl.name}] 失败:`, err); }
                         }
-                        syncReconstructed["所有歌曲"] = Array.from(syncSongsMap.values())
-                            .sort((a, b) => (b._addedAt || 0) - (a._addedAt || 0));
+                        syncReconstructed["所有歌曲"] = window.sortSongsByAddedAt(Array.from(syncSongsMap.values()));
                     }
 
                     // 3. 💾 统一极限压缩存盘 (骨肉分离)

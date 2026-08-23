@@ -55,3 +55,32 @@ describe('normalizeSong (utils.js #15)', () => {
         expect(s.duration).toBe(300);
     });
 });
+
+describe('sortSongsByAddedAt (utils.js #5)', () => {
+    it('added_at 优先于 _addedAt，缺时间排末尾', () => {
+        const sorted = (globalThis as any).sortSongsByAddedAt([
+            { id: 1, added_at: 100, _addedAt: 999 }, // added_at=100 优先（非 999）
+            { id: 2, _addedAt: 500 },                 // 无 added_at → _addedAt=500
+            { id: 3, added_at: 200 },
+            { id: 4 }                                 // 无时间 → 末尾
+        ]);
+        // 时间倒序：2(500) > 3(200) > 1(100) > 4(0)
+        expect(sorted.map((s: any) => s.id)).toEqual([2, 3, 1, 4]);
+    });
+
+    it('同秒 → id 次级倒序确定', () => {
+        const sorted = (globalThis as any).sortSongsByAddedAt([
+            { id: 5, added_at: 100 },
+            { id: 9, added_at: 100 },
+            { id: 3, added_at: 100 }
+        ]);
+        expect(sorted.map((s: any) => s.id)).toEqual([9, 5, 3]);
+    });
+
+    it('不修改原数组（返回副本）', () => {
+        const arr = [{ id: 1, added_at: 1 }, { id: 2, added_at: 2 }];
+        const s = (globalThis as any).sortSongsByAddedAt(arr);
+        expect(s).not.toBe(arr);
+        expect(arr.map((x: any) => x.id)).toEqual([1, 2]);
+    });
+});

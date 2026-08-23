@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fetchAllPlaylistSongs, probeAudioUrl, mapWithConcurrency, bytesToStr } from '../src/main';
+import { fetchAllPlaylistSongs, probeAudioUrl, mapWithConcurrency, bytesToStr, toAddedAtMs, sortSongsByAddedAt } from '../src/main';
 
 // ---------------------------------------------------------------------------
 // bytesToStr：字节/未知值 → 字符串
@@ -124,5 +124,49 @@ describe('mapWithConcurrency', () => {
         expect(r).toEqual(items.map((x) => x * 2));
         expect(maxActive).toBeLessThanOrEqual(3);
         expect(maxActive).toBeGreaterThan(1); // 确实并发了
+    });
+});
+
+// ---------------------------------------------------------------------------
+// toAddedAtMs / sortSongsByAddedAt（#5 排序）
+// ---------------------------------------------------------------------------
+describe('toAddedAtMs', () => {
+    it('秒级数值 ×1000', () => {
+        expect(toAddedAtMs(1700000000)).toBe(1700000000000);
+    });
+    it('毫秒级数值原样保留', () => {
+        expect(toAddedAtMs(1700000000000)).toBe(1700000000000);
+    });
+    it('ISO 字符串解析为毫秒', () => {
+        expect(toAddedAtMs('2023-11-14T22:13:20Z')).toBe(Date.parse('2023-11-14T22:13:20Z'));
+    });
+    it('非法/缺失 → 0（排末尾）', () => {
+        expect(toAddedAtMs(undefined)).toBe(0);
+        expect(toAddedAtMs(null)).toBe(0);
+        expect(toAddedAtMs('')).toBe(0);
+        expect(toAddedAtMs('not-a-date')).toBe(0);
+    });
+});
+
+describe('sortSongsByAddedAt（后端）', () => {
+    it('added_at 倒序', () => {
+        const songs = [{ id: 1, added_at: 100 }, { id: 2, added_at: 300 }, { id: 3, added_at: 200 }];
+        expect(sortSongsByAddedAt(songs).map((s) => s.id)).toEqual([2, 3, 1]);
+    });
+    it('同秒（秒级精度无次级键）→ id 次级倒序确定', () => {
+        const songs = [{ id: 5, added_at: 100 }, { id: 9, added_at: 100 }, { id: 3, added_at: 100 }];
+        expect(sortSongsByAddedAt(songs).map((s) => s.id)).toEqual([9, 5, 3]);
+    });
+    it('缺时间戳排末尾', () => {
+        const songs = [{ id: 1, added_at: 500 }, { id: 2, added_at: 0 }, { id: 3 }];
+        const sorted = sortSongsByAddedAt(songs);
+        expect(sorted[0].id).toBe(1);
+        expect(sorted[2].id).toBe(2);
+        expect(sorted[1].id).toBe(3);
+    });
+    it('不修改原数组（返回稳定副本）', () => {
+        const songs = [{ id: 1, added_at: 1 }, { id: 2, added_at: 2 }];
+        sortSongsByAddedAt(songs);
+        expect(songs.map((s) => s.id)).toEqual([1, 2]);
     });
 });

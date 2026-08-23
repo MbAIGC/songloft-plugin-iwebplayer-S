@@ -378,6 +378,18 @@
         return song;
     };
 
+    // 🔐 统一「所有歌曲」排序（#5）：与后端同键 (added_at DESC, id DESC)。
+    // added_at（毫秒，后端已归一化）优先；_addedAt 兜底兼容旧缓存/旧路径；
+    // 同秒分组用 id 次级确定；缺时间戳排末尾。
+    window.sortSongsByAddedAt = function(songs) {
+        return (Array.isArray(songs) ? songs : []).slice().sort((a, b) => {
+            const ta = (a && (a.added_at || a._addedAt)) || 0;
+            const tb = (b && (b.added_at || b._addedAt)) || 0;
+            const t = tb - ta;
+            return t !== 0 ? t : (((b && b.id) || 0) - ((a && a.id) || 0));
+        });
+    };
+
     window.fetchScrape = async function(rawItem, type, currentSongName = null) {
         if (!rawItem) return null;
         let filename = '';

@@ -39,6 +39,23 @@ async function storageSetString(key: string, value: string): Promise<void> {
 // 👇 新增：定义兄弟插件的入口名
 const TWIN_PLUGIN_ID = 'miot-helper';
 
+// 🔐 统一 added_at → 毫秒时间戳：宿主 `Song.added_at` 为秒级精度数值（2.6.3 起），
+// 兼容毫秒数值与 ISO 字符串；解析失败返回 0（排到末尾）。前端 `_addedAt` 兜底为毫秒，单位保持一致。
+export function toAddedAtMs(v: unknown): number {
+    if (typeof v === 'number') return v > 1e11 ? v : v * 1000;
+    if (typeof v === 'string' && v) { const t = Date.parse(v); return isNaN(t) ? 0 : t; }
+    return 0;
+}
+
+// 🔐 稳定排序：(added_at DESC, id DESC)。added_at 秒级精度且宿主 SQL 无次级键，
+// 同秒分组用 id 次级确定（#5）。缺少时间戳的排到末尾。
+export function sortSongsByAddedAt<T extends { added_at?: number; id?: number }>(songs: T[]): T[] {
+    return (songs || []).slice().sort((a, b) => {
+        const t = (b.added_at || 0) - (a.added_at || 0);
+        return t !== 0 ? t : ((b.id || 0) - (a.id || 0));
+    });
+}
+
 // 👇 新增：广播偏好配置的函数
 export async function broadcastWebDavConfig(key: string, value: any) {
     // 🌟 海关安检与别名映射
@@ -189,7 +206,8 @@ router.get('/musiclist', async (req) => {
       const cleanedSongs = plSongs.map((s: any) => ({
           id: s.id, title: s.title || "", artist: s.artist || "", album: s.album || "",
           file_path: s.file_path || "", cover_url: s.cover_url || "", duration: s.duration || 0, type: s.type || "local",
-          plugin_entry_path: s.plugin_entry_path || "", dedup_key: s.dedup_key || ""
+          plugin_entry_path: s.plugin_entry_path || "", dedup_key: s.dedup_key || "",
+          added_at: toAddedAtMs(s.added_at)   // 🔐 #5：保留宿主真实添加时间（毫秒）
       }));
 
       // 响应体保持数组以兼容前端；截断/警告信息经响应头回传
@@ -246,7 +264,8 @@ router.get('/musiclist', async (req) => {
         }
       });
 
-      const allSongsArray = Array.from(songMap.values());
+      // 🔐 #5：稳定排序 (added_at DESC, id DESC)，不再受并发完成时序影响
+      const allSongsArray = sortSongsByAddedAt(Array.from(songMap.values()));
       structure["所有歌曲"] = allSongsArray.map((s: any) => s.id);
       structure["曲库搜索"] = [];
 
