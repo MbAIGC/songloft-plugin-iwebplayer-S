@@ -1443,6 +1443,10 @@
                         if (!metaRes.ok) throw new Error("NETWORK_ERROR");
                         const metaData = await metaRes.json();
 
+                        // 🔐 高性能分片会话：chunk/destroy 带上 bulk 返回的 _session，
+                        // 让迟到的旧请求不会误读/误清新缓存（审阅 #8 全局状态隔离）
+                        const flashSession = metaData._session || 0;
+
                         window.customPlaylistNames = metaData._custom_playlists || [];
                         window.playlistMeta = metaData._playlist_meta || [];
 
@@ -1453,7 +1457,7 @@
                                 else if (typeof window.showToast === 'function') window.showToast(`🚀 同步全库曲目 (第 ${page} 批)...`, false);
                             }
 
-                            const chunkRes = await fetch(`${window.API.list}?action=chunk&page=${page}`);
+                            const chunkRes = await fetch(`${window.API.list}?action=chunk&page=${page}&session=${flashSession}`);
                             if (!chunkRes.ok) break;
                             const songsChunk = await chunkRes.json();
                             if (!Array.isArray(songsChunk) || songsChunk.length === 0) break;
@@ -1463,7 +1467,7 @@
                             page++;
                         }
 
-                        fetch(`${window.API.list}?action=destroy`).catch(() => {});
+                        fetch(`${window.API.list}?action=destroy&session=${flashSession}`).catch(() => {});
 
                         for (const [plName, idArray] of Object.entries(metaData.structure)) {
                             syncReconstructed[plName] = Array.isArray(idArray) ? idArray.map(id => syncSongsMap.get(id)).filter(Boolean) : idArray;

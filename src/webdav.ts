@@ -2,10 +2,19 @@
 import { jsonResponse } from '@songloft/plugin-sdk';
 import type { HTTPRequest } from '@songloft/plugin-sdk';
 
-let currentScanVersion = 0;
-let scanStatus = 'idle'; // 'idle' | 'scanning' | 'completed' | 'failed'
-let scannedFoldersCount = 0;
-let activeDavId = '';
+// 🔐 扫描会话隔离：所有扫描状态收敛进单个会话对象，模块只持有「当前会话」引用；
+// 新扫描创建全新会话并原子替换，旧会话的异步任务通过 `activeScanSession !== session`
+// 自检立刻取消，杜绝跨请求污染模块级可变状态（审阅 #8）
+interface WebDavScanSession {
+    scanId: string;        // 本次扫描唯一标识（前端状态轮询可校验）
+    version: number;       // 单调递增版本号
+    status: 'idle' | 'scanning' | 'completed' | 'failed' | 'completed_with_warnings';
+    foldersCount: number;
+    davId: string;
+    hadWarnings: boolean;
+}
+let scanCounter = 0;
+let activeScanSession: WebDavScanSession | null = null;
 
 const AUDIO_EXTS = ['.mp3', '.flac', '.wav', '.m4a', '.aac', '.ogg', '.ape', '.wma', '.alac'];
 
@@ -59,7 +68,7 @@ function formatScanTime(): string {
 }
 
 // 🌐 异步递归扫描核心：数组游标出队（O(1)）+ 有界并发 + 超时/重试/取消
-async function runScanTask(version: number, hostUrl: string, token: string, davId: string, rootPath: string) {
+async function runScanTask(session: WebDavScanSession, hostUrl: string, token: string, davId: string, rootPath: string) {
     const CONCURRENCY = 4;
     const queue: string[] = [rootPath];
     let queueIndex = 0; // 🔐 用游标替代 shift()，避免 O(n²)
@@ -67,7 +76,6 @@ async function runScanTask(version: number, hostUrl: string, token: string, davI
     // 🔐 同名目录防覆盖：记录每个已用 key 对应的完整相对路径
     const pathOwners: Record<string, string> = {};
     let lastWriteTime = Date.now();
-    let scanHadWarnings = false;
 
     // ⏱️ 心跳批处理写入串行化（多 worker 并发写同一 storage key 会互相覆盖）
     let heartbeatChain: Promise<void> = Promise.resolve();
@@ -90,7 +98,7 @@ async function runScanTask(version: number, hostUrl: string, token: string, davI
     // 单目录拉取：超时中止 + 一次重试（仅临时失败：超时/网络/5xx/429）
     const fetchDirItems = async (apiUrl: string): Promise<any[] | null> => {
         for (let attempt = 0; attempt < 2; attempt++) {
-            if (currentScanVersion !== version) return null;
+            if (activeScanSession !== session) return null;
             const controller = new AbortController();
             const timer = setTimeout(() => controller.abort(), 15000);
             try {
@@ -105,7 +113,7 @@ async function runScanTask(version: number, hostUrl: string, token: string, davI
                 const json = await res.json();
                 return Array.isArray(json) ? json : [];
             } catch (err) {
-                if (currentScanVersion !== version) return null;
+                if (activeScanSession !== session) return null;
                 // 超时/网络错误：重试一次
             } finally {
                 clearTimeout(timer);
@@ -118,7 +126,7 @@ async function runScanTask(version: number, hostUrl: string, token: string, davI
         // 🔐 有界并发 worker：各自循环从游标队列取目录处理
         const workers = Array.from({ length: CONCURRENCY }, async () => {
             while (true) {
-                if (currentScanVersion !== version) return; // 取消
+                if (activeScanSession !== session) return; // 取消（新扫描已原子替换会话）
                 const currentPath = queue[queueIndex++];
                 if (currentPath === undefined) return; // 队列耗尽
 
@@ -127,7 +135,7 @@ async function runScanTask(version: number, hostUrl: string, token: string, davI
 
                 if (items === null) {
                     songloft.log.error(`[WebDAV] 扫描出错 ${currentPath}: 多次尝试失败`);
-                    scanHadWarnings = true;
+                    session.hadWarnings = true;
                     continue;
                 }
 
@@ -157,7 +165,7 @@ async function runScanTask(version: number, hostUrl: string, token: string, davI
                     const key = webdavKeyForFolder(pathOwners, currentPath);
                     pathOwners[key] = currentPath === '/' ? '' : currentPath.replace(/^\/+/, '');
                     resultLibrary[key] = audioItems;
-                    scannedFoldersCount++;
+                    session.foldersCount++;
                 }
 
                 queueHeartbeat(); // 串行化写入，不阻塞 worker
@@ -166,7 +174,7 @@ async function runScanTask(version: number, hostUrl: string, token: string, davI
 
         await Promise.all(workers);
 
-        if (currentScanVersion === version) {
+        if (activeScanSession === session) {
             let totalSongs = 0;
             for (const list of Object.values(resultLibrary)) totalSongs += list.length;
 
@@ -179,10 +187,10 @@ async function runScanTask(version: number, hostUrl: string, token: string, davI
             await songloft.storage.set(`webdav_lib_${davId}`, JSON.stringify(libData));
             broadcastWebDavLibrary(davId, libData);
             // 部分目录失败仍算完成，但标记 warnings 供前端区分
-            scanStatus = scanHadWarnings ? 'completed_with_warnings' : 'completed';
+            session.status = session.hadWarnings ? 'completed_with_warnings' : 'completed';
         }
     } catch (fatalErr) {
-        if (currentScanVersion === version) scanStatus = 'failed';
+        if (activeScanSession === session) session.status = 'failed';
     }
 }
 
@@ -200,18 +208,27 @@ export function setupWebDAVRoutes(router: any) {
         const hostUrl = await songloft.plugin.getHostUrl();
         const token = await songloft.plugin.getToken();
 
-        currentScanVersion++;
-        activeDavId = davId;
-        scanStatus = 'scanning';
-        scannedFoldersCount = 0;
+        // 🔐 每次扫描创建全新会话对象并原子替换 activeScanSession；
+        // 旧会话的异步任务将在下一个检查点（activeScanSession !== session）自行取消
+        const session: WebDavScanSession = {
+            scanId: `scan_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            version: ++scanCounter,
+            status: 'scanning',
+            foldersCount: 0,
+            davId,
+            hadWarnings: false
+        };
+        activeScanSession = session;
 
-        runScanTask(currentScanVersion, hostUrl, token, davId, rootPath).catch(() => {});
-        return jsonResponse({ status: "scanning", version: currentScanVersion });
+        runScanTask(session, hostUrl, token, davId, rootPath).catch(() => {});
+        return jsonResponse({ status: "scanning", version: session.version, scanId: session.scanId });
     });
 
     // 2. 前端 3 秒心跳轮询进度接口
     router.get('/dav/status', async (req: HTTPRequest) => {
-        return jsonResponse({ status: scanStatus, scanned_folders: scannedFoldersCount, davId: activeDavId });
+        const s = activeScanSession;
+        if (!s) return jsonResponse({ status: 'idle', scanned_folders: 0, davId: '', scanId: '' });
+        return jsonResponse({ status: s.status, scanned_folders: s.foldersCount, davId: s.davId, scanId: s.scanId });
     });
 
     // 3. 前端拉取扁平化缓存曲库

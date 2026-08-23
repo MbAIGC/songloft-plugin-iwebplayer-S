@@ -79,7 +79,10 @@ self.addEventListener('fetch', event => event.respondWith(fetch(event.request)))
 }));
 
 // 🌟 全局临时沙盒：只在前端拉歌的短短几秒内存在，超时必死，绝不长驻内存！
-let flashSongsCache: any[] | null = null;
+// 🔐 分片缓存会话隔离：缓存携带 generation 标记；chunk/destroy 可带 session 参数，
+// 仅当标记匹配才读/清，防止过期 bulk 的迟到请求误读/误清新 bulk 的数据（审阅 #8）
+let flashGeneration = 0;
+let flashSongsCache: { generation: number; songs: any[] } | null = null;
 let flashTimeout: any = null;
 
 // 🌟 新增：搞一个全局变量，用来专门记录最新一次探测失败的底层原始错误
@@ -202,6 +205,7 @@ router.get('/musiclist', async (req) => {
     if (action === 'meta_bulk') {
       if (flashTimeout) { clearTimeout(flashTimeout); flashTimeout = null; }
       flashSongsCache = null;
+      flashGeneration++;
 
       const structure: any = {};
       const customNames: string[] = [];
@@ -246,7 +250,7 @@ router.get('/musiclist', async (req) => {
       structure["所有歌曲"] = allSongsArray.map((s: any) => s.id);
       structure["曲库搜索"] = [];
 
-      flashSongsCache = allSongsArray;
+      flashSongsCache = { generation: flashGeneration, songs: allSongsArray };
       flashTimeout = setTimeout(() => {
           flashSongsCache = null;
           flashTimeout = null;
@@ -257,20 +261,29 @@ router.get('/musiclist', async (req) => {
           _custom_playlists: customNames,
           _playlist_meta: playlists,
           _truncated: anyTruncated,
-          _warnings: bulkWarnings
+          _warnings: bulkWarnings,
+          _session: flashGeneration
       });
     }
 
     if (action === 'chunk') {
+      // 🔐 若请求带 session，仅当与当前缓存 generation 一致才读取，防止迟到请求错读新缓存
+      const session = parseInt(urlParams.get('session') || '0');
       if (!flashSongsCache) return jsonResponse([]);
+      if (session > 0 && flashSongsCache.generation !== session) return jsonResponse([]);
       const page = parseInt(urlParams.get('page') || '1');
       const pageSize = 1000;
       const start = (page - 1) * pageSize;
       const end = start + pageSize;
-      return jsonResponse(flashSongsCache.slice(start, end));
+      return jsonResponse(flashSongsCache.songs.slice(start, end));
     }
 
     if (action === 'destroy') {
+      // 🔐 带 session 时仅清匹配的缓存；不带则维持旧行为清当前
+      const session = parseInt(urlParams.get('session') || '0');
+      if (flashSongsCache && session > 0 && flashSongsCache.generation !== session) {
+        return jsonResponse({ ret: "SKIP" });
+      }
       if (flashTimeout) { clearTimeout(flashTimeout); flashTimeout = null; }
       flashSongsCache = null;
       return jsonResponse({ ret: "OK" });
