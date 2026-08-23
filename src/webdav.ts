@@ -33,33 +33,80 @@ function formatScanTime(): string {
     return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
 }
 
-// 🌐 异步递归扫描核心
+// 🌐 异步递归扫描核心：数组游标出队（O(1)）+ 有界并发 + 超时/重试/取消
 async function runScanTask(version: number, hostUrl: string, token: string, davId: string, rootPath: string) {
+    const CONCURRENCY = 4;
     const queue: string[] = [rootPath];
+    let queueIndex = 0; // 🔐 用游标替代 shift()，避免 O(n²)
     const resultLibrary: Record<string, any[]> = {};
     // 🔐 同名目录防覆盖：记录每个已用 key 对应的完整相对路径
     const pathOwners: Record<string, string> = {};
     let lastWriteTime = Date.now();
     let scanHadWarnings = false;
 
-    try {
-        while (queue.length > 0) {
-            if (currentScanVersion !== version) return;
+    // ⏱️ 心跳批处理写入串行化（多 worker 并发写同一 storage key 会互相覆盖）
+    let heartbeatChain: Promise<void> = Promise.resolve();
+    const queueHeartbeat = () => {
+        heartbeatChain = heartbeatChain.then(async () => {
+            if (Date.now() - lastWriteTime <= 3000) return;
+            let totalSongs = 0;
+            for (const list of Object.values(resultLibrary)) totalSongs += list.length;
+            const libData = {
+                folders: Object.keys(resultLibrary).length,
+                songs: totalSongs,
+                time: formatScanTime(),
+                library: resultLibrary
+            };
+            await songloft.storage.set(`webdav_lib_${davId}`, JSON.stringify(libData));
+            lastWriteTime = Date.now();
+        }).catch(() => {});
+    };
 
-            const currentPath = queue.shift()!;
-            const apiUrl = `${hostUrl}/api/v1/jsplugin/dav/lists/${encodeURIComponent(davId)}/items?path=${encodeURIComponent(currentPath)}`;
-
+    // 单目录拉取：超时中止 + 一次重试（仅临时失败：超时/网络/5xx/429）
+    const fetchDirItems = async (apiUrl: string): Promise<any[] | null> => {
+        for (let attempt = 0; attempt < 2; attempt++) {
+            if (currentScanVersion !== version) return null;
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 15000);
             try {
                 const res = await fetch(apiUrl, {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    signal: controller.signal
                 });
-                if (!res.ok) continue;
+                if (!res.ok) {
+                    if (res.status >= 400 && res.status < 500 && res.status !== 429) return null; // 永久失败
+                    continue; // 5xx/429：重试一次
+                }
+                const json = await res.json();
+                return Array.isArray(json) ? json : [];
+            } catch (err) {
+                if (currentScanVersion !== version) return null;
+                // 超时/网络错误：重试一次
+            } finally {
+                clearTimeout(timer);
+            }
+        }
+        return null; // 重试仍失败
+    };
 
-                const items = await res.json();
-                if (!Array.isArray(items)) continue;
+    try {
+        // 🔐 有界并发 worker：各自循环从游标队列取目录处理
+        const workers = Array.from({ length: CONCURRENCY }, async () => {
+            while (true) {
+                if (currentScanVersion !== version) return; // 取消
+                const currentPath = queue[queueIndex++];
+                if (currentPath === undefined) return; // 队列耗尽
+
+                const apiUrl = `${hostUrl}/api/v1/jsplugin/dav/lists/${encodeURIComponent(davId)}/items?path=${encodeURIComponent(currentPath)}`;
+                const items = await fetchDirItems(apiUrl);
+
+                if (items === null) {
+                    songloft.log.error(`[WebDAV] 扫描出错 ${currentPath}: 多次尝试失败`);
+                    scanHadWarnings = true;
+                    continue;
+                }
 
                 const audioItems = [];
-
                 for (const item of items) {
                     if (item.type === 'directory') {
                         const nextPath = currentPath === '/' ? '/' + item.name : `${currentPath}/${item.name}`;
@@ -99,27 +146,11 @@ async function runScanTask(version: number, hostUrl: string, token: string, davI
                     scannedFoldersCount++;
                 }
 
-                // ⏱️ 3秒心跳批处理写入：加上 folders, songs, time 元数据
-                if (Date.now() - lastWriteTime > 3000) {
-                    let totalSongs = 0;
-                    for (const list of Object.values(resultLibrary)) totalSongs += list.length;
-
-                    const libData = {
-                        folders: Object.keys(resultLibrary).length,
-                        songs: totalSongs,
-                        time: formatScanTime(),
-                        library: resultLibrary
-                    };
-                    await songloft.storage.set(`webdav_lib_${davId}`, JSON.stringify(libData));
-                    lastWriteTime = Date.now();
-                }
-
-            } catch (err) {
-                // 记录失败目录并继续扫描，不因单个目录错误中断整次扫描
-                songloft.log.error(`[WebDAV] 扫描出错 ${currentPath}: ${String(err)}`);
-                scanHadWarnings = true;
+                queueHeartbeat(); // 串行化写入，不阻塞 worker
             }
-        }
+        });
+
+        await Promise.all(workers);
 
         if (currentScanVersion === version) {
             let totalSongs = 0;
