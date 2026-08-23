@@ -1050,6 +1050,15 @@
     :root[data-theme="dark"] body.ambient-active.split-view-active .song-item.playing { background-color: rgba(31, 41, 55, 0.95) !important; }
   }
 
+  /* 🌟 修复：暗色氛围分栏下，暗色卡片规则(特异性 0,5,1)会覆盖 .song-item.playing(0,4,1)，
+     把粉色高亮边框顶成白色 15% 细边导致看不见。此处用更高特异性(0,6,1)且后声明，强制粉色高亮胜出 */
+  :root:not([data-theme="light"]) body.ambient-active.split-view-active .song-item.playing,
+  :root[data-theme="dark"] body.ambient-active.split-view-active .song-item.playing {
+    border: 2px solid var(--primary) !important;
+    box-shadow: inset 3px 0 0 var(--primary) !important;
+    background-color: rgba(236, 72, 153, 0.16) !important;
+  }
+
   /* 暗色氛围模式下三栏工具栏卡片：边框/阴影淡处理，与浅色一致不显方框 */
   :root:not([data-theme="light"]) body.ambient-active.split-view-active .toolbar-split-inner,
   :root[data-theme="dark"] body.ambient-active.split-view-active .toolbar-split-inner {
