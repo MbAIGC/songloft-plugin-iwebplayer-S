@@ -62,14 +62,18 @@
 - [ ] ⚠️ 16. 修复 TypeScript（实测 42 个错误，审阅记 38）
   - 真 bug（✅ 已核实）：`songloft.logger` → `songloft.log`（`src/webdav.ts:103`）；请求体转换（`src/webdav.ts:163` 已见 `JSON.parse(cache)` 无兜底；TextDecoder 改造点待落实）
   - SDK 类型陈旧：`Song.added_at`、`Playlist.labels`、`songs.list` 的 `orderBy/order`、`storage` 的 `getItem/setItem` → 同步本地类型声明；版本相关调用做能力检测或升 minHostVersion
-- [ ] ✅ 17. 修复 `plugin.json` `download_url`（1.1.5-dev → 1.1.6-dev）+ README 引用
+- [x] ✅ 17. 修复 `plugin.json` `download_url`（1.1.5-dev → 1.1.6-dev）+ README 引用
   - 已核实：`plugin.json` `download_url` 仍指向 `1.1.5-dev.jsplugin.zip`，`version` 为 `1.1.6-dev`
-- [ ] ✅ 18. 两个 dev 工作流（APK/插件）同改一个 Release → 共享 concurrency group 或单一流程发布
+  - ✅ 已修（`8269db2`）：`download_url`→`1.1.6-dev`、README 引用→`1.1.6`；构建后 zip 内清单已含正确 URL
+- [x] ✅ 18. 两个 dev 工作流（APK/插件）同改一个 Release → 共享 concurrency group 或单一流程发布
   - 已核实：`build-apk-dev.yml:20` 有 concurrency(`build-apk-dev`)，`build-plugin-dev.yml` **无** concurrency → 可并发编辑同一 Release
-- [ ] ⚠️ 19. 发布版本计算：`fetch-depth: 0`；稳定版只选非 prerelease `vX.Y.Z` 且单调递增；说明按标签范围生成
+  - ✅ 已修（`8d8b096`）：两工作流共享 `group: dev-release`（`cancel-in-progress: false`），串行编辑 dev Release
+- [x] ⚠️ 19. 发布版本计算：`fetch-depth: 0`；稳定版只选非 prerelease `vX.Y.Z` 且单调递增；说明按标签范围生成
   - 已核实：`build-apk.yml:64` `gh release list --limit 1` 取最新 Release，dev 标签不匹配 `^v?X.Y.Z$` 会回退 `0.0.1`。⚠️ checkout `fetch-depth` 未专门核对，按默认浅克隆处理
-- [ ] ✅ 20. CI 质量门禁：`npm ci` → `typecheck` → `test` → `build` → 产物/URL/版本一致性校验 → Android 安装冒烟
+  - ✅ 已修（`38635d8`）：`fetch-depth: 0`；版本只从锚定 `^vX.Y.Z$` 的 git 稳定标签取最新并 patch+1（dev/`1.1.6-dev` 标签不再导致回退 `0.0.1`，数值排序保证单调）；手动版本号格式校验失败即退出；说明按 `上一稳定标签..HEAD` 生成，重跑时同步刷新 notes
+- [x] ✅ 20. CI 质量门禁：`npm ci` → `typecheck` → `test` → `build` → 产物/URL/版本一致性校验 → Android 安装冒烟
   - 已核实：`package.json` **无** `typecheck`/`test` 脚本、无测试；CI 仅 `npm run build`
+  - ✅ 已修（`fbe3dee`）：新增 `typecheck`(`tsc --noEmit`，0 错误) 与 `test`(`vitest run`，21 用例)；`tests/` 覆盖分页/offset 防死循环/probe HEAD+Range 兜底+dead-vs-transient/并发受限/`bytesToStr`/WebDAV 同名键消歧；`scripts/verify-build.mjs` 校验版本一致+产物存在+zip 内 version/download_url；三个工作流均 `npm ci → typecheck → test → build → verify-build`。⚠️ Android 安装冒烟需真实设备/模拟器，暂未纳入（保留为稳定版发布前人工步骤）
 
 ## 测试矩阵（随各阶段补齐）
 
