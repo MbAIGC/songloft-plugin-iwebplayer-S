@@ -155,11 +155,7 @@
             });
             const resJson = await res.json();
             if (resJson.code !== 0 || !resJson.data || !resJson.data.list) return { list: [], hasMore: false };
-            const parsedList = resJson.data.list.map(item => ({
-                id: item.songmid || item.musicId, title: item.name || "未知歌曲", artist: item.singer || "未知歌手",
-                album: item.album || "", duration: item.duration || 0, cover_url: item.img || null,
-                _scrapedCover: item.img || null, _isOnlineObj: true, source_data: item
-            }));
+            const parsedList = resJson.data.list.map(item => window.normalizeSong(item, { online: true }));
             // 判断是否还有下一页，通常判断返回条数是否达到请求的 page_size，这里保守使用 20
             return { list: parsedList, hasMore: resJson.data.list.length >= 20 };
         },
@@ -175,11 +171,7 @@
             const res = await fetch(reqUrl);
             const resJson = await res.json();
             if (resJson.code !== 0 || !resJson.data || !resJson.data.list) return [];
-            return resJson.data.list.map(item => ({
-                id: item.songmid || item.musicId, title: item.name || "未知歌曲", artist: item.singer || "未知歌手",
-                album: item.album || "", duration: item.duration || 0, cover_url: item.img || null,
-                _scrapedCover: item.img || null, _isOnlineObj: true, source_data: item
-            }));
+            return resJson.data.list.map(item => window.normalizeSong(item, { online: true }));
         }
     });
 

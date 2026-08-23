@@ -355,6 +355,29 @@
         return title || artist || "未知歌曲";
     };
 
+    // 🔐 统一歌曲归一化（#15）：行为等价于各处手写内联块，消除重复。
+    // opts.online=true → LXMusic/在线对象形态（id 取 songmid||musicId、带 _scrapedCover/_isOnlineObj/source_data）
+    window.normalizeSong = function(rawItem, opts) {
+        opts = opts || {};
+        const src = (rawItem && typeof rawItem === 'object') ? rawItem : {};
+        const song = {
+            id: src.id != null ? src.id : (src.songmid || src.musicId),
+            title: src.title || src.name || "未知歌曲",
+            artist: src.artist || src.singer || "未知歌手",
+            album: src.album || "",
+            duration: Number(src.duration) || 0,
+            cover_url: src.cover_url || src.img || null,
+            plugin_entry_path: src.plugin_entry_path || "",
+            dedup_key: src.dedup_key || ""
+        };
+        if (opts.online) {
+            song._scrapedCover = src.img || src.cover_url || null;
+            song._isOnlineObj = true;
+            song.source_data = src;
+        }
+        return song;
+    };
+
     window.fetchScrape = async function(rawItem, type, currentSongName = null) {
         if (!rawItem) return null;
         let filename = '';
