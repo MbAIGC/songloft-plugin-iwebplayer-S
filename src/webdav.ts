@@ -37,6 +37,8 @@ function formatScanTime(): string {
 async function runScanTask(version: number, hostUrl: string, token: string, davId: string, rootPath: string) {
     const queue: string[] = [rootPath];
     const resultLibrary: Record<string, any[]> = {};
+    // 🔐 同名目录防覆盖：记录每个已用 key 对应的完整相对路径
+    const pathOwners: Record<string, string> = {};
     let lastWriteTime = Date.now();
 
     try {
@@ -79,8 +81,20 @@ async function runScanTask(version: number, hostUrl: string, token: string, davI
                 }
 
                 if (audioItems.length > 0) {
-                    let plName = currentPath === '/' ? '根目录' : currentPath.split('/').pop() || '未知文件夹';
-                    resultLibrary[plName] = audioItems;
+                    // 内部键默认用 basename；同名冲突时用「父目录/basename」消歧，
+                    // 仍冲突则退化为完整相对路径，确保不同目录绝不互相覆盖
+                    const relativePath = currentPath === '/' ? '' : currentPath.replace(/^\/+/, '');
+                    const basename = currentPath === '/' ? '根目录' : currentPath.split('/').pop() || '未知文件夹';
+                    let key = basename;
+                    const owner = pathOwners[key];
+                    if (owner !== undefined && owner !== relativePath) {
+                        const parent = relativePath.split('/').filter(Boolean).slice(-2, -1)[0];
+                        const altKey = parent ? `${parent}/${basename}` : relativePath;
+                        const altOwner = pathOwners[altKey];
+                        key = (altOwner === undefined || altOwner === relativePath) ? altKey : relativePath;
+                    }
+                    pathOwners[key] = relativePath;
+                    resultLibrary[key] = audioItems;
                     scannedFoldersCount++;
                 }
 
