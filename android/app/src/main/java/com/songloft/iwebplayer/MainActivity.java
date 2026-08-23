@@ -36,6 +36,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
+import androidx.security.crypto.EncryptedSharedPreferences;
+import androidx.security.crypto.MasterKey;
 import android.support.v4.media.MediaMetadataCompat;
 import android.support.v4.media.session.MediaSessionCompat;
 import android.support.v4.media.session.PlaybackStateCompat;
@@ -101,7 +103,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         instance = this;
-        prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        prefs = createEncryptedPrefs();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
@@ -251,6 +253,24 @@ public class MainActivity extends AppCompatActivity {
         String server = prefs.getString(KEY_SERVER, "").trim();
         if (server.isEmpty()) return "";
         return server.endsWith("/") ? server : server + "/";
+    }
+
+    // 🔐 凭据使用 Android Keystore 支撑的加密 SharedPreferences
+    private SharedPreferences createEncryptedPrefs() {
+        try {
+            MasterKey masterKey = new MasterKey.Builder(this)
+                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                    .build();
+            return EncryptedSharedPreferences.create(
+                    this,
+                    PREFS,
+                    masterKey,
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM);
+        } catch (Exception e) {
+            // 极少数设备 Keystore 不可用时降级为普通存储，保证可用性
+            return getSharedPreferences(PREFS, MODE_PRIVATE);
+        }
     }
 
     // 🔐 主框架导航白名单：本地设置页 + 配置的 SongLoft origin；其它 HTTP(S) 交系统浏览器；其余协议拦截
