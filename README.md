@@ -2,7 +2,7 @@
 
 > iWebplayer-S 是以 [birdstudy-nj](https://github.com/birdstudy-nj) 大佬的 [iwebplayer](https://github.com/songloft-org/songloft-plugin-iwebplayer) 为基础，Vibe-Coding 适配的宽屏设备（例如笔记本、安卓平板等），并打包成 APK(主要是因为局域网没办法配置PWA)。无此需要建议使用原版[iwebplayer](https://github.com/songloft-org/songloft-plugin-iwebplayer) 。
 
-## 为什么又有了dev分支呢？因为是全Vibe－coding，经常改着改着就变样了。而且还局部调整了原来继承过来的上游代码，为了避免混乱才创建了Dev。
+### 为什么又有了dev分支呢？因为是全Vibe－coding，经常改着改着就变样了。而且还局部调整了原来继承过来的上游代码，为了避免混乱才创建了Dev。
 
 ![Plugin](https://img.shields.io/badge/plugin-v1.1.6-ec4899)
 ![Android APK](https://img.shields.io/badge/apk-v0.0.1+-8b5cf6)
