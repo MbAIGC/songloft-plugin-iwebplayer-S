@@ -1449,7 +1449,9 @@
                         window.IDBCache.getMeta('cache'),
                         window.IDBCache.getAllSongs()
                     ]);
-                    if (idbMeta && Array.isArray(idbPool)) {
+                    // 🔐 #11/P1-②：半写缓存不视为命中——歌曲池数量必须 >= meta 声明的 songsTotal，
+                    // 否则回退到 localStorage（兜底数据是完整的）
+                    if (idbMeta && Array.isArray(idbPool) && idbPool.length >= (idbMeta.songsTotal || 0)) {
                         hasCache = applyGlobalCache(Object.assign({}, idbMeta, { songsPool: idbPool }));
                     }
                 } catch (e) {
@@ -1591,11 +1593,14 @@
                             coverMap: collectCoverCache()
                         };
 
-                        // 🔐 #11：优先 IndexedDB 分批写入（大曲库不阻塞主线程、不受 localStorage 配额限制）
+                        // 🔐 #11/P1-②：优先 IndexedDB 分批写入（大曲库不阻塞主线程、不受 localStorage 配额限制）
+                        // 原子提交：先写歌曲分批、meta 最后写作为「提交标记」；meta 内记 songsTotal，
+                        // 读侧校验池长度 >= songsTotal 才视为命中（半写缓存不误当全量，回退 localStorage）
                         let idbOk = false;
                         if (window.IDBCache) {
-                            const metaOk = await window.IDBCache.putMeta('cache', cacheObj);
+                            const cacheWithTotal = Object.assign({}, cacheObj, { songsTotal: songsPool.length });
                             const songsOk = await window.IDBCache.putSongs(songsPool);
+                            const metaOk = songsOk ? await window.IDBCache.putMeta('cache', cacheWithTotal) : null;
                             idbOk = !!metaOk && !!songsOk;
                         }
 
