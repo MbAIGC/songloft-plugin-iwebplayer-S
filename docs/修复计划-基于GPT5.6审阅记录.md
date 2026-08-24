@@ -115,6 +115,10 @@
 - [x] ✅ **P2「所有歌曲」是内置外歌单并集而非全局曲库**：只并入 `!isBuiltIn` 歌单 → 内置歌单独有/不在任何歌单的歌曲被遗漏
   - ✅ 已修（`78cbae1`）：改用 `songloft.songs.list({ limit, offset })`（v2.6.3 支持、默认 `added_at DESC`）作全局源。后端 `fetchAllSongs`（一次大 `limit` 取全 + 防死循环 + 按 id 去重兜底同秒跨页重复 + truncated/warnings 头回传）；`meta_bulk` 的「所有歌曲」与 flashSongsCache 池改用全局曲库（顺带修复高性能模式内置歌单解析为空），`songs.list` 失败回退旧并集不崩溃；新增 `action=all_songs` 供轻量模式同源；WebDAV 歌不动（存插件 storage、本就不在 songs.list）。+4 单测
 
+## 待优化（审阅记录 0.2 建议，非本轮必须）
+
+- [ ] 🔧 **补 `meta_bulk → chunk → 前端重建` 数据流集成测试**：现有单测只覆盖纯函数（`cleanSong`/`sortSongsByAddedAt`/`fetchAllSongs` 等），无法捕获"后端聚合 → 分片缓存 → 前端重建排序"整条链路的回归（如丢 `added_at`、池/结构不一致）。SDK 的 `createRouter`/`jsonResponse` 为纯 JS，可在 vitest 中以 stub `songloft` 驱动真实 `/musiclist` 路由 handler 做集成测试；需给 `src/main.ts` 暴露测试用路由入口。宿主契约类（songs.list 真实 SQL 顺序、WebDAV、播放）仍以目标宿主实测为准。
+
 ## 核实边界
 
 - 本节 ✅/⚠️ 只覆盖「插件侧」代码（`src/`、`static/`、`android/`、`.github/workflows/`、`package.json`、`plugin.json`）。
