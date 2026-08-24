@@ -1,0 +1,207 @@
+name: Demo Build Dev Plugin (iWebPlayer-S)
+
+on:
+  push:
+    branches: [ dev ]
+    paths:
+      - 'src/**'
+      - 'static/**'
+      - 'plugin.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/build-plugin-dev.yml'
+  workflow_dispatch:
+
+jobs:
+  build-dev:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: dev-release-${{ github.ref }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Read base version
+        id: version
+        run: |
+          VERSION=$(jq -r '.version' plugin.json)
+          echo "base_version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Base version: $VERSION"
+
+      - name: Determine Release Tag
+        id: release
+        run: |
+          BASE=${{ steps.version.outputs.base_version }}
+          RELEASE_TAG="dev-${BASE%-dev}"
+          echo "release_tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
+          echo "Release tag: $RELEASE_TAG"
+
+      - name: Get current Release
+        id: release_info
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: releases } = await github.rest.repos.listReleases({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100
+            });
+            const release = releases.find(r => r.tag_name === '${{ steps.release.outputs.release_tag }}');
+            if (!release) {
+              core.setOutput('release_exists', 'false');
+              core.setOutput('release_id', '');
+              return;
+            }
+            core.setOutput('release_exists', 'true');
+            core.setOutput('release_id', release.id);
+
+      - name: Get Release Assets
+        id: assets
+        uses: actions/github-script@v7
+        if: steps.release_info.outputs.release_exists == 'true'
+        with:
+          script: |
+            const { data: assets } = await github.rest.repos.listReleaseAssets({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: ${{ steps.release_info.outputs.release_id }}
+            });
+            const zipAssets = assets.filter(a => a.name.endsWith('.jsplugin.zip'));
+            core.setOutput('zip_count', zipAssets.length);
+            if (zipAssets.length > 0) {
+              const maxAsset = zipAssets.reduce((prev, curr) => (parseInt(prev.name.match(/\.(\d+)-dev\.jsplugin\.zip\( /)[1]) > parseInt(curr.name.match(/\.(\d+)-dev\.jsplugin\.zip \)/)[1]) ? prev : curr));
+              core.setOutput('max_zip', maxAsset.name);
+              core.setOutput('max_number', parseInt(maxAsset.name.match(/\.(\d+)-dev\.jsplugin\.zip$/)[1]));
+            } else {
+              core.setOutput('max_zip', '');
+              core.setOutput('max_number', 0);
+            }
+
+      - name: Calculate new version
+        id: new_version
+        run: |
+          if [ "${{ steps.release_info.outputs.release_exists }}" = "true" ]; then
+            MAX_NUM=${{ steps.assets.outputs.max_number }}
+            NEW_NUM=$((MAX_NUM + 1))
+          else
+            NEW_NUM=1
+          fi
+          VERSION="${{ steps.version.outputs.base_version }}-dev"
+          NEW_VERSION=$(echo "\( VERSION" | sed "s/dev \)/.$NEW_NUM-dev/")
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New version: $NEW_VERSION"
+
+      - name: Temporarily modify plugin.json
+        run: |
+          jq --arg v '${{ steps.new_version.outputs.new_version }}' '.version = $v' plugin.json > plugin.json.tmp
+          mv plugin.json.tmp plugin.json
+          echo "Temporary plugin.json version set to: ${{ steps.new_version.outputs.new_version }}"
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build plugin
+        run: npm run build
+
+      - name: Verify build artifacts
+        run: |
+          ls -la dist/
+
+      - name: Check ZIP content version
+        run: |
+          if [ ! -d "dist" ]; then
+            echo "No dist folder found!"
+            exit 1
+          fi
+          ZIP_NAME="iwebplayer-s-v${{ steps.new_version.outputs.new_version }}.jsplugin.zip"
+          ls -la dist/
+          cd dist && unzip -p "$ZIP_NAME" plugin.json | grep -o '"version": "[^"]*"' || echo "Version check failed"
+          cd ..
+
+      - name: Rename ZIP
+        run: |
+          mkdir -p dist
+          ZIP_NAME="iwebplayer-s-v${{ steps.new_version.outputs.new_version }}.jsplugin.zip"
+          mv dist/*.jsplugin.zip dist/$ZIP_NAME || true
+          echo "Renamed to: $ZIP_NAME"
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: iwebplayer-s-${{ steps.new_version.outputs.new_version }}.jsplugin.zip
+          path: dist/iwebplayer-s-v${{ steps.new_version.outputs.new_version }}.jsplugin.zip
+
+      - name: Upload to Pre-release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const releaseExists = ${{ steps.release_info.outputs.release_exists }} === 'true';
+            if (!releaseExists) {
+              await github.rest.repos.createRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: '${{ steps.release.outputs.release_tag }}',
+                name: '${{ steps.release.outputs.release_tag }}',
+                body: 'Development Pre-release for iWebPlayer-S',
+                draft: false,
+                prerelease: true
+              });
+              console.log('Created new Pre-release: ${{ steps.release.outputs.release_tag }}');
+            }
+            const releaseId = releaseExists ? ${{ steps.release_info.outputs.release_id }} : (await github.rest.repos.listReleases({owner: context.repo.owner, repo: context.repo.repo, per_page: 1})).data[0].id;
+            const assetPath = 'dist/iwebplayer-s-v${{ steps.new_version.outputs.new_version }}.jsplugin.zip';
+            const assetExists = fs.existsSync(assetPath);
+            if (!assetExists) {
+              console.error('Asset not found for upload!');
+              process.exit(1);
+            }
+            await github.rest.repos.uploadReleaseAsset({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId,
+              name: 'iwebplayer-s-v${{ steps.new_version.outputs.new_version }}.jsplugin.zip',
+              data: fs.readFileSync(assetPath)
+            });
+            console.log('Asset uploaded to Pre-release: ${{ steps.release.outputs.release_tag }}');
+
+      - name: Generate manifest.json
+        run: |
+          DOWNLOAD_URL="https://github.com/\( {{ github.repository }}/releases/download/ \){{ steps.release.outputs.release_tag }}/iwebplayer-s-v${{ steps.new_version.outputs.new_version }}.jsplugin.zip"
+          cat > manifest.json << EOF
+          {
+            "version": "${{ steps.new_version.outputs.new_version }}",
+            "download_url": "$DOWNLOAD_URL"
+          }
+          EOF
+          echo "manifest.json generated with version ${{ steps.new_version.outputs.new_version }}"
+
+      - name: Restore original plugin.json
+        run: |
+          jq --arg v '${{ steps.version.outputs.base_version }}' '.version = $v' plugin.json > plugin.json.tmp
+          mv plugin.json.tmp plugin.json
+          echo "Restored plugin.json to original base version"
+
+      - name: Commit and push manifest
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add manifest.json
+          git commit -m "ci: update manifest.json for new dev build ${{ steps.new_version.outputs.new_version }}" || echo "No changes to commit"
+          git push origin dev
