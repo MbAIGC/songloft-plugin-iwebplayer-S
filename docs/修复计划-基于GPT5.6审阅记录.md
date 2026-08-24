@@ -106,6 +106,15 @@
 - [x] ✅ **新版插件全部歌曲无法播放**（`获取链接失败，自动跳过` + 连续 5 首暂停）：#9 的 `probeAudioUrl` 在 QuickJS 运行时调 `new AbortController()` 抛 `ReferenceError`（Node 测试有 AbortController 掩盖了此缺陷）。已修（`26ec813`）：QuickJS 无 `AbortController` 时探测直接返回 `skip`，`/musicinfo` 走 `songloft.log.warn` 并直接给播放 URL；WebDAV 拉目录同步改 `Promise.race` + 超时回退。用户确认"可以了"
 - [x] ✅ **宽屏/分栏模式当前播放歌曲无高亮**（手机模式有）：机制与 CSS 两模式一致，实际是**暗色氛围分栏下暗色卡片规则特异性 (0,5,1) 覆盖了 `.song-item.playing` (0,4,1)**，把粉色 2px 边框顶成白色 15% 细边（用户计算样式实证）。已修（`77d6eaf`）：新增特异性 (0,6,1) 且后声明的暗色 `.song-item.playing` 规则强制粉色边框胜出；另加 `syncPlayingHighlight`（`b543660`）以 `<audio>` 实际播放身份在重渲染/每次播放后校正高亮。按用户要求精简为与手机端一致的纯 2px 边框（`069f087`，去掉左侧强调条与底色）。用户确认"可以了"
 
+## 第二轮复审遗留（审阅记录本轮新增，P1/P2）
+
+- [x] ✅ **P1 高性能模式「所有歌曲」仍非按添加日期排序**：`meta_bulk` 的 `cleanedSongs` 丢 `added_at` → `sortSongsByAddedAt` 退化纯 `id DESC`，与轻量模式不一致
+  - ✅ 已修（`a1967bb`）：抽共享 `cleanSong`（两模式同键、必带 `added_at`/`toAddedAtMs`），`playlist_songs` 与 `meta_bulk` 统一使用；+3 单测
+- [x] ✅ **P1 IndexedDB 缓存非原子提交**：meta 先写、歌曲分批后写；半写缓存被当命中、跳过 localStorage 兜底，暂时显示缺歌
+  - ✅ 已修（`6c43b32`）：写序改为**先歌曲后 meta**（meta=提交标记），meta 记 `songsTotal`；读侧校验 `idbPool.length >= songsTotal` 才命中，否则回退 localStorage；旧缓存无 `songsTotal` 默认 0 不回归
+- [ ] ✅ **P2「所有歌曲」是内置外歌单并集而非全局曲库**：只并入 `!isBuiltIn` 歌单 → 内置歌单独有/不在任何歌单的歌曲被遗漏
+  - 计划：改用 `songloft.songs.list({ limit, offset })`（v2.6.3 支持、默认 `added_at DESC`）作全局源；⚠️ 宿主分页仅 `added_at DESC` 无 id 次级、秒级精度 → 一次足够大 `limit` 取全 + `truncated`/`warnings` 检测（防死循环），前端本地 `(added_at DESC, id DESC)` 稳定排序；**单独一轮实施**
+
 ## 核实边界
 
 - 本节 ✅/⚠️ 只覆盖「插件侧」代码（`src/`、`static/`、`android/`、`.github/workflows/`、`package.json`、`plugin.json`）。
