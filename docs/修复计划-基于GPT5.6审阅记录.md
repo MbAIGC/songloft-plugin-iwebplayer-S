@@ -112,8 +112,8 @@
   - ✅ 已修（`a1967bb`）：抽共享 `cleanSong`（两模式同键、必带 `added_at`/`toAddedAtMs`），`playlist_songs` 与 `meta_bulk` 统一使用；+3 单测
 - [x] ✅ **P1 IndexedDB 缓存非原子提交**：meta 先写、歌曲分批后写；半写缓存被当命中、跳过 localStorage 兜底，暂时显示缺歌
   - ✅ 已修（`6c43b32`）：写序改为**先歌曲后 meta**（meta=提交标记），meta 记 `songsTotal`；读侧校验 `idbPool.length >= songsTotal` 才命中，否则回退 localStorage；旧缓存无 `songsTotal` 默认 0 不回归
-- [ ] ✅ **P2「所有歌曲」是内置外歌单并集而非全局曲库**：只并入 `!isBuiltIn` 歌单 → 内置歌单独有/不在任何歌单的歌曲被遗漏
-  - 计划：改用 `songloft.songs.list({ limit, offset })`（v2.6.3 支持、默认 `added_at DESC`）作全局源；⚠️ 宿主分页仅 `added_at DESC` 无 id 次级、秒级精度 → 一次足够大 `limit` 取全 + `truncated`/`warnings` 检测（防死循环），前端本地 `(added_at DESC, id DESC)` 稳定排序；**单独一轮实施**
+- [x] ✅ **P2「所有歌曲」是内置外歌单并集而非全局曲库**：只并入 `!isBuiltIn` 歌单 → 内置歌单独有/不在任何歌单的歌曲被遗漏
+  - ✅ 已修（`78cbae1`）：改用 `songloft.songs.list({ limit, offset })`（v2.6.3 支持、默认 `added_at DESC`）作全局源。后端 `fetchAllSongs`（一次大 `limit` 取全 + 防死循环 + 按 id 去重兜底同秒跨页重复 + truncated/warnings 头回传）；`meta_bulk` 的「所有歌曲」与 flashSongsCache 池改用全局曲库（顺带修复高性能模式内置歌单解析为空），`songs.list` 失败回退旧并集不崩溃；新增 `action=all_songs` 供轻量模式同源；WebDAV 歌不动（存插件 storage、本就不在 songs.list）。+4 单测
 
 ## 核实边界
 
