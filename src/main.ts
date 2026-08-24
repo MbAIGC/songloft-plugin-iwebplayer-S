@@ -56,6 +56,17 @@ export function sortSongsByAddedAt<T extends { added_at?: number; id?: number }>
     });
 }
 
+// 🔐 统一歌曲清洗：两模式（轻量 playlist_songs / 高性能 meta_bulk）必须同键、且都保留 added_at，
+// 否则高性能模式「所有歌曲」排序退化为 id DESC、与轻量模式不一致（复审 P1）
+export function cleanSong(s: any): any {
+    return {
+        id: s.id, title: s.title || "", artist: s.artist || "", album: s.album || "",
+        file_path: s.file_path || "", cover_url: s.cover_url || "", duration: s.duration || 0, type: s.type || "local",
+        plugin_entry_path: s.plugin_entry_path || "", dedup_key: s.dedup_key || "",
+        added_at: toAddedAtMs(s.added_at)   // 🔐 #5/P1：保留宿主真实添加时间（毫秒）
+    };
+}
+
 // 👇 新增：广播偏好配置的函数
 export async function broadcastWebDavConfig(key: string, value: any) {
     // 🌟 海关安检与别名映射
@@ -209,12 +220,7 @@ router.get('/musiclist', async (req) => {
 
       const { songs: plSongs, truncated, warnings } = await fetchAllPlaylistSongs(id);
 
-      const cleanedSongs = plSongs.map((s: any) => ({
-          id: s.id, title: s.title || "", artist: s.artist || "", album: s.album || "",
-          file_path: s.file_path || "", cover_url: s.cover_url || "", duration: s.duration || 0, type: s.type || "local",
-          plugin_entry_path: s.plugin_entry_path || "", dedup_key: s.dedup_key || "",
-          added_at: toAddedAtMs(s.added_at)   // 🔐 #5：保留宿主真实添加时间（毫秒）
-      }));
+      const cleanedSongs = plSongs.map(cleanSong);
 
       // 响应体保持数组以兼容前端；截断/警告信息经响应头回传
       const headers: Record<string, string> = { 'Content-Type': 'application/json; charset=utf-8' };
@@ -245,11 +251,7 @@ router.get('/musiclist', async (req) => {
           const { songs: plSongs, truncated, warnings } = await fetchAllPlaylistSongs(pl.id);
           if (truncated) anyTruncated = true;
           if (warnings.length) bulkWarnings.push(...warnings);
-          const cleanedSongs = plSongs.map((s: any) => ({
-              id: s.id, title: s.title || "", artist: s.artist || "", album: s.album || "",
-              file_path: s.file_path || "", cover_url: s.cover_url || "", duration: s.duration || 0, type: s.type || "local",
-              plugin_entry_path: s.plugin_entry_path || "", dedup_key: s.dedup_key || ""
-          }));
+          const cleanedSongs = plSongs.map(cleanSong);
 
           if (pl.name !== 'music') {
               structure[`${pl.name}`] = cleanedSongs.map((s: any) => s.id);

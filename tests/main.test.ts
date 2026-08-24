@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fetchAllPlaylistSongs, probeAudioUrl, mapWithConcurrency, bytesToStr, toAddedAtMs, sortSongsByAddedAt } from '../src/main';
+import { fetchAllPlaylistSongs, probeAudioUrl, mapWithConcurrency, bytesToStr, toAddedAtMs, sortSongsByAddedAt, cleanSong } from '../src/main';
 
 // ---------------------------------------------------------------------------
 // bytesToStr：字节/未知值 → 字符串
@@ -180,5 +180,25 @@ describe('sortSongsByAddedAt（后端）', () => {
         const songs = [{ id: 1, added_at: 1 }, { id: 2, added_at: 2 }];
         sortSongsByAddedAt(songs);
         expect(songs.map((s) => s.id)).toEqual([1, 2]);
+    });
+});
+
+describe('cleanSong（两模式共用清洗）', () => {
+    it('保留宿主 added_at（秒→毫秒）', () => {
+        const out = cleanSong({ id: 7, title: 't', artist: 'a', added_at: 1700000000 });
+        expect(out.added_at).toBe(1700000000000);
+        expect(out.id).toBe(7);
+        expect(out.title).toBe('t');
+        expect(out.artist).toBe('a');
+    });
+    it('added_at 非法/缺失 → 0（排末尾，但不丢字段）', () => {
+        expect(cleanSong({ id: 1 }).added_at).toBe(0);
+        expect(cleanSong({ id: 2, added_at: 'not-a-date' }).added_at).toBe(0);
+    });
+    it('缺省字段有默认值，不产生 undefined 键', () => {
+        const out = cleanSong({ id: 3 });
+        expect(out.type).toBe('local');
+        expect(out.duration).toBe(0);
+        expect(Object.values(out).every((v) => v !== undefined)).toBe(true);
     });
 });
