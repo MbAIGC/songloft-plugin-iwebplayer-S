@@ -22,7 +22,7 @@ if (!existsSync(zip)) fail('dist/iwebplayer-s.jsplugin.zip 不存在');
 else if (statSync(zip).size < 100 * 1024) fail(`产物过小(${statSync(zip).size}B)，疑似未完整构建`);
 else ok(`产物存在: ${(statSync(zip).size / 1024).toFixed(1)} KB`);
 
-// 3) zip 内 plugin.json 的 download_url 与版本一致（用 unzip 解出清单再校验）
+// 3) zip 内 plugin.json 的 updateUrl（自动更新入口）与版本一致（用 unzip 解出清单再校验）
 if (existsSync(zip)) {
   try {
     const inner = execFileSync('unzip', ['-p', zip, 'plugin.json'], { encoding: 'utf8' });
@@ -32,10 +32,14 @@ if (existsSync(zip)) {
     } else {
       ok(`zip 内 version 一致`);
     }
-    if (!String(innerManifest.download_url || '').includes(`iwebplayer-s-v${plugin.version}.jsplugin.zip`)) {
-      fail(`zip 内 download_url 未指向 v${plugin.version}`);
+    // 🔐 自动更新契约：plugin.json 不再保存动态 download_url（易过期），
+    // 改为 updateUrl 指向 CI 维护的 manifest.json（JSON：version + download_url）。
+    // 此处只校验 updateUrl 已配置且为 http(s) 地址（分支无关，main 亦适用）。
+    const updateUrl = innerManifest.updateUrl || '';
+    if (!updateUrl || !/^https?:\/\//.test(updateUrl)) {
+      fail(`zip 内 updateUrl 未配置或非 http(s) 地址（自动更新入口缺失）`);
     } else {
-      ok(`zip 内 download_url 指向 v${plugin.version}`);
+      ok(`zip 内 updateUrl 已配置: ${updateUrl}`);
     }
   } catch (e) {
     fail('zip 校验异常（unzip 不可用或清单损坏）: ' + String(e).split('\n')[0]);
