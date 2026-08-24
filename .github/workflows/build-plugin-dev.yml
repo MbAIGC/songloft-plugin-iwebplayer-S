@@ -1,3 +1,19 @@
+# ============================================================================
+# Build iWebPlayer-S Plugin (dev) —— 正式 dev 构建（自动版本化 + 自动更新源）
+# ----------------------------------------------------------------------------
+# 说明：
+#   * 每次 dev 推送自动递增构建版本：基础版 1.1.6-dev → 1.1.6.01-dev / .02 / .03 ...
+#   * 构建序号从当前 dev pre-release 已有 zip 文件名解析最大值 +1；
+#     每次构建版本都保留（不删历史 zip）；
+#   * 同一基础版本共用一个 pre-release tag（如 dev-1.1.6），
+#     每个构建版本一个独立 zip（iwebplayer-s-v1.1.6.04-dev.jsplugin.zip）；
+#   * ZIP 内 plugin.json 使用实际构建版本（构建前临时改、构建后恢复）；
+#   * 发布成功后生成根级 manifest.json（version + 动态 download_url）并提交
+#     推送到 dev —— manifest.json 不在触发路径，提交后不重触发防循环。
+#   * 质量门禁：类型检查 → 单测 → 构建 → 产物一致性校验。
+#   * 旧版（无版本化、固定覆盖同名 zip）已改名 build-plugin-dev-old.yml 并停用。
+# ============================================================================
+
 name: Build iWebPlayer-S Plugin (dev)
 
 on:
@@ -16,71 +32,176 @@ permissions:
   contents: write
 
 concurrency:
-  # 🔐 与 build-apk-dev.yml 共享同一组：两者同写 dev Release，须串行避免互相覆盖
+  # 🔐 与 build-apk-dev.yml 共享同一组：同写 dev Release，须串行避免互相覆盖
   group: dev-release
   cancel-in-progress: false
 
 jobs:
-  build:
+  build-dev:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
+      - name: 检出代码
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Set up Node.js
+      - name: 安装 Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          node-version: '20'
+          cache: 'npm'
 
-      - name: Install dependencies
+      - name: 安装依赖
         run: npm ci
 
-      # 🔐 质量门禁：类型检查 → 单测 → 构建 → 产物一致性
-      - name: Typecheck
+      - name: 读取基础版本
+        id: version
+        run: |
+          BASE=$(jq -r '.version' plugin.json)
+          echo "base_version=$BASE" >> "$GITHUB_OUTPUT"
+          echo "基础版本: $BASE"
+
+      - name: 确定 Release Tag
+        id: release
+        env:
+          BASE: ${{ steps.version.outputs.base_version }}
+        run: |
+          TAG="dev-${BASE%-dev}"
+          echo "release_tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Release Tag: $TAG"
+
+      - name: 从 Release 资产解析最大构建序号
+        id: seq
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = '${{ steps.release.outputs.release_tag }}';
+            let releaseId = null;
+            let maxSeq = 0;
+            try {
+              const rel = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner, repo: context.repo.repo, tag });
+              releaseId = rel.data.id;
+              const { data: assets } = await github.rest.repos.listReleaseAssets({
+                owner: context.repo.owner, repo: context.repo.repo,
+                release_id: rel.data.id, per_page: 100 });
+              // 只统计同基础版本、且带构建序号的 zip（如 v1.1.6.04-dev），
+              // 忽略旧版 workflow 遗留的基础版本 zip（v1.1.6-dev，无序号段）
+              const base = '${{ steps.version.outputs.base_version }}'.replace(/-dev$/, '');
+              const prefix = `iwebplayer-s-v${base}.`;
+              for (const a of assets) {
+                if (!a.name.startsWith(prefix)) continue;
+                const m = a.name.match(/(\d+)-dev\.jsplugin\.zip$/);
+                if (m) maxSeq = Math.max(maxSeq, parseInt(m[1], 10));
+              }
+            } catch (e) {
+              // release 不存在 → releaseId=null, maxSeq=0，稍后创建
+            }
+            core.setOutput('release_id', releaseId ?? '');
+            core.setOutput('max_seq', maxSeq);
+
+      - name: 计算本次构建版本
+        id: version_build
+        env:
+          BASE: ${{ steps.version.outputs.base_version }}
+          MAX_SEQ: ${{ steps.seq.outputs.max_seq }}
+        run: |
+          SEQ=$((MAX_SEQ + 1))
+          BUILD="${BASE%-dev}.$(printf '%02d' "$SEQ")-dev"
+          echo "build_version=$BUILD" >> "$GITHUB_OUTPUT"
+          echo "构建版本: $BUILD"
+
+      - name: 临时写入构建版本到 plugin.json
+        env:
+          BUILD: ${{ steps.version_build.outputs.build_version }}
+        run: |
+          jq --arg v "$BUILD" '.version = $v' plugin.json > plugin.json.tmp
+          mv plugin.json.tmp plugin.json
+          echo "plugin.json 版本已设为: $(jq -r '.version' plugin.json)"
+
+      - name: 类型检查 (typecheck)
         run: npm run typecheck
 
-      - name: Test
+      - name: 单元测试 (vitest)
         run: npm test
 
-      - name: Build plugin
+      - name: 构建插件
         run: npm run build
 
-      - name: Verify build artifacts
-        run: node scripts/verify-build.mjs
+      - name: 校验 ZIP 内版本 = 构建版本
+        env:
+          BUILD: ${{ steps.version_build.outputs.build_version }}
+        run: |
+          INNER=$(unzip -p dist/iwebplayer-s.jsplugin.zip plugin.json | jq -r '.version')
+          echo "zip 内 version: $INNER"
+          if [ "$INNER" != "$BUILD" ]; then
+            echo "❌ zip 内 version($INNER) ≠ 期望($BUILD)"
+            exit 1
+          fi
+          echo "✅ zip 内 version 与构建版本一致"
 
-      - name: Upload plugin zip
+      - name: 重命名 ZIP 为版本化文件名
+        env:
+          BUILD: ${{ steps.version_build.outputs.build_version }}
+        run: |
+          mv dist/iwebplayer-s.jsplugin.zip "dist/iwebplayer-s-v${BUILD}.jsplugin.zip"
+
+      - name: 上传构建产物 (Artifact)
         uses: actions/upload-artifact@v4
         with:
-          name: iwebplayer-s-plugin-dev
-          path: dist/iwebplayer-s.jsplugin.zip
-          if-no-files-found: error
+          name: iwebplayer-s-v${{ steps.version_build.outputs.build_version }}.jsplugin.zip
+          path: dist/iwebplayer-s-v${{ steps.version_build.outputs.build_version }}.jsplugin.zip
 
-      # dev 专用：发布带 -dev 产物到 dev-* prerelease（不抢 main 的 Latest）
-      - name: Publish plugin to release (dev)
+      - name: 发布 Pre-release 并生成 manifest.json
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const tag = '${{ steps.release.outputs.release_tag }}';
+            const buildVer = '${{ steps.version_build.outputs.build_version }}';
+            const newName = `iwebplayer-s-v${buildVer}.jsplugin.zip`;
+            let releaseId = ${{ steps.seq.outputs.release_id || 'null' }};
+            if (!releaseId) {
+              const created = await github.rest.repos.createRelease({
+                owner: context.repo.owner, repo: context.repo.repo,
+                tag_name: tag, name: tag,
+                body: 'iWebPlayer-S 开发版 Pre-release（自动构建，按版本归档）',
+                draft: false, prerelease: true
+              });
+              releaseId = created.data.id;
+            }
+            const assetPath = `dist/${newName}`;
+            if (!fs.existsSync(assetPath)) {
+              console.error(`❌ 未找到产物: ${assetPath}`);
+              process.exit(1);
+            }
+            await github.rest.repos.uploadReleaseAsset({
+              owner: context.repo.owner, repo: context.repo.repo,
+              release_id: releaseId, name: newName,
+              data: fs.readFileSync(assetPath)
+            });
+            console.log('✅ 已上传:', newName);
+            const downloadUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/${tag}/${newName}`;
+            fs.writeFileSync('manifest.json', JSON.stringify({ version: buildVer, download_url: downloadUrl }, null, 2) + '\n');
+            console.log('manifest.json →', fs.readFileSync('manifest.json', 'utf8').trim());
+
+      - name: 恢复原始 plugin.json
         env:
-          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ steps.version.outputs.base_version }}
         run: |
-          PLUGIN_VERSION=$(python3 -c "import json;print(json.load(open('plugin.json'))['version'])")
-          # dev tag 使用干净的 dev-<数字版本>（如 dev-1.1.5），产物文件名仍带 -dev
-          DEV_WITH_SUFFIX="${PLUGIN_VERSION}"
-          DEV_VERSION="${DEV_WITH_SUFFIX%-dev}"
-          DEV_TAG="dev-${DEV_VERSION}"
-          cp dist/iwebplayer-s.jsplugin.zip "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip"
-          NOTES=$(git log --oneline --no-merges -10 | sed 's/^/- /')
-          RELEASE_NOTES="$(cat DEV_RELEASE_NOTES.md)
+          jq --arg v "$BASE" '.version = $v' plugin.json > plugin.json.tmp
+          mv plugin.json.tmp plugin.json
+          echo "plugin.json 版本已恢复: $(jq -r '.version' plugin.json)"
 
-          ## 本次构建提交
-
-          ${NOTES}"
-          if gh release view "$DEV_TAG" >/dev/null 2>&1; then
-            # 已存在 → 覆盖上传新版，更新正文（保持 prerelease，不抢 main 的 Latest）
-            gh release upload "$DEV_TAG" "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip" --clobber
-            gh release edit "$DEV_TAG" --prerelease --notes "$RELEASE_NOTES"
+      - name: 提交并推送 manifest.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add manifest.json
+          if git diff --cached --quiet; then
+            echo "manifest.json 无变化，跳过提交"
           else
-            gh release create "$DEV_TAG" "dist/iwebplayer-s-v${PLUGIN_VERSION}.jsplugin.zip" \
-              --prerelease \
-              --title "iWebPlayer-S dev v${PLUGIN_VERSION}" \
-              --notes "$RELEASE_NOTES"
+            git commit -m "ci: 更新 manifest.json 到 ${{ steps.version_build.outputs.build_version }}"
+            git pull --rebase || true
+            git push origin dev
           fi
