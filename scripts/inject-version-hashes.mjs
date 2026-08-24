@@ -40,7 +40,11 @@ function canonicalZipHash(buildDir) {
   return hasher.digest("hex");
 }
 
-// 1) 注入 ?v= 内容哈希
+// 0) 读取构建产物 plugin.json 的实际版本（dev 流程里是临时改过的构建版本，如 1.1.6.02-dev）
+const manifestPath = join(BUILD, "plugin.json");
+const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+
+// 1) 注入 ?v= 内容哈希 + 真实 APP_VERSION
 let html = readFileSync(INDEX, "utf8");
 let replaced = 0;
 html = html.replace(
@@ -56,12 +60,22 @@ html = html.replace(
     return `${prefix}?v=${hash}"`;
   }
 );
+// 注入真实插件版本号到 window.APP_VERSION（源文件为 __APP_VERSION__ 占位符）
+const beforeAppVersion = html;
+html = html.replace(
+  /window\.APP_VERSION\s*=\s*'[^']*'/,
+  `window.APP_VERSION = '${manifest.version}'`
+);
+if (html === beforeAppVersion) {
+  console.error("[inject] ❌ 未找到 window.APP_VERSION，APP_VERSION 注入失败");
+  process.exit(1);
+} else {
+  console.log(`[inject] APP_VERSION injected: ${manifest.version}`);
+}
 writeFileSync(INDEX, html);
 console.log(`[inject] ?v= hashes injected: ${replaced} script tags`);
 
 // 2) 更新 plugin.json 的 zipHash（与 builder 一致：排除 plugin.json 自身）
-const manifestPath = join(BUILD, "plugin.json");
-const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 manifest.zipHash = canonicalZipHash(BUILD);
 writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 console.log(`[inject] zipHash updated: ${manifest.zipHash.slice(0, 12)}…`);

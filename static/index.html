@@ -2626,7 +2626,7 @@
     /* ==========================================
      * 2. 核心配置与全局状态变量
      * ========================================== */
-    window.APP_VERSION = 'v1.1.6';
+    window.APP_VERSION = '__APP_VERSION__'; // 构建时由 scripts/inject-version-hashes.mjs 注入真实插件版本
     window.APP_LOGO = document.getElementById('app-logo')?.content || '';
     window.PREDEFINED_PLAYLISTS = ['我的歌单', '所有歌曲', '收藏', '下载', '最近新增', '所有电台', '在线资源', '曲库搜索', 'cache_songs'];
     window.API = { list: './musiclist', info: './musicinfo?id=', refreshList: './refreshlist', cmdStatus: './cmdstatus' };
@@ -4352,20 +4352,10 @@
                 if (!match || !match[1]) return;
 
                 const remoteVersion = match[1];
-                const currentScripts = [...document.querySelectorAll('script[src]')]
-                    .map(script => new URL(script.src, window.location.href).pathname + new URL(script.src, window.location.href).search)
-                    .filter(src => src.includes('/static/') && /\.js\?v=[^&]+$/.test(src))
-                    .join('|');
-                const remoteScripts = [...html.matchAll(/<script[^>]+src=["']([^"']+)["']/g)]
-                    .map(matchItem => matchItem[1])
-                    .filter(src => src.includes('./static/') && /\.js\?v=[^"']+$/.test(src))
-                    .map(src => {
-                        const resolved = new URL(src, probeUrl.toString());
-                        return resolved.pathname + resolved.search;
-                    })
-                    .join('|');
-                const scriptsChanged = currentScripts !== remoteScripts;
-                if (remoteVersion === APP_VERSION && !scriptsChanged) {
+                // 🔐 修复：以版本号为准。APP_VERSION 由构建注入真实插件版本；
+                // 版本相同即视为已最新（静态脚本哈希差异多为缓存造成，不再触发刷新/弹窗），
+                // 仅当服务端实际版本号与当前页面不同才走自动刷新。
+                if (remoteVersion === APP_VERSION) {
                     localStorage.removeItem(attemptKey);
                     return;
                 }
@@ -4500,16 +4490,7 @@
           window.dispatchEvent(new Event('resize'));
           window.scrollToCurrentSong('auto');
 
-          const savedAppVersion = localStorage.getItem('iwebplayer-s.version');
-          if (savedAppVersion !== APP_VERSION) {
-              localStorage.setItem('iwebplayer-s.version', APP_VERSION);
-              const aboutModal = document.getElementById('about-backdrop');
-              if (aboutModal) {
-                  aboutModal.classList.add('show');
-                  aboutModal.setAttribute('aria-hidden', 'false');
-                  document.body.style.overflow = 'hidden';
-              }
-          }
+          // 🔐 已移除「版本变化自动打开关于页」逻辑（用户不需要；旧实现也因 APP_VERSION 写死从未真正生效）
         }, 500);
         setTimeout(() => {
             const isNested = window.self !== window.top;
