@@ -1,5 +1,47 @@
 # GPT-5.6 审阅记录 - 2026-08-23
 
+## 0. 最新复审（更新至 2026-08-23）
+
+### 0.1 更新范围与验证
+
+- 插件仓库已从 `5402bc6` 快进更新至 dev `03b4843658a0f71fcb687cc903ec19c8843b1386`。
+- SongLoft 服务端复核仓库已从 `4f5c804` 快进更新至 main `7147dc8c084be6039318539f68f03bc7b4766957`。本次服务端新增 `common.js` 的 `favorite` / `invokeHost` 公共出口，不改变本文已核实的歌曲、插件鉴权、存储与播放契约。
+- 本地验证：`npm run typecheck`、`npm run build`、`node scripts/verify-build.mjs` 全部通过；构建产物为约 660.3 KB。`NODE_ENV=development npm ci && npm test` 通过，4 个测试文件、43 个用例全部通过。初次 `npm test` 未运行是当前 shell 的 `NODE_ENV=production` 令 npm 忽略 devDependencies，非测试失败。
+- Android 本机仍未实际编译/安装验证；当前环境没有 JDK。CI 脚本已加入类型检查、单测、构建和产物校验，但没有设备/模拟器安装冒烟。
+
+### 0.2 本轮仍未修复的问题
+
+#### P1: 高性能模式依然没有按真实添加日期排序
+
+**位置**：`src/main.ts:248-252,273-275`。
+
+`action=meta_bulk` 在聚合每个歌单时构造 `cleanedSongs`，却遗漏了轻量路径 `playlist_songs` 已保留的 `added_at`（见 `src/main.ts:212-217`）。随后 `sortSongsByAddedAt()` 只能得到 0 时间戳，最终按 `id DESC` 排序。因此高性能模式仍违反“所有歌曲按添加日期倒序”的需求，且 `static/playlist.js:1530-1531` 的二次排序无法恢复被丢弃的数据。
+
+修复应在 bulk `cleanedSongs` 同步加入 `added_at: toAddedAtMs(s.added_at)`，并增加覆盖真实 `added_at` 与同秒 `id` 次级键的 `meta_bulk -> chunk -> 前端重建` 集成测试。当前 `tests/main.test.ts` 只测试纯排序函数，无法覆盖这条实际数据流。
+
+#### P1: IndexedDB 缓存提交非原子，部分写入会被当作完整缓存使用
+
+**位置**：`static/playlist.js:1446-1454,1594-1608`，`static/idb.js:66-88`。
+
+写入路径先执行 `putMeta('cache', cacheObj)`，再以 500 首为单位执行 `putSongs(songsPool)`。后者任一批失败时，代码虽将本轮回退写入 localStorage，但已写入的 IndexedDB 元数据与部分歌曲不会回滚或标记为未完成。下次启动读取路径只要看到 `idbMeta` 和数组便调用 `applyGlobalCache()`；该函数不校验 `playlistsMap` 所引用的歌曲是否齐全，结果会把缺歌缓存视为命中并跳过 localStorage 回退，直至后台同步结束。
+
+应采用版本化/完成标记的双阶段提交：先写带新 generation 的歌曲批次，全部成功后才原子发布对应 meta；失败时删除该 generation。读取时还应验证每个引用 ID 都能在歌曲池中找到。增加“第二批写入失败后重启”的回归测试。
+
+#### P2: “所有歌曲”仍依赖非内置歌单的并集，不是全局 Song 列表
+
+**位置**：`src/main.ts:240-265` 与 `static/playlist.js:1561-1576`。
+
+两种同步路径都只把 `!built_in` 歌单的成员加入 `songMap`，再将该 Map 作为“所有歌曲”。这依赖某个非内置歌单恰好包含整库；只存在于内置歌单或尚未加入任何非内置歌单的歌曲不会进入该视图。SongLoft v2.6.3 已提供返回全局 `Song.added_at` 且默认 `added_at DESC` 的 `songs.list({limit, offset})`，因此应以它作为“所有歌曲”的数据源，再单独加载歌单结构。
+
+注意：宿主 SQL 对相同秒级 `added_at` 没有 `id` 次级键，offset 分页仍可能跨页重复或遗漏。维持 v2.6.3 兼容时，以充分大的单次 limit + 截断告警为保守方案；可扩展的完全正确分页需要宿主提供稳定 `(added_at, id)` 或 cursor 契约。
+
+### 0.3 已确认有效的整改
+
+- XSS 文本输出、WebView Bridge 来源校验、凭据加密/关闭备份、WebDAV 同名目录与单目录失败处理、并发上限、歌词排序和 RAF 生命周期、TypeScript 适配、发布 URL/并发/质量门禁均已在本轮代码中存在。
+- `probeAudioUrl()` 已针对 QuickJS 没有 `AbortController` 的运行时退化为直接下发 URL；v2.6.3 宿主本身支持 `HEAD /songs/{id}/play`。
+- 分片缓存加入 generation，旧请求不能读取或销毁新会话；WebDAV 新扫描会让旧扫描在检查点自行退出。二者仍为同插件 VM 级状态，不是跨插件共享。
+- `docs/修复计划-基于GPT5.6审阅记录.md` 将第 5 项标为“已修复”与当前 bulk 实现不符，应在修复并验证上述 P1 后再保留该勾选状态。
+
 ## 1. 审阅说明
 
 ### 1.1 范围
