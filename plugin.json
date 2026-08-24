@@ -19,6 +19,6 @@
   "staticHash": false,
   "entryHash": "",
   "zipHash": "",
-  "updateUrl": "https://github.com/MbAIGC/songloft-plugin-iwebplayer-S/releases/latest",
-  "download_url": "https://github.com/MbAIGC/songloft-plugin-iwebplayer-S/releases/latest/download/iwebplayer-s-v1.1.6-dev.jsplugin.zip"
+  "updateUrl": "https://raw.githubusercontent.com/MbAIGC/songloft-plugin-iwebplayer-S/dev/manifest.json",
+  "download_url": ""
 }
