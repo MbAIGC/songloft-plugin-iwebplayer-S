@@ -143,6 +143,35 @@ export async function fetchAllPlaylistSongs(id: number): Promise<{ songs: any[];
     return { songs, truncated, warnings };
 }
 
+// 🔐 P2：全局曲库 = songloft.songs.list（宿主系统歌曲表；含仅存在于内置歌单、或不在任何歌单的歌曲）。
+// 分页契约：宿主仅 added_at DESC、无 id 次级键、秒级精度 → 同秒跨 offset 边界可能重复/遗漏（审阅 §209-211）；
+// 用足够大 limit 一次取全 + 防死循环检测（宿主忽略 offset 时停止）+ 按 id 去重兜底，truncated/warnings 上报前端提示。
+export async function fetchAllSongs(): Promise<{ songs: any[]; truncated: boolean; warnings: string[] }> {
+    const PAGE = 10000;
+    const songsById = new Map<number, any>();
+    const warnings: string[] = [];
+    let offset = 0;
+    let truncated = false;
+    let prevIds: (number | null | undefined)[] | null = null;
+    while (true) {
+        const batch = (await songloft.songs.list({ limit: PAGE, offset })) ?? [];
+        if (batch.length === 0) break;
+        const batchIds = batch.map((s: any) => s && s.id);
+        const prev: (number | null | undefined)[] | null = prevIds;
+        // 宿主忽略 offset（返回与上一页完全相同的批次）→ 防死循环
+        if (prev && batchIds.length === prev.length && batchIds.every((v, i) => v === prev[i])) {
+            truncated = true;
+            warnings.push(`songs.list 宿主未按 offset 分页，仅取回 ${songsById.size} 首`);
+            break;
+        }
+        for (const s of batch) { if (s && s.id) songsById.set(s.id, s); }
+        prevIds = batchIds;
+        if (batch.length < PAGE) break;
+        offset += PAGE;
+    }
+    return { songs: Array.from(songsById.values()), truncated, warnings };
+}
+
 // 🔐 探测音频直链：AbortController 真中止 + Range GET 兜底（兼容不支持 HEAD 的服务器），
 // 区分永久失效（404/403）与临时网络问题（超时/连接失败），临时问题不误杀歌曲
 export async function probeAudioUrl(fullUrl: string): Promise<'ok' | 'dead' | 'transient' | 'skip'> {
@@ -229,6 +258,16 @@ router.get('/musiclist', async (req) => {
       return { statusCode: 200, headers, body: JSON.stringify(cleanedSongs) };
     }
 
+    if (action === 'all_songs') {
+      // 🔐 P2：全局曲库（供轻量模式构建「所有歌曲」，与高性能模式同源 songs.list）
+      const { songs, truncated, warnings } = await fetchAllSongs();
+      const cleanedSongs = sortSongsByAddedAt(songs.map(cleanSong).filter((s: any) => s && s.id));
+      const headers: Record<string, string> = { 'Content-Type': 'application/json; charset=utf-8' };
+      if (truncated) headers['X-SongLoft-Truncated'] = '1';
+      if (warnings.length) headers['X-SongLoft-Warnings'] = warnings.join(';');
+      return { statusCode: 200, headers, body: JSON.stringify(cleanedSongs) };
+    }
+
     // ==========================================
     // 🚀 引擎 B：高性能模式 (Bulk - 并发抽水)
     // ==========================================
@@ -272,12 +311,25 @@ router.get('/musiclist', async (req) => {
         }
       });
 
-      // 🔐 #5：稳定排序 (added_at DESC, id DESC)，不再受并发完成时序影响
-      const allSongsArray = sortSongsByAddedAt(Array.from(songMap.values()));
-      structure["所有歌曲"] = allSongsArray.map((s: any) => s.id);
+      // 🔐 #5/P2：所有歌曲 = 全局曲库（songs.list，含仅内置歌单/未入任何歌单的歌曲），
+      // 稳定排序 (added_at DESC, id DESC)。songs.list 不可用时回退内置外歌单并集（旧行为），
+      // 绝不因新数据源失败导致整条 meta_bulk 崩溃。
+      let globalSongs: any[] = [];
+      try {
+          const { songs, truncated, warnings } = await fetchAllSongs();
+          if (truncated) anyTruncated = true;
+          if (warnings.length) bulkWarnings.push(...warnings);
+          globalSongs = sortSongsByAddedAt(songs.map(cleanSong).filter((s: any) => s && s.id));
+      } catch (e) {
+          bulkWarnings.push(`全局曲库(songs.list)拉取失败，回退歌单并集: ${String(e)}`);
+      }
+      if (globalSongs.length === 0) {
+          globalSongs = sortSongsByAddedAt(Array.from(songMap.values()));
+      }
+      structure["所有歌曲"] = globalSongs.map((s: any) => s.id);
       structure["曲库搜索"] = [];
 
-      flashSongsCache = { generation: flashGeneration, songs: allSongsArray };
+      flashSongsCache = { generation: flashGeneration, songs: globalSongs };
       flashTimeout = setTimeout(() => {
           flashSongsCache = null;
           flashTimeout = null;

@@ -1575,7 +1575,21 @@
                                 }
                             } catch (err) { console.error(`拉取 [${pl.name}] 失败:`, err); }
                         }
-                        syncReconstructed["所有歌曲"] = window.sortSongsByAddedAt(Array.from(syncSongsMap.values()));
+                        // 🔐 P2：所有歌曲 = 全局曲库（songs.list，含仅内置歌单/未入任何歌单的歌曲），
+                        // 与高性能模式同源；all_songs 失败时回退内置外歌单并集（旧行为）
+                        try {
+                            const allRes = await fetch(`${window.API.list}?action=all_songs`);
+                            if (allRes.ok) {
+                                const allSongs = await allRes.json();
+                                if (Array.isArray(allSongs) && allSongs.length > 0) {
+                                    syncReconstructed["所有歌曲"] = window.sortSongsByAddedAt(allSongs);
+                                    for (const s of allSongs) { if (s && s.id) syncSongsMap.set(s.id, s); }
+                                }
+                            }
+                        } catch (err) { console.error("拉取全局曲库失败:", err); }
+                        if (!syncReconstructed["所有歌曲"] || syncReconstructed["所有歌曲"].length === 0) {
+                            syncReconstructed["所有歌曲"] = window.sortSongsByAddedAt(Array.from(syncSongsMap.values()));
+                        }
                     }
 
                     // 3. 💾 统一极限压缩存盘 (骨肉分离)

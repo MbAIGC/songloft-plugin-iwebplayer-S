@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fetchAllPlaylistSongs, probeAudioUrl, mapWithConcurrency, bytesToStr, toAddedAtMs, sortSongsByAddedAt, cleanSong } from '../src/main';
+import { fetchAllPlaylistSongs, fetchAllSongs, probeAudioUrl, mapWithConcurrency, bytesToStr, toAddedAtMs, sortSongsByAddedAt, cleanSong } from '../src/main';
 
 // ---------------------------------------------------------------------------
 // bytesToStr：字节/未知值 → 字符串
@@ -63,6 +63,56 @@ describe('fetchAllPlaylistSongs', () => {
         expect(r.songs).toHaveLength(0);
         expect(r.truncated).toBe(false);
         expect(r.warnings).toHaveLength(0);
+    });
+});
+
+describe('fetchAllSongs（P2 全局曲库）', () => {
+    let mockSongsList: any;
+    beforeEach(() => {
+        mockSongsList = vi.fn();
+        vi.stubGlobal('songloft', { songs: { list: mockSongsList } });
+    });
+
+    it('一页取全（PAGE 内）→ 不去重不截断', async () => {
+        const batch = Array.from({ length: 50 }, (_, i) => ({ id: i + 1 }));
+        mockSongsList.mockResolvedValue(batch);
+        const r = await fetchAllSongs();
+        expect(r.songs).toHaveLength(50);
+        expect(r.truncated).toBe(false);
+        expect(r.warnings).toHaveLength(0);
+        expect(mockSongsList).toHaveBeenCalledTimes(1);
+    });
+
+    it('跨页拉全并按 id 去重（同秒跨页重复兜底）', async () => {
+        const PAGE = 10000;
+        const fullPage = Array.from({ length: PAGE }, (_, i) => ({ id: i + 1 }));
+        mockSongsList.mockImplementation(async (opts: any) => {
+            const offset = opts?.offset ?? 0;
+            if (offset === 0) return fullPage;
+            if (offset === PAGE) return [{ id: PAGE }, { id: PAGE + 1 }]; // id=PAGE 与首页重复
+            return [];
+        });
+        const r = await fetchAllSongs();
+        expect(r.songs).toHaveLength(PAGE + 1); // 去重后
+        expect(r.songs.some((s: any) => s.id === PAGE)).toBe(true);
+        expect(r.truncated).toBe(false);
+    });
+
+    it('宿主忽略 offset（整页重复）→ truncated + warning，不死循环', async () => {
+        const PAGE = 10000;
+        const fullPage = Array.from({ length: PAGE }, (_, i) => ({ id: i + 1 }));
+        mockSongsList.mockResolvedValue(fullPage); // 永远同一整页
+        const r = await fetchAllSongs();
+        expect(r.songs).toHaveLength(PAGE);
+        expect(r.truncated).toBe(true);
+        expect(r.warnings.length).toBeGreaterThan(0);
+    });
+
+    it('空库返回空', async () => {
+        mockSongsList.mockResolvedValue([]);
+        const r = await fetchAllSongs();
+        expect(r.songs).toHaveLength(0);
+        expect(r.truncated).toBe(false);
     });
 });
 
