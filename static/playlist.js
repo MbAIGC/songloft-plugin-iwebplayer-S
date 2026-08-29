@@ -590,9 +590,9 @@
                 playlistVal.innerHTML = li.innerHTML;
 
                 if (window._isBackAction) {
-                    setTimeout(() => window.scrollTo({ top: window._gridScrollY || 0, behavior: 'auto' }), 10);
+                    setTimeout(() => window.scrollListTo(window._gridScrollY || 0, 'auto'), 10);
                 } else if (!autoScrolled) {
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    window.scrollListTo(0, 'smooth');
                 }
             });
 
