@@ -576,7 +576,7 @@
         const searchInputEl = document.getElementById('lx-search-input'); // 🌟 换成 lx 框
 
         if (!isFromHistory) {
-            window._gridScrollY = window.getListScrollTop();
+            window._gridScrollY = window.scrollY || document.documentElement.scrollTop;
             window.StateManager.setState({
                 view: 'detail', detail_id: id, detail_name: name, detail_source: source,
                 keyword: window._lastOnlineKeyword || searchInputEl?.value.trim() || oState.keyword || ''
@@ -596,7 +596,7 @@
         if(grid) grid.style.display = 'none';
         if(list) { list.style.display = 'block'; list.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-sub); font-size: 14px;">正在获取详情...</div>'; }
 
-        if (!isFromHistory) window.scrollListTo(0, 'smooth');
+        if (!isFromHistory) window.scrollTo({ top: 0, behavior: 'smooth' });
 
         try {
             const songs = await engine.getPlaylistDetail(id, source, 1);
@@ -618,12 +618,11 @@
     // ==========================================
     // 7. 滚动翻页事件接管
     // ==========================================
-    const checkScrollForLoadMore = () => {
+    window.addEventListener('scroll', () => {
         if (window.currentPlaylist !== '在线资源') return;
-        const sw = document.getElementById('scroll-wrapper');
-        const scrollTop = sw ? sw.scrollTop : (window.scrollY || document.documentElement.scrollTop);
-        const clientHeight = sw ? sw.clientHeight : (window.innerHeight || document.documentElement.clientHeight);
-        const scrollHeight = sw ? sw.scrollHeight : Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+        const scrollTop = window.scrollY || document.documentElement.scrollTop;
+        const clientHeight = window.innerHeight || document.documentElement.clientHeight;
+        const scrollHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
 
         if (scrollTop + clientHeight > scrollHeight - 100) {
             const list = document.getElementById('playlist');
@@ -634,10 +633,7 @@
                 if (!isFetchingLxPlaylists && hasMoreLxPlaylists) window.doLxPlaylistSearch(true);
             }
         }
-    };
-    window.addEventListener('scroll', checkScrollForLoadMore, { passive: true });
-    const listScrollEl = document.getElementById('scroll-wrapper');
-    if (listScrollEl) listScrollEl.addEventListener('scroll', checkScrollForLoadMore, { passive: true });
+    }, { passive: true });
 
     // ==========================================
     // 8. 全局点击与交互拦截引擎
@@ -657,7 +653,7 @@
                 const source = plCard.dataset.plSource;
                 window.triggerPlaylistDetail(id, name, source);
             } else if (engine === 'Local') {
-                window._gridScrollY = window.getListScrollTop();
+                window._gridScrollY = window.scrollY || document.documentElement.scrollTop;
                 window._isGridClick = true;
                 window._gridOriginPlaylist = window.currentPlaylist; // 🌟 核心记录：保存是从“我的歌单”还是“曲库搜索”点进来的！
                 const targetOpt = Array.from(document.querySelectorAll('#playlist-opts .select-option')).find(el => el.dataset.key === name);
@@ -812,7 +808,7 @@
                 window.currentOnlineView = prevState;
                 window.refreshOnlineUI();
 
-                setTimeout(() => { window.scrollListTo(window._gridScrollY || 0, 'auto'); }, 10);
+                setTimeout(() => { window.scrollTo({ top: window._gridScrollY || 0, behavior: 'auto' }); }, 10);
             } else {
                 window.StateManager.setState({ view: 'playlist' });
                 window.restoreOnlineView();

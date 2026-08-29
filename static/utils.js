@@ -15,19 +15,6 @@
     };
 
     // ==========================================
-    // 🎯 统一列表滚动辅助（页面不再滚动，列表滚动在 #scroll-wrapper 容器内）
-    // ==========================================
-    window.scrollListTo = function(top, behavior = 'auto') {
-        const sw = document.getElementById('scroll-wrapper');
-        if (sw) sw.scrollTo({ top: top || 0, behavior });
-        else window.scrollTo({ top: top || 0, behavior });
-    };
-    window.getListScrollTop = function() {
-        const sw = document.getElementById('scroll-wrapper');
-        return sw ? sw.scrollTop : (window.scrollY || document.documentElement.scrollTop);
-    };
-
-    // ==========================================
     // 🏛️ 极简纯净版四象限沙盒存储引擎 (ConfigManager)
     // ==========================================
     const defaultConfig = {

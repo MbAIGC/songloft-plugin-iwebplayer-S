@@ -93,33 +93,17 @@
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
-  /* 🌟 统一滚动架构：页面本身不滚动（body 高度锁死 + overflow hidden，
-     从根上消灭页面级系统滚动条，系统滚动条无处可画）；
-     所有列表滚动由 #scroll-wrapper 单独承担（手机手势滚动，分栏平板显示细滚动条） */
+  /* 🌟 全局隐藏 WebView 原生滚动条（终端为触屏，手势滚动即可；平板分栏列表在 ambient 下单独恢复可见细滚动条） */
   ::-webkit-scrollbar { display: none; }
   html { scrollbar-width: none; }
   body { scrollbar-width: none; }
-  html { height: 100%; }
-  body {
-    height: 100%;
-    display: flex; flex-direction: column;
-    overflow: hidden !important; /* 压过下方「终极护盾」的 visible !important */
-  }
-  body > .header,
-  body > #playlist-row { flex-shrink: 0; }
-  body > #scroll-wrapper {
-    flex: 1 1 auto; min-height: 0;
-    overflow-y: auto; overflow-x: hidden;
-    -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain;
-    padding-bottom: calc(var(--player-height) + env(safe-area-inset-bottom) + 10px);
-  }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background-color: var(--bg-color);
     color: var(--text-main);
     -webkit-tap-highlight-color: transparent;
     -webkit-text-size-adjust: 100%;
-    /* 底部播放条避让已移入 #scroll-wrapper 的 padding-bottom（页面不再滚动） */
+    padding-bottom: calc(var(--player-height) + env(safe-area-inset-bottom) + 10px);
   }
 
   /* 🌟 终极护盾：用最高权限强制可见，彻底废掉底层 JS 强制锁屏的命令，根除 iOS 乱跳！ */
@@ -841,10 +825,7 @@
     @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) body.split-view-active .playlist-row { background: rgba(17, 24, 39, 0.65) !important; border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.3) !important; } }
     :root[data-theme="dark"] body.split-view-active .playlist-row { background: rgba(17, 24, 39, 0.65) !important; border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.3) !important; }
 
-    body.split-view-active #scroll-wrapper { width: 50% !important; margin-left: 50% !important; margin-top: 0 !important; border-right: 6px solid transparent; } /* 透明右边框让滚动条相对屏幕右缘左移 6px */
-    body.split-view-active #scroll-wrapper .playlist,
-    body.split-view-active #scroll-wrapper .playlist-grid,
-    body.split-view-active #scroll-wrapper #loading { max-width: none !important; margin-left: 0 !important; margin-right: 0 !important; }
+    body.split-view-active .playlist, body.split-view-active .playlist-grid, body.split-view-active #loading { width: 50% !important; margin-left: 50% !important; margin-top: 0 !important; max-width: none !important; }
     body.split-view-active .full-player { display: flex !important; transform: none !important; width: 50% !important; left: 0 !important; margin-left: 0 !important; top: 56px !important; height: calc(100vh - var(--player-height) - 56px - env(safe-area-inset-bottom)) !important; border-radius: 0 !important; border-top: none !important; box-shadow: none !important; border-right: 1px solid var(--border) !important; padding-top: 24px !important; z-index: 190 !important; }
     body.split-view-active .player-bar { width: 50% !important; left: 0 !important; margin-left: 0 !important; box-shadow: none !important; border-top: 1px solid var(--border) !important; border-right: 1px solid var(--border) !important; z-index: 200 !important; padding-right: 28px !important; }
     body.split-view-active .drawer-handle { display: none !important; }
@@ -966,19 +947,27 @@
     body.split-view-active #online-toolbar-container { display: none !important; }
     body.split-view-active .tbs-playlist { position: relative !important; }
 
-    /* 🔐 分栏列表滚动统一由 #scroll-wrapper 承担（页面不再滚动）；
-        ambient 下列表浮层抬到氛围背景(z-index:135)之上 */
-    body.ambient-active.split-view-active #scroll-wrapper { position: relative !important; z-index: 140 !important; }
-    /* 分栏(宽屏)列表显示可见细滚动条（全局已隐藏原生滚动条，此处单独恢复） */
-    body.split-view-active #scroll-wrapper::-webkit-scrollbar,
-    body.split-view-active #scroll-wrapper::-webkit-scrollbar-corner {
-      display: block; width: 6px; height: 6px;
+    /* 经济舱结界：限制列表滑动高度，超出直接隐形，绝不污染头部 */
+    body.ambient-active.split-view-active .playlist,
+    body.ambient-active.split-view-active .playlist-grid {
+      position: relative !important; z-index: 140 !important;
+      max-height: calc(100vh - 112px - var(--player-height) - env(safe-area-inset-bottom)) !important; overflow-y: auto !important;
+      padding-bottom: 20px !important; -webkit-overflow-scrolling: touch;
     }
-    body.split-view-active #scroll-wrapper::-webkit-scrollbar-thumb {
-      background: rgba(128, 128, 128, 0.35); border-radius: 3px;
+    /* 🔐 修复：ambient 分栏列表恢复可见细滚动条（全局已隐藏原生滚动条，此处单独恢复）
+       并修正 max-height 扣除底部播放条(var(--player-height)=160px)+安全区，列表底部不再被播放条遮挡 */
+    body.ambient-active.split-view-active .playlist::-webkit-scrollbar,
+    body.ambient-active.split-view-active .playlist-grid::-webkit-scrollbar {
+      display: block !important; width: 6px !important; height: 6px !important;
     }
-    body.split-view-active #scroll-wrapper::-webkit-scrollbar-thumb:hover { background: rgba(128, 128, 128, 0.55); }
-    body.split-view-active #scroll-wrapper::-webkit-scrollbar-track { background: transparent; }
+    body.ambient-active.split-view-active .playlist::-webkit-scrollbar-thumb,
+    body.ambient-active.split-view-active .playlist-grid::-webkit-scrollbar-thumb {
+      background: rgba(128, 128, 128, 0.35) !important; border-radius: 3px !important;
+    }
+    body.ambient-active.split-view-active .playlist::-webkit-scrollbar-thumb:hover,
+    body.ambient-active.split-view-active .playlist-grid::-webkit-scrollbar-thumb:hover { background: rgba(128, 128, 128, 0.55) !important; }
+    body.ambient-active.split-view-active .playlist::-webkit-scrollbar-track,
+    body.ambient-active.split-view-active .playlist-grid::-webkit-scrollbar-track { background: transparent !important; }
 
     /* 实体化保护壳：抗背景干扰的高浓度纯净白卡片 */
     body.ambient-active.split-view-active .song-item,
@@ -1927,11 +1916,9 @@
 
     </div>
   </div>
-  <div id="scroll-wrapper">
   <ul class="playlist" id="playlist"></ul>
 <div class="playlist-grid" id="playlist-grid"></div>
 <div id="loading">正在加载音乐...</div>
-</div>
 
 <div class="fp-ambient-bg" id="fp-ambient-bg">
   <img id="fp-ambient-img" class="fp-ambient-img" src="" alt="">
