@@ -92,6 +92,11 @@
     --tag-local: #d1d5db;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* 🌟 全局隐藏 WebView 原生滚动条（终端为触屏，手势滚动即可；平板分栏列表在 ambient 下单独恢复可见细滚动条） */
+  ::-webkit-scrollbar { display: none; }
+  html { scrollbar-width: none; }
+  body { scrollbar-width: none; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background-color: var(--bg-color);
@@ -946,11 +951,23 @@
     body.ambient-active.split-view-active .playlist,
     body.ambient-active.split-view-active .playlist-grid {
       position: relative !important; z-index: 140 !important;
-      max-height: calc(100vh - 112px) !important; overflow-y: auto !important;
-      padding-bottom: 90px !important; -webkit-overflow-scrolling: touch;
+      max-height: calc(100vh - 112px - var(--player-height) - env(safe-area-inset-bottom)) !important; overflow-y: auto !important;
+      padding-bottom: 20px !important; -webkit-overflow-scrolling: touch;
     }
+    /* 🔐 修复：ambient 分栏列表恢复可见细滚动条（全局已隐藏原生滚动条，此处单独恢复）
+       并修正 max-height 扣除底部播放条(var(--player-height)=160px)+安全区，列表底部不再被播放条遮挡 */
     body.ambient-active.split-view-active .playlist::-webkit-scrollbar,
-    body.ambient-active.split-view-active .playlist-grid::-webkit-scrollbar { display: none; }
+    body.ambient-active.split-view-active .playlist-grid::-webkit-scrollbar {
+      display: block !important; width: 6px !important; height: 6px !important;
+    }
+    body.ambient-active.split-view-active .playlist::-webkit-scrollbar-thumb,
+    body.ambient-active.split-view-active .playlist-grid::-webkit-scrollbar-thumb {
+      background: rgba(128, 128, 128, 0.35) !important; border-radius: 3px !important;
+    }
+    body.ambient-active.split-view-active .playlist::-webkit-scrollbar-thumb:hover,
+    body.ambient-active.split-view-active .playlist-grid::-webkit-scrollbar-thumb:hover { background: rgba(128, 128, 128, 0.55) !important; }
+    body.ambient-active.split-view-active .playlist::-webkit-scrollbar-track,
+    body.ambient-active.split-view-active .playlist-grid::-webkit-scrollbar-track { background: transparent !important; }
 
     /* 实体化保护壳：抗背景干扰的高浓度纯净白卡片 */
     body.ambient-active.split-view-active .song-item,
@@ -3058,6 +3075,11 @@
                     document.querySelectorAll('.plugin-pane').forEach(p => p.style.display = 'none');
                     const targetPane = document.getElementById(targetId);
                     if (targetPane) targetPane.style.display = 'block';
+
+                    // 🔐 跟进上游 v1.1.7 P1：打开配置弹窗时刷新音源/平台排序/WebDAV 服务列表，避免展示过期数据
+                    if (typeof window.loadLxPlugins === 'function') window.loadLxPlugins();
+                    if (typeof window.renderPlatformSortList === 'function') window.renderPlatformSortList();
+                    if (typeof window.loadWebDavServers === 'function') window.loadWebDavServers();
                 }
             });
         }
