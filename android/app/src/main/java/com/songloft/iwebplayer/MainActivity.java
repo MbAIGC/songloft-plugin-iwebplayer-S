@@ -64,7 +64,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String SETTINGS_URL = "file:///android_asset/settings.html";
     private static final long TOKEN_CHECK_INTERVAL_MS = 3000L;
     private static final int REQ_NOTIFICATION = 1001;
-    private static final int NOTIF_MEDIA = 1002;
+    private static final int NOTIF_MEDIA = PlaybackService.NOTIFICATION_ID;
     private static final int REQ_FILE_CHOOSER = 1003;
     private static final String CHANNEL_PLAYBACK = "playback";
 
@@ -82,6 +82,13 @@ public class MainActivity extends AppCompatActivity {
     private String cachedArtworkUrl = "";
     private Bitmap cachedArtwork = null;
     private ValueCallback<Uri[]> filePathCallback = null;
+
+    // 🌟 播放前台服务状态：最近一次媒体状态是否在播放；暂停后延迟收尾（换歌时 JS 会短暂上报暂停）
+    private static final long FOREGROUND_STOP_GRACE_MS = 60_000L;
+    private boolean lastMediaPlaying = false;
+    private final Runnable stopPlaybackForegroundRunnable = () -> {
+        if (!lastMediaPlaying) PlaybackService.stop(this);
+    };
 
     // ===== 边缘滑动返回（左缘→右、右缘→左，等同系统返回键）=====
     private static final int EDGE_GESTURE_ZONE_DP = 40;   // 触摸起点落在屏幕左右边缘多少 dp 内
@@ -135,6 +142,12 @@ public class MainActivity extends AppCompatActivity {
         // 🌟 关键：禁用 HTTP 缓存，保证服务器更新插件后 App 立即拿到最新页面
         // （否则 WebView 会一直显示旧的 index.html/CSS）
         s.setCacheMode(WebSettings.LOAD_NO_CACHE);
+
+        // 🌟 后台保活（关键）：WebView 不可见时也不放弃渲染进程优先级。
+        // 默认策略在 WebView 不可见时会「waive」渲染进程优先级，使其成为 Android 12+
+        // Cached Apps Freezer 的冻结候选；渲染进程一旦被冻结，网页端 JS 停止执行，
+        // 就会出现「后台播完一首后不自动接下一首、重新打开 App 才继续」的现象。
+        webView.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false);
 
         // 🌟 显式声明 WebView 明暗策略，避免 ROM/WebView 在系统日间时误判深色：
         // 系统夜间 → 允许暗化（页面跟随系统）；系统日间 → 强制浅色（修正误判）。
@@ -509,6 +522,7 @@ public class MainActivity extends AppCompatActivity {
             String artist = o.optString("artist");
             String artwork = o.optString("artwork");
             boolean playing = o.optBoolean("playing");
+            lastMediaPlaying = playing; // 🌟 供前台服务判定用（见 postMediaNotification）
             long positionMs = (long) (o.optDouble("position", 0) * 1000);
             long durationMs = (long) (o.optDouble("duration", 0) * 1000);
             if (title.isEmpty()) title = "iWebPlayer-S";
@@ -598,7 +612,19 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         try {
-            NotificationManagerCompat.from(this).notify(NOTIF_MEDIA, nb.build());
+            Notification notification = nb.build();
+            NotificationManagerCompat.from(this).notify(NOTIF_MEDIA, notification);
+
+            // 🌟 播放中：把这条媒体通知提升为前台服务，让本进程不进入 cached 队列，
+            //    从而避免 Android 12+ 冻结进程导致网页端 JS 停摆（后台无法自动切歌）。
+            //    暂停后不立即退出前台，而是给 60 秒宽限期：切歌瞬间 JS 会短暂上报 paused，
+            //    若当时就退出前台，后台再次 startForegroundService 会被系统限制拒绝。
+            handler.removeCallbacks(stopPlaybackForegroundRunnable);
+            if (lastMediaPlaying) {
+                PlaybackService.startOrUpdate(this, notification);
+            } else {
+                handler.postDelayed(stopPlaybackForegroundRunnable, FOREGROUND_STOP_GRACE_MS);
+            }
         } catch (Exception ignored) {
         }
     }
@@ -899,6 +925,9 @@ public class MainActivity extends AppCompatActivity {
             NotificationManagerCompat.from(this).cancel(NOTIF_MEDIA);
         } catch (Exception ignored) {
         }
+        // 🌟 退出前台服务并取消待执行的延迟收尾
+        handler.removeCallbacks(stopPlaybackForegroundRunnable);
+        PlaybackService.stop(this);
         instance = null;
         super.onDestroy();
     }

@@ -4,6 +4,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 🌟 后台连续播放：播放期间用媒体前台服务保活，避免进程进入 cached 状态被冻结 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
     <application
         android:allowBackup="false"
@@ -25,6 +28,12 @@
         <receiver
             android:name=".MediaReceiver"
             android:exported="false" />
+
+        <!-- 🌟 播放前台服务：播放期间保持前台状态，防止 WebView 进程被系统冻结 -->
+        <service
+            android:name=".PlaybackService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
     </application>
 
 </manifest>
