@@ -17,9 +17,9 @@ iWebPlayer-S 是 SongLoft 平台的播放器插件，基于 iWebPlayer 适配宽
 
 | 位置 | 版本 | 说明 |
 |------|------|------|
-| `plugin.json` | `1.1.6-dev` | 插件主版本号，SongLoft 系统读取 |
-| `package.json` | `1.1.6-dev` | npm 包版本，应与 plugin.json 一致 |
-| `package-lock.json` | `1.1.6-dev` | 锁文件，运行 `npm install` 自动同步 |
+| `plugin.json` | `1.3.2-dev` | 插件主版本号，SongLoft 系统读取 |
+| `package.json` | `1.3.2-dev` | npm 包版本，应与 plugin.json 一致 |
+| `package-lock.json` | `1.3.2-dev` | 锁文件，运行 `npm install` 自动同步 |
 | `static/index.html` | `v1.1.6` | 前端显示版本探针 (`window.APP_VERSION`) |
 | `README.md` badge | `v1.1.6` | Shields.io 徽章 |
 | `DEV_RELEASE_NOTES.md` | `v1.1.6` | 预发布说明标题 |
