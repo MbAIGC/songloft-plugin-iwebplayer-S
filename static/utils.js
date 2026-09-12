@@ -111,6 +111,21 @@
         return availableTypes[availableTypes.length - 1] || '128k';
     };
 
+    // 🌟 新增：严谨的语义化版本号比对工具 (例如 3.10.1 > 3.7.8)
+    // 采用 parseInt 容忍 '3.7.8-beta' 这类带后缀的版本号，避免 Number() 产生 NaN 导致比较失效
+    window.compareVersion = function(v1, v2) {
+        const p1 = String(v1).split('.').map(x => parseInt(x, 10) || 0);
+        const p2 = String(v2).split('.').map(x => parseInt(x, 10) || 0);
+        const len = Math.max(p1.length, p2.length);
+        for (let i = 0; i < len; i++) {
+            const n1 = p1[i] || 0;
+            const n2 = p2[i] || 0;
+            if (n1 > n2) return 1;
+            if (n1 < n2) return -1;
+        }
+        return 0;
+    };
+
     window._lxPluginInfoCache = null;
     window.getLxPluginInfo = async function() {
         if (window._lxPluginInfoCache) return window._lxPluginInfoCache;

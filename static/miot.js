@@ -35,8 +35,11 @@
         lastWsPos: 0,
         lastWsDuration: 0,
         lastWsTime: 0,
+        lastWsSpeed: 1,
         isWsPlaying: false,
         _stateLockTime: 0,
+        _seekLockTime: 0,
+        _maxEstPos: 0,
         _pushPlaylistSignature: '',
         _pushPlaylistId: null,
 
@@ -314,6 +317,7 @@
             this.isWsPlaying = true;
             this.lastWsPos = 0;       // 🌟 强行清空上一首歌的进度缓存
             this.lastWsDuration = 0;  // 🌟 归零总时长，挂起虚拟时钟，静静等待 WebSocket 的真实推送唤醒！
+            this._maxEstPos = 0;      // 🌟 新增：强制清空虚拟时钟的最高水位线，避免上一首歌的进度污染新歌
 
             // 🌟 同步让下拉框里的设备图标变成跳动波浪！
             const targetDev = this.devices.find(d => d.deviceID === this.currentDevice.id);
@@ -350,6 +354,8 @@
             // 🌟 2. 乐观更新：立刻翻转图标，并加锁 4000 毫秒（拒绝听信滞后的 WebSocket 推送）
             this._stateLockTime = Date.now() + 4000;
             this.isWsPlaying = targetState;
+            // 🌟 恢复播放时把物理时间锚点拉到此刻，避免暂停期间的时间差被计入进度
+            if (targetState) this.lastWsTime = performance.now();
             if (window.updatePlayButtonUI) window.updatePlayButtonUI(targetState);
 
             // 🌟 同步更新下拉框里的图标
@@ -492,6 +498,50 @@
             } catch (e) { console.warn("[MIoT] 音量调节失败", e); }
         },
 
+        // 🌟 向小爱音箱下发设置播放速度指令
+        setSpeed: async function(speed) {
+            if (this.currentDevice.type !== 'miot') return;
+            try {
+                await fetch('/api/v1/jsplugin/miot/player/speed', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        account_id: this.currentDevice.accountId,
+                        device_id: this.currentDevice.id,
+                        speed: parseFloat(speed)
+                    })
+                });
+            } catch (e) { console.warn("[MIoT] 速度调节失败", e); }
+        },
+
+        // 🌟 向小爱音箱下发调整进度指令
+        seekTo: async function(position) {
+            if (this.currentDevice.type !== 'miot') return;
+
+            // 1. 乐观更新：立刻拨动本地虚拟时钟，并上锁 3 秒（防网络延迟弹回）
+            this.lastWsPos = position;
+            this.lastWsTime = performance.now();
+            this._maxEstPos = position;
+            this._seekLockTime = Date.now() + 3000;
+
+            // 2. 瞬间更新 UI（时间与歌词）
+            const timeCurrentEl = document.getElementById('time-current');
+            if (timeCurrentEl) timeCurrentEl.innerText = window.formatTime(position);
+            if (window.LyricsEngine) window.LyricsEngine.sync(position);
+
+            try {
+                await fetch('/api/v1/jsplugin/miot/player/seek', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        account_id: this.currentDevice.accountId,
+                        device_id: this.currentDevice.id,
+                        position: Math.floor(position) // 保险起见，给音箱传整数
+                    })
+                });
+            } catch (e) { console.warn("[MIoT] 进度跳转失败", e); }
+        },
+
         // 🌟 新增：向小爱音箱下发设置播放模式指令
         setPlayMode: async function(modeIndex) {
             if (this.currentDevice.type !== 'miot') return;
@@ -562,25 +612,38 @@
                 // 只有在小爱播放模式、且确实在播放、且获取到了总时长的情况下，才自己推算进度
                 if (this.currentDevice.type === 'miot' && this.isWsPlaying && this.lastWsDuration > 0) {
                     const now = performance.now();
-                    // 推算：上次传来的秒数 + (现在距离上次收到推送的时间差)
-                    let estPos = this.lastWsPos + (now - this.lastWsTime) / 1000;
+                    // 🌟 推算时间必须乘上音箱的真实倍速，否则倍速播放时进度/歌词会越跑越慢
+                    let estPos = this.lastWsPos + ((now - this.lastWsTime) / 1000) * (this.lastWsSpeed || 1);
                     if (estPos > this.lastWsDuration) estPos = this.lastWsDuration;
 
-                    // 平滑更新时间文本
-                    const timeCurrentEl = document.getElementById('time-current');
-                    if (timeCurrentEl) {
-                        const newText = window.formatTime(estPos);
-                        if (timeCurrentEl.innerText !== newText) timeCurrentEl.innerText = newText;
+                    // 🌟 防回滚水位线：抹平网络延迟带来的进度倒退
+                    if (this._maxEstPos === undefined) this._maxEstPos = 0;
+                    if (estPos < this._maxEstPos) {
+                        // 倒退在 2 秒以内判定为推送滞后，稳住不动
+                        if (this._maxEstPos - estPos < 2) estPos = this._maxEstPos;
+                        else this._maxEstPos = estPos; // 倒退很多（拖进度/切歌）才允许重置
+                    } else {
+                        this._maxEstPos = estPos;
                     }
 
-                    // 平滑更新进度条
-                    const progressBar = document.getElementById('progress-bar');
-                    if (progressBar) {
-                        progressBar.style.width = (estPos / this.lastWsDuration * 100) + '%';
-                    }
+                    // 🌟 用户正在拖拽进度条时，虚拟时钟绝不覆写界面
+                    if (!window.isDragging) {
+                        // 平滑更新时间文本
+                        const timeCurrentEl = document.getElementById('time-current');
+                        if (timeCurrentEl) {
+                            const newText = window.formatTime(estPos);
+                            if (timeCurrentEl.innerText !== newText) timeCurrentEl.innerText = newText;
+                        }
 
-                    // 平滑滚动歌词
-                    if (window.LyricsEngine) window.LyricsEngine.sync(estPos);
+                        // 平滑更新进度条
+                        const progressBar = document.getElementById('progress-bar');
+                        if (progressBar) {
+                            progressBar.style.width = (estPos / this.lastWsDuration * 100) + '%';
+                        }
+
+                        // 平滑滚动歌词
+                        if (window.LyricsEngine) window.LyricsEngine.sync(estPos);
+                    }
                 }
                 this.virtualClockId = requestAnimationFrame(tick);
             };
@@ -598,15 +661,27 @@
         syncUIWithMiotStatus: function(data) {
             if (this.currentDevice.type !== 'miot') return;
 
-            const position = parseFloat(data.position) || 0;
+            let position = parseFloat(data.position) || 0;
             const duration = parseFloat(data.duration) || 0;
-            const isPlaying = data.state === 'playing';
+
+            // 🌟 进度保护锁：刚拖拽过进度条（3 秒内）时，拒收服务器传来的落后进度
+            if (this._seekLockTime && Date.now() < this._seekLockTime) {
+                position = this.lastWsPos;
+            }
+
+            let isPlaying = data.state === 'playing';
+
+            // 🌟 状态保护锁：刚点击播放/暂停（4 秒内）时，维持用户的目标状态，忽略滞后的推送
+            if (this._stateLockTime && Date.now() < this._stateLockTime) {
+                isPlaying = this.isWsPlaying;
+            }
 
             // 🌟 2. 不马上粗暴刷新时间！只把数据喂给虚拟时钟
             this.lastWsPos = position;
             this.lastWsDuration = duration;
             this.lastWsTime = performance.now(); // 记录此刻的物理时间锚点
             this.isWsPlaying = isPlaying;
+            this.lastWsSpeed = data.speed || 1;  // 🌟 记录音箱的真实倍速（未上报时按 1x）
 
             // ① 更新不会高频变动的总时长
             const timeDurationEl = document.getElementById('time-duration');
@@ -627,8 +702,8 @@
                 this.renderDeviceList(); // 重新渲染下拉框（因为菜单通常是收起的，所以静默重绘毫无性能损耗）
             }
 
-            // ③ 如果是暂停状态，直接定格界面
-            if (!isPlaying) {
+            // ③ 如果是暂停状态，直接定格界面（拖拽中不覆写）
+            if (!isPlaying && !window.isDragging) {
                 const timeCurrentEl = document.getElementById('time-current');
                 if (timeCurrentEl) timeCurrentEl.innerText = window.formatTime(position);
                 const progressBar = document.getElementById('progress-bar');
@@ -640,6 +715,7 @@
                 const newSongName = data.current_song.artist ? `${data.current_song.title} - ${data.current_song.artist}` : data.current_song.title;
 
                 if (window.currentSongName !== newSongName && window.songList) {
+                    this._maxEstPos = 0; // 🌟 音箱自己切歌了，强制重置最高水位线
                     const targetIdx = window.songList.findIndex(item => window.getSongNameObj(item) === newSongName);
                     if (targetIdx !== -1) {
                         // 发现音箱切歌了，通知前端假装“点”了这首歌，但不发送 play 指令
@@ -668,6 +744,19 @@
                     window.playMode = newMode;
                     // 🌟 彻底掐断这里的本地缓存写入，防止音箱的状态污染本机的档案！
                     if (window.updatePlayModeUI) window.updatePlayModeUI();
+                }
+            }
+
+            // ⑧ 🤖 同步倍速 UI（正在操作倍速面板/配置弹窗时不接受后端覆盖）
+            if (data.speed !== undefined && typeof window.updateFpSpeedUI === 'function') {
+                const speedPopup = document.getElementById('fp-speed-popup');
+                const configModal = document.getElementById('config-modal-backdrop');
+                const isOperating = (speedPopup && speedPopup.classList.contains('show')) ||
+                                    (configModal && configModal.classList.contains('show'));
+                if (!isOperating) {
+                    const speedSlider = document.getElementById('fp-speed-slider');
+                    const currentUI = speedSlider ? (parseFloat(speedSlider.value) || 1) : null;
+                    if (currentUI !== data.speed) window.updateFpSpeedUI(data.speed);
                 }
             }
         }

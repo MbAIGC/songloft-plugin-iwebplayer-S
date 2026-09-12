@@ -96,3 +96,54 @@
 ## 最终判断
 
 上游 `v1.1.8 ~ v1.3.2` 中，**音箱倍速/进度拖拽、虚拟时钟防回滚、落雪音质设置重写**三项属于低风险高收益，建议优先移植；**歌单过滤、自定义封面**可作为独立功能跟进；**本机播放在线歌单、推送歌单内存注入、WebDAV 1.2.0 与后端路由/保活**需要结合本地实现与宿主版本单独设计。上游 `v1.1.8` 对 `index.html` 的结构性重构不建议跟进，代价大于收益。
+
+---
+
+# P0 实施记录（2026-09-12）
+
+按本评估的 P0 清单完成上游适配，遵循「只做增量、不影响现有功能」，未合并、未 cherry-pick，全部为手工移植。
+
+## 版本号
+
+`plugin.json` / `package.json` / `package-lock.json` 由 `1.1.7-dev` 提升为 `1.3.2-dev`（dev 规范为 `X.Y.Z-dev`，CI 会派生构建号 `1.3.2.NN-dev` 与 tag `dev-1.3.2`）。`README.md`、`AGENT.md`、`DEV_RELEASE_NOTES.md` 同步为 `v1.3.2`。`static/index.html` 的 `APP_VERSION` 是构建期占位符 `__APP_VERSION__`，由 `scripts/inject-version-hashes.mjs` 注入，无需手改。
+
+## 1. 虚拟时钟防回滚（`static/miot.js`）
+
+- 新增状态：`lastWsSpeed`、`_seekLockTime`、`_maxEstPos`。
+- 虚拟时钟刻度加入 `_maxEstPos` 最高水位线：倒退在 2 秒以内判定为推送滞后并稳住不动，倒退较多（拖拽 / 切歌）才允许重置。
+- 暂停恢复播放时把 `lastWsTime` 锚点拉到此刻，避免暂停期间的时间差被计入进度。
+- 切歌（`playPlaylist`）与音箱侧切歌时重置水位线。
+- 补齐此前"设置了却从未读取"的 `_stateLockTime` 状态锁：点击播放/暂停后 4 秒内维持用户目标状态，忽略滞后的 WS 推送。
+- 拖拽期间（`window.isDragging`）虚拟时钟与暂停定格都不覆写界面。
+
+## 2. 音箱倍速与进度拖拽
+
+- `static/miot.js` 新增 `setSpeed(speed)` 与 `seekTo(position)`，分别调用 MIoT 插件 `POST /api/v1/jsplugin/miot/player/speed` 与 `/player/seek`；`seekTo` 做乐观更新并上锁 3 秒防回弹。
+- `static/miot.js` 的 `syncUIWithMiotStatus` 记录 `data.speed` 用于进度推算（倍速播放时歌词不再越跑越慢），并在用户未操作倍速面板/配置弹窗时同步倍速 UI。
+- `static/index.html`：
+  - 移除 `body.miot-mode` 下"进度条置灰 + 禁用拖拽"的三条规则；
+  - 拖拽逻辑改用全局 `window.isDragging`，新增 `getActiveDuration()`（音箱模式取 WS 上报时长，本机模式取 `audio.duration`），`handleDragEnd` 按设备分流到 `MiotManager.seekTo()` 或 `audioEl.currentTime`；
+  - 新增 `debounceSendSpeed()`（2 秒防抖下发 + UI 霸体锁）与 `getSafeSpeed()`（音箱上限 2.0x），倍速滑杆与加减按钮统一走这套流程；
+  - 配置弹窗保存时，音箱模式下立即下发倍速，并同步刷新 UI 显示。
+
+## 3. 落雪 v3.7.8 音质设置重写
+
+- `static/utils.js` 新增 `window.compareVersion()`（`parseInt` 容忍 `3.7.8-beta` 之类后缀，避免 `Number()` 产生 `NaN` 导致比较失效）。
+- `static/plugins.js` 音质单选改为：
+  - 写入统一沙盒 `ConfigManager.set('lxmusic', 'settings.quality', ...)`（`getLxQuality()` 读的正是这里）；此前只写 `iwebplayer-s.lx_quality`，**该 key 无人读取，等于音质设置一直不生效**，本次一并修复，并保留旧 key 作后向兼容镜像；
+  - 洛雪 3.x 且 `>= 3.7.8`：拉取 `/api/v1/jsplugin/lxmusic/api/settings` → 修改 `enablePlayQuality/playQuality/enableHostQuality/hostQuality` → 全量回写；
+  - 洛雪 3.x 但低于 3.7.8：显示警告并拦截，不发请求；
+  - `2026.x` / `2.x`：隐藏警告并按原行为提示成功。
+
+## 4. 依赖与风险提示
+
+- `player/speed` 与 `player/seek` 由宿主「智能音箱」插件提供；若宿主插件版本不支持这两个接口，倍速/拖拽会静默失败（`fetch` 抛错已在 `miot.js` 内 `catch` 并打印 `console.warn`），不影响本机播放与音箱换歌。
+- 未跟进项保持不变：上游 v1.1.8 的 `index.html` 函数搬家、推送歌单内存注入（本地保留 `_pushPlaylistSignature` 复用方案）、`restoreOnlineIdentity`、WebDAV 1.2.0 相关改动。
+
+## 5. 验证
+
+- `vitest run`：4 个测试文件 / 50 项用例全部通过；
+- `npx tsc --noEmit`：无错误；
+- `npm run build`：构建成功，产物 `dist/iwebplayer-s.jsplugin.zip`；
+- `miot.js` / `plugins.js` / `utils.js` / `player.js` / `playlist.js` 语法检查通过，`index.html` 内联脚本 2 段语法检查通过，CSS 花括号配平；
+- `git -c core.whitespace=cr-at-eol diff --check` 通过（CRLF 文件均使用字节级替换，无换行污染）。

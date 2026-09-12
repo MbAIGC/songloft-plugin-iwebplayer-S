@@ -237,19 +237,64 @@
                 // 🌟 改为 async 函数以等待版本检测
                 radio.addEventListener('change', async (e) => {
                     if (e.target.checked) {
-                        localStorage.setItem('iwebplayer-s.lx_quality', e.target.value);
+                        const selectedQuality = e.target.value;
+                        const qualityText = e.target.nextElementSibling.innerText;
 
-                        // 🌟 核心：检测插件版本，如果不支持，直接展现红底警告框
+                        // 1. 修复：统一写入大一统沙盒（getLxQuality() 读的就是这里），
+                        //    同时镜像旧的 localStorage key，保留后向兼容
+                        if (window.ConfigManager) {
+                            window.ConfigManager.set('lxmusic', 'settings.quality', selectedQuality);
+                        }
+                        localStorage.setItem('iwebplayer-s.lx_quality', selectedQuality);
+
+                        // 2. 检测插件版本，三路分流判定
                         if (typeof window.getLxPluginInfo === 'function') {
                             const pInfo = await window.getLxPluginInfo();
+                            if (!pInfo) return; // 插件信息拿不到时不做任何提示，避免异常
                             const warningEl = document.getElementById('lx-quality-warning');
 
-                            // 类型 3：非 2026 开头 且 非 2.x 开头
                             if (pInfo.type === 3) {
-                                if (warningEl) warningEl.style.display = 'block';
-                            } else {
+                                // 分支 B/C：洛雪 3.x 中，只有 >= 3.7.8 才支持音质设置
+                                const isSupported = typeof window.compareVersion === 'function'
+                                    && window.compareVersion(pInfo.version, '3.7.8') >= 0;
+
+                                if (!isSupported) {
+                                    // 分支 B：3.x 但低于 3.7.8，不支持，直接拦截不发请求
+                                    if (warningEl) warningEl.style.display = 'block';
+                                    return;
+                                }
+
+                                // 分支 C：>= 3.7.8，全量拉取 + 局部修改 + 全量回写
                                 if (warningEl) warningEl.style.display = 'none';
-                                window.showToast(`✅ 优先音质已设为: ${e.target.nextElementSibling.innerText}`);
+                                window.showToast("⏳ 正在应用音质设置...", true);
+
+                                try {
+                                    const res = await fetch('/api/v1/jsplugin/lxmusic/api/settings');
+                                    if (!res.ok) { window.showToast("❌ 洛雪配置接口异常"); return; }
+                                    const resJson = await res.json();
+                                    if (!(resJson.code === 0 && resJson.data)) { window.showToast("❌ 无法读取洛雪配置"); return; }
+
+                                    const settingsData = resJson.data;
+                                    settingsData.enablePlayQuality = true;
+                                    settingsData.playQuality = selectedQuality;
+                                    settingsData.enableHostQuality = true;
+                                    settingsData.hostQuality = selectedQuality;
+
+                                    const postRes = await fetch('/api/v1/jsplugin/lxmusic/api/settings', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify(settingsData)
+                                    });
+
+                                    if (postRes.ok) window.showToast(`✅ 优先音质已设为: ${qualityText}`);
+                                    else window.showToast("❌ 音质设置同步失败");
+                                } catch (err) {
+                                    window.showToast("❌ 网络异常，配置未同步");
+                                }
+                            } else {
+                                // 分支 A：2026.x 或 2.x，旧版本在播放时才发旧版 POST，此处只隐藏警告
+                                if (warningEl) warningEl.style.display = 'none';
+                                window.showToast(`✅ 优先音质已设为: ${qualityText}`);
                             }
                         }
                     }

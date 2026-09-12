@@ -350,10 +350,7 @@
     background: transparent;
   }
 
-  /* 🌟 新增：小爱音箱模式下进度条置灰并彻底禁用拖拽 */
-  body.miot-mode .progress-container { pointer-events: none; }
-  body.miot-mode .progress-bar { background: var(--text-sub) !important; }
-  body.miot-mode .progress-thumb { display: none !important; }
+  /* 🌟 小爱音箱模式现已支持进度拖拽（走 MIoT player/seek 接口），不再置灰/禁用进度条 */
 
   .player-container { max-width: 800px; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: space-evenly; }
   .time-row { width: 100%; display: flex; justify-content: space-between; }
@@ -2695,7 +2692,7 @@
     window.playMode = isNaN(storedMode) ? 1 : storedMode;
     window.localState = { playlist: "", songName: "" };
 
-    let isDragging = false;
+    window.isDragging = false; // 🌟 暴露给全局：miot.js 虚拟时钟与状态同步都要用它判断"用户正在拖拽"
     let touchStartY = 0;
     let fpTouchStartY = 0;
     let drawerGestureFromLyrics = false;
@@ -2798,7 +2795,9 @@
     /* ==========================================
      * 4. 基础工具与云端同步组件
      * ========================================== */
-    function updateFpSpeedUI(speed) {
+    function updateFpSpeedUI(speed, isFromUser = false) {
+        // 🌟 用户手动调速的挂起期内，忽略后台轮询刷新（isFromUser=false），防止 UI 闪回旧值
+        if (window._speedSyncingLock && !isFromUser) return;
         fpCornerSpeed.textContent = window.formatSpeed(speed);
         fpSpeedSlider.value = speed;
         audioEl.playbackRate = speed;
@@ -3205,7 +3204,7 @@
         }
 
         audioEl.addEventListener('timeupdate', () => {
-          if (!audioEl.duration || isDragging) return;
+          if (!audioEl.duration || window.isDragging) return;
           const current = audioEl.currentTime;
           const duration = audioEl.duration;
 
@@ -3441,12 +3440,36 @@
           if (e.touches && e.touches.length > 0) clientX = e.touches[0].clientX; else if (e.changedTouches && e.changedTouches.length > 0) clientX = e.changedTouches[0].clientX;
           return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
         }
-        function handleDragStart(e) { if (!audioEl.duration) return; isDragging = true; progressBar.style.width = (getPercentage(e) * 100) + '%'; }
-        function handleDragMove(e) {
-          if (!isDragging || !audioEl.duration) return; e.preventDefault();
-          const p = getPercentage(e); progressBar.style.width = (p * 100) + '%'; timeCurrentEl.innerText = window.formatTime(p * audioEl.duration); timeDurationEl.innerText = window.formatTime(audioEl.duration);
+        // 🌟 智能获取当前设备的总时长：音箱模式取 WS 上报的时长，本机模式取 audio 元素
+        function getActiveDuration() {
+          const isMiot = !!(window.MiotManager && window.MiotManager.currentDevice.type === 'miot');
+          return isMiot ? window.MiotManager.lastWsDuration : audioEl.duration;
         }
-        function handleDragEnd(e) { if (!isDragging || !audioEl.duration) return; isDragging = false; audioEl.currentTime = getPercentage(e) * audioEl.duration; }
+
+        function handleDragStart(e) {
+          const duration = getActiveDuration();
+          if (!duration) return;
+          window.isDragging = true; // 🌟 换成全局变量宣告开始拖拽
+          progressBar.style.width = (getPercentage(e) * 100) + '%';
+        }
+        function handleDragMove(e) {
+          const duration = getActiveDuration();
+          if (!window.isDragging || !duration) return; e.preventDefault();
+          const p = getPercentage(e); progressBar.style.width = (p * 100) + '%'; timeCurrentEl.innerText = window.formatTime(p * duration); timeDurationEl.innerText = window.formatTime(duration);
+        }
+        function handleDragEnd(e) {
+          const duration = getActiveDuration();
+          if (!window.isDragging || !duration) return;
+          window.isDragging = false;
+          const targetTime = getPercentage(e) * duration;
+
+          // 🌟 核心分流：音箱模式调 MIoT 接口，本机模式直接拨底层 audio
+          if (window.MiotManager && window.MiotManager.currentDevice.type === 'miot') {
+            window.MiotManager.seekTo(targetTime);
+          } else {
+            audioEl.currentTime = targetTime;
+          }
+        }
 
         progressContainer.addEventListener('mousedown', handleDragStart);
         document.addEventListener('mousemove', handleDragMove);
@@ -4282,14 +4305,51 @@
         else window.showToast("💡 当前没有正在播放的歌曲");
     });
     fpCornerSpeed.addEventListener('click', (e) => { e.stopPropagation(); fpSpeedPopup.classList.toggle('show'); });
-    fpSpeedSlider.addEventListener('input', (e) => updateFpSpeedUI(parseFloat(e.target.value)));
+    // 🌟 音箱倍速同步：2 秒防抖下发 + UI 霸体锁，避免音箱轮询把界面覆盖回旧值
+    let _speedSyncTimeout = null;
+    window._speedSyncingLock = false;
+
+    const debounceSendSpeed = (val) => {
+        if (window.MiotManager && window.MiotManager.currentDevice.type === 'miot') {
+            if (_speedSyncTimeout) clearTimeout(_speedSyncTimeout);
+            _speedSyncTimeout = setTimeout(() => {
+                window.MiotManager.setSpeed(val);
+                if (window.showToast) window.showToast(`🚀 音箱倍速已同步: ${val.toFixed(1)}x`);
+                // Toast 弹出后延长 1.5 秒护盾再解锁，防止音箱轮询到旧数据
+                setTimeout(() => { window._speedSyncingLock = false; }, 1500);
+            }, 2000);
+        } else {
+            window._speedSyncingLock = false; // 本机模式秒解锁
+        }
+    };
+
+    // 🌟 小爱音箱最高支持 2.0 倍速
+    const getSafeSpeed = (requestedSpeed) => {
+        const isXiaoai = window.MiotManager && window.MiotManager.currentDevice.type === 'miot';
+        if (isXiaoai && requestedSpeed > 2.0) {
+            if (window.showToast) window.showToast("⚠️ 当前音箱最高仅支持 2.0 倍速");
+            return 2.0;
+        }
+        return requestedSpeed;
+    };
+
+    fpSpeedSlider.addEventListener('input', (e) => {
+        const val = getSafeSpeed(parseFloat(e.target.value));
+        window._speedSyncingLock = true;
+        updateFpSpeedUI(val, true);
+        debounceSendSpeed(val);
+    });
     document.getElementById('fp-speed-plus').addEventListener('click', () => {
-        fpSpeedSlider.value = Math.min(3.0, parseFloat(fpSpeedSlider.value) + 0.1).toFixed(1);
-        updateFpSpeedUI(parseFloat(fpSpeedSlider.value));
+        const val = getSafeSpeed(Math.min(3.0, parseFloat(fpSpeedSlider.value) + 0.1));
+        window._speedSyncingLock = true;
+        updateFpSpeedUI(val, true);
+        debounceSendSpeed(val);
     });
     document.getElementById('fp-speed-minus').addEventListener('click', () => {
-        fpSpeedSlider.value = Math.max(0.5, parseFloat(fpSpeedSlider.value) - 0.1).toFixed(1);
-        updateFpSpeedUI(parseFloat(fpSpeedSlider.value));
+        const val = getSafeSpeed(Math.max(0.5, parseFloat(fpSpeedSlider.value) - 0.1));
+        window._speedSyncingLock = true;
+        updateFpSpeedUI(val, true);
+        debounceSendSpeed(val);
     });
 
     function closeConfigModal() {
@@ -4316,12 +4376,22 @@
         const newSpeed = parseFloat(configSpeedSlider.value);
         const newResume = document.querySelector('input[name="config-resume-mode"]:checked').value;
 
-        if (isXiaoai) { conf.speedXiaoai = newSpeed; conf.resumeXiaoai = newResume; }
+        if (isXiaoai) {
+            conf.speedXiaoai = newSpeed;
+            conf.resumeXiaoai = newResume;
+            // 🌟 保存时立刻把倍速推给音箱（超出音箱上限时由 getSafeSpeed 兜底）
+            if (window.MiotManager && window.MiotManager.currentDevice.type === 'miot') {
+                window.MiotManager.setSpeed(getSafeSpeed(newSpeed));
+            }
+        }
         else { conf.speedLocal = newSpeed; conf.resumeLocal = newResume; }
 
         window.savePlaylistConfig(currentPlaylist, conf);
         closeConfigModal(); window.showToast("✅ 设置已保存"); window.initPlaylistDropdown();
+
+        // UI 跟随同步
         if (!isXiaoai) updateFpSpeedUI(conf.speedLocal);
+        else updateFpSpeedUI(conf.speedXiaoai);
     });
 
     document.addEventListener('click', (e) => {
