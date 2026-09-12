@@ -826,6 +826,9 @@
     :root[data-theme="dark"] body.split-view-active .playlist-row { background: rgba(17, 24, 39, 0.65) !important; border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.3) !important; }
 
     body.split-view-active .playlist, body.split-view-active .playlist-grid, body.split-view-active #loading { width: 50% !important; margin-left: 50% !important; margin-top: 0 !important; max-width: none !important; }
+    /* 🛑 宽屏氛围遮罩 (.fp-ambient-bg) 是 z-index:135 的不透明全屏层，右栏只有 .playlist/.playlist-grid 被抬到了 140。
+       #loading 承载「正在加载 / 登录失效」提示，必须同样抬到遮罩之上（仍低于 header 的 150/260），否则整块看不见。 */
+    body.split-view-active #loading { position: relative !important; z-index: 145 !important; }
     body.split-view-active .full-player { display: flex !important; transform: none !important; width: 50% !important; left: 0 !important; margin-left: 0 !important; top: 56px !important; height: calc(100vh - var(--player-height) - 56px - env(safe-area-inset-bottom)) !important; border-radius: 0 !important; border-top: none !important; box-shadow: none !important; border-right: 1px solid var(--border) !important; padding-top: 24px !important; z-index: 190 !important; }
     body.split-view-active .player-bar { width: 50% !important; left: 0 !important; margin-left: 0 !important; box-shadow: none !important; border-top: 1px solid var(--border) !important; border-right: 1px solid var(--border) !important; z-index: 200 !important; padding-right: 28px !important; }
     body.split-view-active .drawer-handle { display: none !important; }
@@ -951,7 +954,10 @@
     body.ambient-active.split-view-active .playlist,
     body.ambient-active.split-view-active .playlist-grid {
       position: relative !important; z-index: 140 !important;
-      max-height: calc(100vh - 112px - var(--player-height) - env(safe-area-inset-bottom)) !important; overflow-y: auto !important;
+      /* 🛑 宽屏下 .player-bar 只占左半栏 (width:50%; left:0)，右栏下方并没有播放条，
+         因此不能再扣 --player-height，否则列表底部会悬空约一个播放条的高度、最后一张卡片被容器底边截断。
+         这里只扣「顶部导航 + 宽屏工具栏」高度和一点底部内缩，列表才能真正贴到底。 */
+      max-height: calc(100vh - var(--split-list-top, 115px) - 12px) !important; overflow-y: auto !important;
       padding-bottom: 20px !important; -webkit-overflow-scrolling: touch;
     }
     /* 🔐 修复：ambient 分栏列表恢复可见细滚动条（全局已隐藏原生滚动条，此处单独恢复）
@@ -1525,6 +1531,8 @@
     /* Compact the split-home control strip so it leaves more vertical room for lyrics. */
     body.split-view-active:not(.player-open) {
       --player-height: 118px;
+      /* 宽屏右栏列表顶部偏移：顶部导航 56px + 宽屏工具栏（约 59px）。工具栏高度变化时同步改这里。 */
+      --split-list-top: 115px;
     }
     body.split-view-active:not(.player-open) .progress-container {
       top: -14px;
@@ -1684,7 +1692,24 @@
     body.split-view-active:not(.player-open) .lyric-line { font-size: 28px; min-height: 48px; padding: 10px 20px; }
     body.split-view-active:not(.player-open) .lyric-line.active { font-size: 34px; }
   }
-  
+
+  /* ==========================================
+     🛑 登录失效 / 加载失败兜底页
+     放在样式表末尾以保证覆盖前面的宽屏分栏规则。
+     目的：①关掉氛围遮罩，②让提示独占整页宽度（不再只挤在右半栏），
+     ③隐藏空播放器与空列表，避免用户误以为还能操作。
+     ========================================== */
+  body.app-error #fp-ambient-bg { opacity: 0 !important; visibility: hidden !important; }
+  body.app-error #loading { position: relative !important; z-index: 145 !important; display: block !important; }
+  body.app-error.split-view-active #loading { width: 100% !important; margin-left: 0 !important; max-width: none !important; }
+  body.app-error .playlist,
+  body.app-error .playlist-grid,
+  body.app-error .playlist-row,
+  body.app-error .player-bar,
+  body.app-error .split-toggle-btn { display: none !important; }
+  body.app-error .full-player,
+  body.app-error.split-view-active .full-player { display: none !important; }
+
   </style>
   <script src="./static/lz-string.min.js"></script>
   <script src="./static/icons.js?v0.8.0" defer></script>
@@ -4593,6 +4618,14 @@
         }, 1500); // 延迟 1.5 秒弹出，避免和首屏加载动画冲突
       } catch (err) {
         console.error("引擎启动失败:", err);
+
+        // 🛑 进入兜底页状态：关掉氛围遮罩、隐藏空播放器/空列表，保证提示一定可见
+        // （宽屏下 .fp-ambient-bg 是不透明的 z-index:135 全屏层，会把提示整块盖住）
+        document.body.classList.add('app-error');
+        document.body.classList.remove('player-open');
+        const fullPlayerEl = document.getElementById('full-player');
+        if (fullPlayerEl) fullPlayerEl.classList.remove('open');
+
         if (window.location.protocol === 'file:') {
             loadingEl.innerText = '🚫 加载失败：前端代码必须部署在 SongLoft 服务端运行，请勿直接双击本地 HTML 文件打开！';
             return;

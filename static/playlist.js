@@ -1499,6 +1499,10 @@
                         if (metaRes.status === 401) throw new Error("AUTH_FAILED");
                         if (!metaRes.ok) throw new Error("NETWORK_ERROR");
                         const metaData = await metaRes.json();
+                        // 🌟 与兼容模式对齐：服务端以 200 返回错误报文时同样判定为鉴权失效，
+                        // 否则会在 Object.entries(metaData.structure) 抛 TypeError，弹出错误的「数据加载失败」
+                        if (metaData && (metaData.error || metaData.ret === "FAIL")) throw new Error("AUTH_FAILED");
+                        if (!metaData || !metaData.structure || typeof metaData.structure !== 'object') throw new Error("NETWORK_ERROR");
 
                         // 🔐 高性能分片会话：chunk/destroy 带上 bulk 返回的 _session，
                         // 让迟到的旧请求不会误读/误清新缓存（审阅 #8 全局状态隔离）
@@ -1515,6 +1519,8 @@
                             }
 
                             const chunkRes = await fetch(`${window.API.list}?action=chunk&page=${page}&session=${flashSession}`);
+                            // 🌟 分片同样拦截 401：否则静默 break 会得到空白/残缺曲库，且永远不触发登录流程
+                            if (chunkRes.status === 401) throw new Error("AUTH_FAILED");
                             if (!chunkRes.ok) break;
                             const songsChunk = await chunkRes.json();
                             if (!Array.isArray(songsChunk) || songsChunk.length === 0) break;

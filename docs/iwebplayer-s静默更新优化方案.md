@@ -328,3 +328,42 @@ syncListToPushPlaylist: async function(currentList) {
 5. `static/index.html`：底部“模式 / 上一首 / 播放 / 下一首 / 音量”控制按钮恢复原先约 `min(960px, 76vw)` 的控制区宽度，避免时间行扩展后按钮间距被意外拉开；播放按钮仍保持控制区居中。
 
 **验证：** `index.html` 内联脚本语法检查和 `git diff --check` 已通过；以上调整提交于 dev 分支提交 `a149b27`、`5d71170`，推送提示修复提交于 `0337048`。
+
+### 4.8 宽屏未登录提示不可见 + 右栏列表底部悬空（z-index / max-height 缺陷）
+
+两个问题都在宽屏（`split-view-active`）下出现，且都属于 CSS 层叠与高度计算缺陷，鉴权逻辑本身正常。
+
+**问题 1：宽屏未登录时看不到「重新登录」提示**
+
+- 鉴权链路是正常的：未登录时接口返回 401 → `playlist.js` 抛 `AUTH_FAILED` → `index.html` 捕获后把登录提示写入 `#loading`。
+- 真正原因是层叠：`.fp-ambient-bg` 是 `position: fixed` + `z-index: 135` 的**不透明全屏层**，在 `body.ambient-active.split-view-active` 时 `opacity: 1`。
+- 宽屏下右栏只有 `.playlist` / `.playlist-grid` 被显式抬到 `z-index: 140`，而承载提示的 `#loading` 是静态元素（`z-index: auto`），于是被整块盖住，用户只看到氛围背景。
+- 窄屏不受影响：`.fp-ambient-bg` 只在 `body.ambient-active.player-open` 或 `body.ambient-active.split-view-active` 时才 `opacity: 1`。
+- 同一原因也会让宽屏首屏的「正在加载音乐...」进度文字不可见。
+
+**修复：**
+
+1. `body.split-view-active #loading { position: relative; z-index: 145 }`：让 `#loading` 与列表一样抬到氛围遮罩之上（仍低于 header 的 150/260）。
+2. 兜底页状态：失败分支给 `body` 加 `app-error`，并移除 `player-open` / `full-player.open`。样式表末尾新增 `body.app-error` 规则块，关闭氛围遮罩（`opacity: 0; visibility: hidden`）、让 `#loading` 独占整页宽度、隐藏空播放器 / 空列表 / 空工具栏，避免用户误以为还能操作。
+
+**问题 2：宽屏右侧歌曲列表底部有一部分被遮挡、没有到底**
+
+- `body.ambient-active.split-view-active .playlist/.playlist-grid` 的 `max-height` 同时扣掉了 `--player-height`（宽屏下为 118px）和安全区。
+- 但宽屏下 `.player-bar` 只占左半栏（`width: 50%; left: 0`），右栏下方**没有播放条需要避让**，导致右栏列表底边悬空约一个播放条的高度（顶边约 115px，扣 112px + 118px 后底边停在视口底部上方约 115px）。
+- 因为该容器同时是 `overflow-y: auto` 的滚动容器，最后一张卡片恰好在这个底边被截断，表现为「没到底 / 底部被遮住一截」。
+- 触发条件：仅 `≥960px`（该规则所在媒体查询内）且氛围背景开启（默认开启）；关闭氛围背景或 `768–959px` 分支下不出现。
+
+**修复：** 右栏不再扣除 `--player-height` 与安全区，改为只扣「顶部导航 + 宽屏工具栏」高度和一点底部内缩：
+
+```css
+max-height: calc(100vh - var(--split-list-top, 115px) - 12px) !important;
+```
+
+顶部偏移抽为 `--split-list-top`（顶部导航 56px + 宽屏工具栏约 59px），工具栏高度变化时只需改这个变量，不会再出现扣错元素高度的问题。
+
+**顺带修复的同类隐患：**
+
+- `playlist.js` 高性能模式补上与兼容模式一致的错误报文拦截：`metaData.error || metaData.ret === "FAIL"` → `AUTH_FAILED`，并校验 `metaData.structure`。此前服务端若以 200 返回错误报文，会在 `Object.entries(metaData.structure)` 抛 `TypeError`，弹出错误的「数据加载失败」而非「登录失效」。
+- `playlist.js` 分片请求补上 401 拦截：原 `if (!chunkRes.ok) break;` 会静默中断，可能得到空白/残缺曲库且永远不触发登录流程。
+
+**验证：** `playlist.js` / `index.html` 内联脚本语法检查、CSS 花括号配平检查、`git diff --check`（CRLF 文件允许 CR 作为行尾）均通过。
