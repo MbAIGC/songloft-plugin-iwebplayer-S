@@ -161,22 +161,21 @@ jobs:
             const buildVer = '${{ steps.version_build.outputs.build_version }}';
             const newName = `iwebplayer-s-v${buildVer}.jsplugin.zip`;
             let releaseId = ${{ steps.seq.outputs.release_id || 'null' }};
-            // 🌟 统一 Release 标题：与 build-apk-dev.yml 使用完全相同的标题格式，
-            //    避免"谁先创建谁定标题"导致同一个 dev tag 的标题不一致
-            const releaseTitle = 'iWebPlayer-S dev v${{ steps.version.outputs.base_version }}';
+            // 🌟 Release 标题固定等于 tag（如 dev-1.3.2 这种裸格式），
+            //    与 build-apk-dev.yml 完全一致，避免"谁先创建谁定标题"造成标题不一致
             if (!releaseId) {
               const created = await github.rest.repos.createRelease({
                 owner: context.repo.owner, repo: context.repo.repo,
-                tag_name: tag, name: releaseTitle,
+                tag_name: tag, name: tag,
                 body: 'iWebPlayer-S 开发版 Pre-release（自动构建，按版本归档）',
                 draft: false, prerelease: true
               });
               releaseId = created.data.id;
             } else {
-              // 已存在（可能由 APK 工作流先创建）→ 归一标题；已一致时是幂等更新
+              // 已存在（可能由 APK 工作流先创建）→ 标题归一为 tag；已一致时是幂等更新
               await github.rest.repos.updateRelease({
                 owner: context.repo.owner, repo: context.repo.repo,
-                release_id: releaseId, name: releaseTitle
+                release_id: releaseId, name: tag
               });
             }
             const assetPath = `dist/${newName}`;
