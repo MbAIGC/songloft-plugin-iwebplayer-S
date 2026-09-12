@@ -64,11 +64,14 @@
     function placeCornerToolsInActiveSurface() {
         const tools = $('fp-corner-tools');
         const fullPlayer = $('full-player');
-        if (!tools || !fullPlayer) return;
+        const playerBar = $('player-bar');
+        if (!tools || !fullPlayer || !playerBar) return;
 
-        // 🌟 统一放在播放页（宽屏下即左栏）内：始终位于底部播放控制栏「上方」，
-        //    与手机竖屏一致；不再塞进 #player-bar，避免叠住控制栏里的模式/音量菜单。
-        if (tools.parentElement !== fullPlayer) fullPlayer.appendChild(tools);
+        const isSplitHome = window.innerWidth >= 768
+            && document.body.classList.contains('split-view-active')
+            && !document.body.classList.contains('player-open');
+        const target = isSplitHome ? playerBar : fullPlayer;
+        if (tools.parentElement !== target) target.appendChild(tools);
     }
 
     window.syncDesktopTrackInfo = function() {
