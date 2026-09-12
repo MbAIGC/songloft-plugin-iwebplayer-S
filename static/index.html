@@ -513,8 +513,8 @@
   .fp-corner-tools { position: absolute; bottom: 20px; left: 0; right: 0; padding: 0 24px; display: flex; justify-content: space-between; align-items: center; z-index: 100; pointer-events: none; }
   .fp-corner-btn { pointer-events: auto; width: 40px; height: 40px; border-radius: 50%; background: var(--bg-color); border: 1px solid var(--border); display: flex; justify-content: center; align-items: center; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.08); transition: all 0.2s; color: var(--text-main); font-weight: bold; font-size: 13px; }
   .fp-corner-btn:active { transform: scale(0.9); }
-  /* 首页横屏时收藏按钮保持原位，仅给右侧倍速按钮补齐视觉外边距。 */
-  body.split-view-active:not(.player-open) #fp-corner-speed { margin-right: 10px; }
+  /* 注：宽屏分栏时收藏/倍速按钮与手机竖屏一致，都放在播放页（左栏）内、控制栏上方，
+     容器 padding 左右对称，因此不再需要单独给倍速按钮补外边距。 */
   .fp-fav-btn.is-fav { color: var(--primary); }
 
   /* 音量与速度控制的垂直滑块弹窗 */
@@ -1539,13 +1539,11 @@
       width: 12px;
       height: 12px;
     }
+    /* 🌟 宽屏分栏：收藏/倍速按钮与手机竖屏一致，放在播放页（左栏）底部、控制栏「上方」，
+       不再塞进 #player-bar，避免叠住控制栏的模式/音量按钮与菜单 */
     body.split-view-active:not(.player-open) .fp-corner-tools {
-      bottom: 54px;
-    }
-    body.split-view-active:not(.player-open) .player-bar > .fp-corner-tools {
       display: flex !important;
-      z-index: 3 !important;
-      bottom: 54px;
+      bottom: 20px;
     }
     body.split-view-active:not(.player-open) .player-bar {
       isolation: isolate;
@@ -1659,10 +1657,10 @@
       max-width: 82% !important;
       max-height: 52vh !important;
     }
+    /* 🌟 同上：768–959 横屏分栏也把角标按钮放在左栏底部、控制栏上方 */
     body.split-view-active:not(.player-open) .fp-corner-tools {
       display: flex !important;
-      bottom: 54px;
-      z-index: 3 !important;
+      bottom: 20px;
     }
     body.split-view-active:not(.player-open) .player-bar::before {
       content: '';
