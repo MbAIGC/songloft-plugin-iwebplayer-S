@@ -267,6 +267,8 @@
   /* 设备选择器搬进工具栏后，header 右侧不再需要占位 */
   body.split-view-active .header-controls { display: none !important; }
   /* 🌟 工具栏整体并入 header 行（即原来「本机/小爱音箱」所在那一行），不再单独占第二行 */
+  /* 🌟 header 左半（品牌/设置）固定 50%，工具栏只占右半栏，绝不越过中界线 */
+  body.split-view-active .header-left-group { flex: 0 0 50%; min-width: 0; }
   body.split-view-active .header > #toolbar-split { flex: 1 1 auto; min-width: 0; margin-left: 12px; }
   body.split-view-active:not(.player-open) #playlist-row { display: none !important; }
 
@@ -3862,7 +3864,10 @@
         // 左栏内部点击不夺走输入框焦点（防止点击按钮/下拉时左栏收起）
         if (tbsOnline) {
             tbsOnline.addEventListener('mousedown', (e) => {
-                if (e.target !== tbsLxInput && tbsOnline.contains(e.target)) {
+                // 🌟 合并后本地搜索框也在这条栏里：任何输入框都必须放行，
+                //    否则 mousedown 被 preventDefault 会导致点不进去、无法输入（只能靠开关的 focus() 才能激活）
+                if (e.target.closest('input, textarea')) return;
+                if (tbsOnline.contains(e.target)) {
                     e.preventDefault();
                 }
             });
