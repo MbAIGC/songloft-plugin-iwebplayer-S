@@ -332,9 +332,14 @@
   @media (max-width: 1099px) {
     body.split-view-active .tbs-playlist { min-width: 96px; max-width: 180px; }
     body.split-view-active .tbs-lx-actions .tbs-lx-btn { padding: 0 4px; }
-    /* 🌟 半宽屏标签精简：搜歌→歌、搜单→单、音源→源 ▾（约省 50px，全给搜索框） */
-    .tbs-lx-btn .lbl-long { display: none; }
-    .tbs-lx-btn .lbl-short { display: inline; }
+    /* 🌟 半宽屏标签精简：只在「还没点搜索框」时用「歌 / 单 / 源 ▾」；
+       点开搜索框后歌单栏已让位、空间充足，自动恢复「搜歌 / 搜单 / 音源 ▾」
+       （基础状态就是完整文字，所以这里只写"未聚焦时"的覆盖规则即可） */
+    body.split-view-active:not(.toolbar-search-focus) .tbs-lx-btn .lbl-long { display: none; }
+    body.split-view-active:not(.toolbar-search-focus) .tbs-lx-btn .lbl-short { display: inline; }
+    /* 提示文字在半宽屏缩小一档，小框里更协调（输入后的正文仍保持 14px） */
+    body.split-view-active .tbs-online .tbs-input::placeholder,
+    body.split-view-active .tbs-online #search-input::placeholder { font-size: 12px; }
     body.split-view-active .tbs-src-toggle { padding: 1px; }
     body.split-view-active .tbs-src-btn { padding: 3px 5px; }
     body.split-view-active .tbs-device #device-val { max-width: 84px; }
