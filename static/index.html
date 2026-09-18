@@ -260,6 +260,11 @@
   body.split-view-active .tbs-online.src-open .tbs-src-popover { display: block; }
   /* 浮层内不再需要「值 + 下拉」那层：直接显示选项芯片 */
   .tbs-src-popover .custom-select { display: block; height: auto; }
+  /* 🛑 必须覆盖「引擎/平台选择器默认隐藏、.expanded 才显示」的旧规则：
+     那条规则是 `.tbs-online #engine-container{display:none}`（带 ID，特异性更高），
+     否则只有点过搜索框（加了 .expanded）芯片才会出现 —— 直接点「音源」会看到空浮层。 */
+  .tbs-src-popover #engine-container,
+  .tbs-src-popover #mf-plugin-container { display: block !important; flex: none; height: auto; }
   .tbs-src-popover .select-value { display: none !important; }
   .tbs-src-popover .select-options {
     position: static !important; display: flex !important; flex-wrap: wrap; gap: 6px;
@@ -4075,7 +4080,17 @@
             const origRefreshOnlineUI = window.refreshOnlineUI;
             window.refreshOnlineUI = function (...args) {
                 const result = origRefreshOnlineUI.apply(this, args);
-                try { syncWideSearchInputsFromEngine(); } catch (e) {}
+                try {
+                    syncWideSearchInputsFromEngine();
+                    // 🌟 宽屏修复：在线视图下 online.js 会把全局菜单按钮塞进 #menu-dropzone-lx / -wd，
+                    //    而这两个容器所在的 #online-toolbar-container 在宽屏是 display:none →
+                    //    菜单按钮会「消失」。这里把它收回宽屏右栏的 #menu-dropzone-row1（窄屏不受影响）。
+                    if (document.body.classList.contains('split-view-active')) {
+                        const menuWrapper = document.getElementById('global-menu-1-wrapper');
+                        const row1 = document.getElementById('menu-dropzone-row1');
+                        if (menuWrapper && row1 && menuWrapper.parentNode !== row1) row1.appendChild(menuWrapper);
+                    }
+                } catch (e) {}
                 return result;
             };
             window.__wideOnlineUIHooked = true;
