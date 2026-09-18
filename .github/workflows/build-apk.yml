@@ -38,7 +38,23 @@ jobs:
           java-version: '17'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        # ⚠️ 不再使用 android-actions/setup-android@v3：它内部会执行 `sdkmanager tools`，
+        #    而 Google 已从 SDK 仓库移除旧版 tools 包（2026-09 起报 "Failed to find package 'tools'"，
+        #    整个 APK 构建在 15 秒内直接失败）。GitHub runner 本身已预装 Android SDK，
+        #    这里只补齐本工程需要的包；即使补装失败也不阻塞，缺包时 Gradle 会自行补齐。
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID SDK: $SDK_ROOT"
+          SDKMGR="$(ls -d "$SDK_ROOT"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | tail -1)"
+          if [ -z "$SDKMGR" ]; then SDKMGR="$(command -v sdkmanager || true)"; fi
+          if [ -z "$SDKMGR" ]; then
+            echo "::warning::未找到 sdkmanager，直接使用 runner 预装的 Android SDK"
+            exit 0
+          fi
+          echo "sdkmanager: $SDKMGR"
+          yes | "$SDKMGR" --licenses >/dev/null 2>&1 || true
+          "$SDKMGR" "platform-tools" "platforms;android-35" "build-tools;35.0.0" || \
+            echo "::warning::部分 SDK 包安装失败，交给 Gradle 自行补齐"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
