@@ -231,6 +231,40 @@
   .tbs-library #search-inline-wrap .search-inline-icon { display: block; }
   .tbs-library #search-inline-wrap input { font-size: 13px; }
 
+  /* ==========================================
+     🌟 宽屏搜索合并：本地曲库 / 在线资源 共用一个输入框 + 来源开关
+     ========================================== */
+  .tbs-src-toggle { display: flex; align-items: center; gap: 2px; flex-shrink: 0; background: var(--bg-color); border: 1px solid var(--border); border-radius: 6px; padding: 2px; }
+  .tbs-src-btn { border: none; background: none; cursor: pointer; font-size: 11px; line-height: 1; color: var(--text-sub); padding: 4px 7px; border-radius: 4px; white-space: nowrap; }
+  .tbs-src-btn.active { background: var(--card-bg); color: var(--primary); font-weight: bold; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06); }
+  /* 本地模式：隐藏在线输入框与其附加控件 */
+  .tbs-online.mode-local #tbs-lx-input,
+  .tbs-online.mode-local #tbs-lx-clear,
+  .tbs-online.mode-local .tbs-icon,
+  .tbs-online.mode-local .tbs-lx-actions,
+  .tbs-online.mode-local #engine-container,
+  .tbs-online.mode-local #mf-plugin-container { display: none !important; }
+  /* 在线模式：隐藏本地输入框，常显引擎/插件选择 */
+  .tbs-online.mode-online #search-inline-wrap { display: none !important; }
+  .tbs-online.mode-online #engine-container,
+  .tbs-online.mode-online #mf-plugin-container { display: flex; align-items: center; height: 100%; flex: 0 0 auto; }
+  .tbs-online.mode-online #engine-val,
+  .tbs-online.mode-online #mf-plugin-val { font-size: 12px; padding: 0 14px 0 4px; background-position: right 2px center; background-size: 10px; border: none; box-shadow: none; }
+  /* 本地搜索框移入搜索栏后的样式（沿用原 .tbs-library 内的设定） */
+  .tbs-online #search-inline-wrap { display: flex; flex: 1; height: 100%; align-items: center; border: none; background: transparent; padding: 0; gap: 6px; min-width: 0; }
+  .tbs-online #search-inline-wrap .divider-v { display: none; }
+  .tbs-online #search-inline-wrap .search-inline-icon { display: block; }
+  .tbs-online #search-inline-wrap input { font-size: 13px; }
+  /* 宽屏横向布局：搜索栏自适应、歌单栏 30%、设备栏贴右 */
+  body.split-view-active .tbs-library,
+  body.split-view-active .tbs-library + .tbs-divider { display: none !important; }
+  body.split-view-active .tbs-online { flex: 1 1 auto; width: auto; }
+  body.split-view-active .tbs-playlist { flex: 0 0 auto; width: 30%; }
+  body.split-view-active .tbs-device { flex: 0 0 auto; width: auto; }
+  .tbs-device #device-val { font-size: 12px; padding: 0 18px 0 6px; background-position: right 2px center; background-size: 10px; border: none; box-shadow: none; }
+  /* 设备选择器搬进工具栏后，header 右侧不再需要占位 */
+  body.split-view-active .header-controls { display: none !important; }
+
   /* 左栏：引擎/平台选择器 — 默认隐藏，展开后显示 */
   .tbs-online #engine-container,
   .tbs-online #mf-plugin-container { display: none; }
@@ -1867,6 +1901,11 @@
         <!-- 左栏：在线资源搜索 -->
         <div class="tbs tbs-online" id="tbs-online">
           <div class="tbs-inner">
+            <!-- 🌟 搜索来源开关：本地曲库 / 在线资源 共用一个输入框 -->
+            <div class="tbs-src-toggle" id="tbs-src-toggle" role="group" aria-label="搜索来源">
+              <button type="button" class="tbs-src-btn" id="tbs-src-local" data-src="local">本地</button>
+              <button type="button" class="tbs-src-btn" id="tbs-src-online" data-src="online">在线</button>
+            </div>
             <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" class="tbs-icon"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
             <input type="text" class="tbs-input" id="tbs-lx-input" placeholder="在线资源搜索" autocomplete="off">
             <button class="tbs-clear" id="tbs-lx-clear" title="清除">
@@ -1888,6 +1927,11 @@
         <div class="tbs-divider"></div>
         <!-- 右栏：所有歌曲（#playlist-container 和 #menu-dropzone-row1 由 JS 移入） -->
         <div class="tbs tbs-playlist" id="tbs-playlist">
+        </div>
+        <div class="tbs-divider"></div>
+        <!-- 🌟 设备选择（#device-container 由 JS 移入；窄屏自动回 header 右侧） -->
+        <div class="tbs tbs-device" id="tbs-device">
+          <div class="tbs-inner" id="tbs-device-inner"></div>
         </div>
       </div>
     </div>
@@ -3789,7 +3833,7 @@
         }
 
         if (tbsLxInput) {
-            tbsLxInput.addEventListener('focus', tbsExpandOnline);
+            tbsLxInput.addEventListener('focus', () => { tbsExpandOnline(); setWideSearchMode('online'); });
             tbsLxInput.addEventListener('blur', (e) => {
                 // 焦点移到左栏内部（按钮/下拉）时不收起
                 if (e.relatedTarget && tbsOnline && tbsOnline.contains(e.relatedTarget)) return;
@@ -3865,6 +3909,7 @@
             };
             tbsSearchInputEl.addEventListener('focus', () => {
                 if (!document.body.classList.contains('split-view-active')) return;
+                setWideSearchMode('local');
                 tbsExpandLibrary();
                 ensureLibrarySearchMode();
             });
@@ -3887,37 +3932,76 @@
         // 在手机版和宽屏版之间移动
         // ==========================================
 
+        // 🌟 宽屏搜索来源：本地曲库 / 在线资源 合并为一个输入框。
+        //    默认跟随当前歌单（在「在线资源」里默认在线，其它默认本地）；用户手动切换后记住选择。
+        const WIDE_SEARCH_MODE_KEY = 'iwebplayer-s.wide_search_mode';
+
+        function setWideSearchMode(mode, opts) {
+            opts = opts || {};
+            const online = mode === 'online';
+            if (tbsOnline) {
+                tbsOnline.classList.toggle('mode-online', online);
+                tbsOnline.classList.toggle('mode-local', !online);
+            }
+            const btnLocal = document.getElementById('tbs-src-local');
+            const btnOnline = document.getElementById('tbs-src-online');
+            if (btnLocal) btnLocal.classList.toggle('active', !online);
+            if (btnOnline) btnOnline.classList.toggle('active', online);
+            if (opts.persist !== false) {
+                try { localStorage.setItem(WIDE_SEARCH_MODE_KEY, online ? 'online' : 'local'); } catch (e) {}
+            }
+            if (opts.focus) {
+                const target = online ? tbsLxInput : document.getElementById('search-input');
+                if (target) target.focus();
+            }
+        }
+
+        function applyWideSearchMode() {
+            let mode = '';
+            try { mode = localStorage.getItem(WIDE_SEARCH_MODE_KEY) || ''; } catch (e) {}
+            if (mode !== 'local' && mode !== 'online') {
+                mode = window.currentPlaylist === '在线资源' ? 'online' : 'local';
+            }
+            setWideSearchMode(mode, { persist: false });
+        }
+
+        const tbsSrcLocalBtn = document.getElementById('tbs-src-local');
+        const tbsSrcOnlineBtn = document.getElementById('tbs-src-online');
+        if (tbsSrcLocalBtn) tbsSrcLocalBtn.addEventListener('click', () => setWideSearchMode('local', { focus: true }));
+        if (tbsSrcOnlineBtn) tbsSrcOnlineBtn.addEventListener('click', () => setWideSearchMode('online', { focus: true }));
+
         function moveToolbarControls(isSplit) {
             const pc = document.getElementById('playlist-container');
             const mz = document.getElementById('menu-dropzone-row1');
             const sw = document.getElementById('search-inline-wrap');
             const ec = document.getElementById('engine-container');
             const mc = document.getElementById('mf-plugin-container');
+            const dc = document.getElementById('device-container');
+            const headerControls = document.querySelector('.header-controls');
+            const deviceInner = document.getElementById('tbs-device-inner');
 
-            // 中栏搜索框提示文字：宽屏改为「本地曲库搜索」，手机版恢复原样
+            // 搜索框提示文字：宽屏走本地/在线开关，手机版恢复原样
             const si = document.getElementById('search-input');
             if (si) si.placeholder = isSplit ? '本地曲库搜索' : '请输入关键字...';
             const tbsPlaylist = document.getElementById('tbs-playlist');
-            const tbsLibrary = document.getElementById('tbs-library');
             const tbsOnline = document.getElementById('tbs-online');
             const toolbarMainBox = document.querySelector('.toolbar-main-box');
-            if (!tbsPlaylist || !tbsLibrary || !tbsOnline || !toolbarMainBox) return;
+            if (!tbsPlaylist || !tbsOnline || !toolbarMainBox) return;
 
             if (isSplit) {
-                // 移入宽屏右栏
+                // 歌单下拉 + 全局菜单 → 右栏
                 if (pc && pc.parentNode !== tbsPlaylist) tbsPlaylist.appendChild(pc);
                 if (mz && mz.parentNode !== tbsPlaylist) tbsPlaylist.appendChild(mz);
-                // 移入中栏（原搜索框）
-                if (sw && sw.parentNode !== tbsLibrary) {
-                    const inner = tbsLibrary.querySelector('.tbs-inner');
-                    if (inner) inner.appendChild(sw);
-                }
-                // 移入左栏（引擎/平台选择器）
+                // 🌟 本地搜索框 + 引擎 + 插件 → 同一个搜索栏（本地/在线由开关切换显示）
                 const inner = tbsOnline.querySelector('.tbs-inner');
                 if (inner) {
+                    if (sw && sw.parentNode !== inner) inner.appendChild(sw);
                     if (ec && ec.parentNode !== inner) inner.appendChild(ec);
                     if (mc && mc.parentNode !== inner) inner.appendChild(mc);
                 }
+                // 🌟 设备选择器 → 工具栏最右，不再单独占 header 一行
+                if (dc && deviceInner && dc.parentNode !== deviceInner) deviceInner.appendChild(dc);
+                applyWideSearchMode();
             } else {
                 // 移回手机版工具栏
                 const mfRow = document.getElementById('mf-plugin-row');
@@ -3946,6 +4030,9 @@
                         else mfRow.appendChild(mc);
                     }
                 }
+                // 🌟 设备选择器回 header 右侧；清除宽屏搜索模式类
+                if (dc && headerControls && dc.parentNode !== headerControls) headerControls.appendChild(dc);
+                if (tbsOnline) tbsOnline.classList.remove('mode-local', 'mode-online');
             }
         }
 
