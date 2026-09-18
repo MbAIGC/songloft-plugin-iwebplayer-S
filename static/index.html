@@ -225,8 +225,17 @@
   .tbs-divider { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
   .tbs-divider-v { width: 1px; height: 14px; background: var(--border); flex-shrink: 0; margin: 0 4px; }
   .tbs-lx-actions { display: flex; align-items: center; gap: 0; flex-shrink: 0; }
-  /* ① 三个按钮统一盒模型，避免「音源 ▾」与「搜歌 / 搜单」文字不在同一水平线 */
-  .tbs-lx-actions .tbs-lx-btn { display: inline-flex; align-items: center; justify-content: center; height: 22px; padding: 0 6px; line-height: 1; }
+  /* ① 三个按钮统一为小胶囊按钮样式（搜索按钮风格），与「本地 / 在线」开关同一套视觉；
+        统一盒模型也解决了「音源 ▾」与「搜歌 / 搜单」文字不在同一水平线的问题 */
+  .tbs-lx-actions .tbs-lx-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+    height: 22px; padding: 0 8px; line-height: 1;
+    border: 1px solid var(--border); background: var(--bg-color); border-radius: 999px;
+    color: var(--text-main);
+  }
+  .tbs-lx-actions .tbs-lx-btn:hover { background: var(--hover-bg); border-color: var(--primary); }
+  .tbs-lx-actions .tbs-lx-btn:active { opacity: 0.72; }
+  .tbs-btn-ico { flex: 0 0 auto; }
   /* 🌟 两套标签：宽屏显示「搜歌 / 搜单 / 音源 ▾」，半宽屏（见下方 @media）只显示「歌 / 单 / 源 ▾」 */
   .tbs-lx-btn .lbl-short { display: none; }
   .tbs-lx-btn { border: none; background: none; cursor: pointer; font-size: 12px; color: var(--text-main); padding: 2px 6px; white-space: nowrap; border-radius: 4px; }
@@ -1993,9 +2002,9 @@
               <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
             <div class="tbs-lx-actions" id="tbs-lx-actions">
-              <button class="tbs-lx-btn" id="tbs-lx-search-btn" title="搜索歌曲"><span class="lbl-long">搜歌</span><span class="lbl-short">歌</span></button>
+              <button class="tbs-lx-btn" id="tbs-lx-search-btn" title="搜索歌曲"><svg class="tbs-btn-ico" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="6.4"></circle><line x1="19.6" y1="19.6" x2="14.9" y2="14.9"></line></svg><span class="lbl-long">搜歌</span><span class="lbl-short">歌</span></button>
               <div class="tbs-divider-v"></div>
-              <button class="tbs-lx-btn" id="tbs-lx-playlist-btn" title="搜索歌单"><span class="lbl-long">搜单</span><span class="lbl-short">单</span></button>
+              <button class="tbs-lx-btn" id="tbs-lx-playlist-btn" title="搜索歌单"><svg class="tbs-btn-ico" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="6.4"></circle><line x1="19.6" y1="19.6" x2="14.9" y2="14.9"></line><line x1="7.2" y1="8.3" x2="12.8" y2="8.3"></line><line x1="7.2" y1="11.6" x2="11" y2="11.6"></line></svg><span class="lbl-long">搜单</span><span class="lbl-short">单</span></button>
               <div class="tbs-divider-v"></div>
               <!-- 🌟 音源/平台选择改为浮层按需展开，不再常驻占宽 -->
               <button class="tbs-lx-btn" id="tbs-engine-btn" title="选择音源 / 平台"><span class="lbl-long">音源 ▾</span><span class="lbl-short">源 ▾</span></button>

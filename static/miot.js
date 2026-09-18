@@ -396,9 +396,15 @@
         // 🌟 新增：将前端的虚拟列表，动态打包注入到专属推送歌单中！
         syncListToPushPlaylist: async function(currentList) {
             try {
+                // 🌟 推送歌单名：v1.3.5 起简化为 iWP-S推送；旧名（iWebPlayer-S推送）仍会被识别，
+                //    这样升级后能直接复用/清理旧歌单，不会在音箱上留下一个孤儿歌单。
+                const PUSH_PLAYLIST_NAME = 'iWP-S推送';
+                const LEGACY_PUSH_PLAYLIST_NAMES = ['iWebPlayer-S推送'];
+                const isPushPlaylist = (pl) => !!pl
+                    && (pl.name === PUSH_PLAYLIST_NAME || LEGACY_PUSH_PLAYLIST_NAMES.indexOf(pl.name) !== -1);
                 const currentSignature = getPushPlaylistSignature(currentList);
                 const knownPushPlaylist = Array.isArray(window.playlistMeta)
-                    ? window.playlistMeta.find(p => p && p.name === 'iWebPlayer-S推送')
+                    ? window.playlistMeta.find(isPushPlaylist)
                     : null;
                 const cachedPlaylistStillExists = !Array.isArray(window.playlistMeta)
                     || Boolean(knownPushPlaylist && knownPushPlaylist.id === this._pushPlaylistId);
@@ -409,7 +415,7 @@
                 }
 
                 // 1. 只在虚拟列表内容变化或服务端歌单失效时重建推送歌单
-                let pushPl = window.playlistMeta ? window.playlistMeta.find(p => p.name === 'iWebPlayer-S推送') : null;
+                let pushPl = window.playlistMeta ? window.playlistMeta.find(isPushPlaylist) : null;
                 if (!pushPl && this._pushPlaylistId) this._pushPlaylistId = null;
                 if (pushPl) {
                     await fetch(`/api/v1/playlists/${pushPl.id}`, { method: 'DELETE' });
@@ -418,7 +424,7 @@
                 // 2. 瞬间重生一个新的同名歌单，拿到它热乎的 playlist_id
                 const createRes = await fetch('/api/v1/playlists', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: 'iWebPlayer-S推送', type: 'normal' })
+                    body: JSON.stringify({ name: PUSH_PLAYLIST_NAME, type: 'normal' })
                 });
                 const newData = await createRes.json();
                 const plId = newData.id;
