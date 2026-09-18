@@ -314,13 +314,20 @@
   .tbs-device #device-val { display: flex; align-items: center; height: 100%; line-height: normal; background-color: transparent; border: none; font-size: 13px; padding: 0 20px 0 8px; background-position: right 6px center; background-size: 12px; color: var(--text-main); }
   /* 设备选择器搬进工具栏后，header 右侧不再需要占位 */
   body.split-view-active .header-controls { display: none !important; }
-  /* 🌟 工具栏与 header 同行（即原来「本机/小爱音箱」那一行）：仅在窗口足够宽时启用，
-     由 JS 按宽度给 body 加 .wide-toolbar-inline；窄于阈值自动回退成两行，避免拥挤与遮挡。 */
-  body.wide-toolbar-inline .header-left-group { flex: 0 0 50%; min-width: 0; }
-  body.wide-toolbar-inline .header > #toolbar-split { flex: 1 1 auto; min-width: 0; margin-left: 12px; }
-  body.wide-toolbar-inline:not(.player-open) #playlist-row { display: none !important; }
-  /* 同行时右栏列表只需让开导航栏；两行时仍要加上工具栏那一行 */
-  body.wide-toolbar-inline.split-view-active:not(.player-open) { --split-list-top: 58px; }
+  /* 🌟 工具栏始终并入 header 行（即原来「本机/小爱音箱」那一行），任何宽度下都不再退回第二行：
+     header 左半（品牌/设置）固定 50%，工具栏只占右半栏、绝不越过中界线；
+     窗口变窄时由搜索框自行收窄（半宽屏另见下方 @media 的紧凑规则），#playlist-row 整体隐藏。 */
+  body.split-view-active .header-left-group { flex: 0 0 50%; min-width: 0; }
+  body.split-view-active .header > #toolbar-split { flex: 1 1 auto; min-width: 0; margin-left: 12px; }
+  body.split-view-active #playlist-row { display: none !important; }
+  /* 🌟 半宽屏（仍在分栏内）紧凑规则：优先保证搜索框有可用宽度 */
+  @media (max-width: 1099px) {
+    body.split-view-active .tbs-playlist { min-width: 96px; max-width: 180px; }
+    body.split-view-active .tbs-lx-actions .tbs-lx-btn { padding: 0 4px; }
+    body.split-view-active .tbs-src-toggle { padding: 1px; }
+    body.split-view-active .tbs-src-btn { padding: 3px 5px; }
+    body.split-view-active .tbs-device #device-val { max-width: 84px; }
+  }
 
   /* 左栏：引擎/平台选择器 — 默认隐藏，展开后显示 */
   .tbs-online #engine-container,
@@ -1622,9 +1629,9 @@
     /* Compact the split-home control strip so it leaves more vertical room for lyrics. */
     body.split-view-active:not(.player-open) {
       --player-height: 118px;
-      /* 宽屏右栏列表顶部偏移：顶部导航 56px + 宽屏工具栏（约 59px）。
-         若工具栏与 header 同行（body.wide-toolbar-inline），会由上面的规则覆盖成 58px。 */
-      --split-list-top: 115px;
+      /* 宽屏右栏列表顶部偏移：工具栏已并入 header 行，只剩顶部导航 56px（+2px 余量）。
+         工具栏行高变化或与 header 分离时同步改这里。 */
+      --split-list-top: 58px;
     }
     body.split-view-active:not(.player-open) .progress-container {
       top: -14px;
@@ -4011,13 +4018,7 @@
         // 🌟 宽屏搜索来源：本地曲库 / 在线资源 合并为一个输入框。
         //    默认跟随当前歌单（在「在线资源」里默认在线，其它默认本地）；用户手动切换后记住选择。
         const WIDE_SEARCH_MODE_KEY = 'iwebplayer-s.wide_search_mode';
-        // 🌟 工具栏与 header 同行的两个条件（缺一即回退成两行）：
-        //    ① 窗口足够宽（半宽屏/笔记本一律两行，避免一行塞不下导致拥挤与遮挡）；
-        //    ② 同行后搜索框实测仍要有可用宽度（防止"塞得下但很挤"）。
-        const WIDE_TOOLBAR_INLINE_MIN = 1440;
-        const WIDE_TOOLBAR_SEARCH_MIN = 160;
         let tbsSplitHome = null; // 宽屏工具栏的原始位置（窄屏时还原）
-        let wideInlineBlockedAt = 0; // 实测太挤而回退时记下窗口宽度，同一宽度不再反复试排
 
         function setWideSearchMode(mode, opts) {
             opts = opts || {};
@@ -4176,11 +4177,6 @@
             const deviceInner = document.getElementById('tbs-device-inner');
             const tbsSplit = document.getElementById('toolbar-split');
 
-            // 工具栏是否与 header 同行：先按下限粗判，后面再实测搜索框宽度二次确认
-            let inlineRow = isSplit
-                && window.innerWidth >= WIDE_TOOLBAR_INLINE_MIN
-                && window.innerWidth !== wideInlineBlockedAt;
-            document.body.classList.toggle('wide-toolbar-inline', inlineRow);
 
             // 搜索框提示文字：宽屏走本地/在线开关，手机版恢复原样
             const si = document.getElementById('search-input');
@@ -4205,39 +4201,18 @@
                 }
                 // 🌟 设备选择器 → 工具栏最右，不再单独占 header 一行
                 if (dc && deviceInner && dc.parentNode !== deviceInner) deviceInner.appendChild(dc);
-                // 🌟 窗口够宽时：整个工具栏搬进 header 行（即原来「本机/小爱音箱」那一行），
-                //    第二行 #playlist-row 由 body.wide-toolbar-inline 的 CSS 隐藏；
-                //    不够宽时保持原来的两行布局（工具栏在 #playlist-row 里），避免一行挤爆。
+                // 🌟 整个工具栏搬进 header 行（即原来「本机/小爱音箱」那一行）。
+                //    这是唯一的目标位置：不论窗口多窄（只要还在分栏里）都不回退第二行，
+                //    宽度不足时由搜索框收窄 + 半宽屏紧凑 CSS 承担；#playlist-row 由 CSS 整体隐藏。
                 if (tbsSplit) {
                     if (!tbsSplitHome) tbsSplitHome = { parent: tbsSplit.parentNode, next: tbsSplit.nextSibling };
                     const headerEl = document.querySelector('.header');
                     const headerLeft = document.querySelector('.header > .header-left-group');
-                    if (inlineRow) {
-                        if (headerEl && tbsSplit.parentNode !== headerEl) {
-                            headerEl.insertBefore(tbsSplit, headerLeft ? headerLeft.nextSibling : null);
-                        }
-                    } else if (tbsSplitHome && tbsSplit.parentNode !== tbsSplitHome.parent) {
-                        try { tbsSplitHome.parent.insertBefore(tbsSplit, tbsSplitHome.next || null); }
-                        catch (e) { tbsSplitHome.parent.appendChild(tbsSplit); }
+                    if (headerEl && tbsSplit.parentNode !== headerEl) {
+                        headerEl.insertBefore(tbsSplit, headerLeft ? headerLeft.nextSibling : null);
                     }
                 }
                 applyWideSearchMode();
-
-                // 🌟 实测二次确认：同行后搜索框若被压得太窄，就退回两行（消除"半宽屏仍挤在一行"）
-                if (inlineRow && tbsSplit) {
-                    const onlineMode = tbsOnline.classList.contains('mode-online');
-                    const probe = document.getElementById(onlineMode ? 'tbs-lx-input' : 'search-input');
-                    const probeWidth = probe ? probe.getBoundingClientRect().width : 0;
-                    if (probeWidth < WIDE_TOOLBAR_SEARCH_MIN) {
-                        inlineRow = false;
-                        wideInlineBlockedAt = window.innerWidth; // 该宽度固定走两行，避免反复试排
-                        document.body.classList.remove('wide-toolbar-inline');
-                        if (tbsSplitHome && tbsSplit.parentNode !== tbsSplitHome.parent) {
-                            try { tbsSplitHome.parent.insertBefore(tbsSplit, tbsSplitHome.next || null); }
-                            catch (e) { tbsSplitHome.parent.appendChild(tbsSplit); }
-                        }
-                    }
-                }
             } else {
                 // 移回手机版工具栏
                 const mfRow = document.getElementById('mf-plugin-row');
@@ -4286,14 +4261,6 @@
             moveToolbarControls(document.body.classList.contains('split-view-active'));
         });
 
-        // 🌟 窗口宽度跨过阈值时，在同号/两行两种布局间切换
-        let toolbarResizeTimer = null;
-        window.addEventListener('resize', () => {
-            if (toolbarResizeTimer) clearTimeout(toolbarResizeTimer);
-            toolbarResizeTimer = setTimeout(() => {
-                moveToolbarControls(document.body.classList.contains('split-view-active'));
-            }, 150);
-        });
         splitObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
         // 同步保存的关键词到搜索框（移动后 handle 由原 search-input 事件自动处理）
