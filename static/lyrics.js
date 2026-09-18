@@ -1161,8 +1161,11 @@ window.LyricsEngine = (function() {
                 resumeTimer = null;
                 manualScrolling = false;
 
-                // 手动滚动结束后立即重新同步一次，
-                // 避免等待下一帧造成视觉跳动。
+                // 🌟 跟进上游 v1.3.3：1 秒后把当前行强行拉回正中
+                //（原先要等 2 秒，且暂停状态下不会回中）
+                scrollToCurrent();
+
+                // 播放中再补一次同步，刷新高亮行
                 if (
                     audioEl &&
                     !audioEl.paused
@@ -1170,7 +1173,7 @@ window.LyricsEngine = (function() {
                     sync(audioEl.currentTime);
                 }
 
-            }, 2000);
+            }, 1000);
         }
 
         wrapperEl.addEventListener(
@@ -1208,13 +1211,41 @@ window.LyricsEngine = (function() {
     }
 
     // ------------------------------------------------------------
+    // 🌟 跟进上游 v1.3.3：强制把当前歌词行拉回垂直居中
+    // 拖动歌词、展开/切换播放页后，歌词区高度可能已经变化，
+    // 必须按最新高度重算偏移，否则当前行会停在偏上/偏下的位置。
+    // ------------------------------------------------------------
+    function scrollToCurrent() {
+        if (lastActiveIndex === -1 || !wrapperEl || !containerEl) {
+            return;
+        }
+
+        const currentLine =
+            lineElements[lastActiveIndex] ||
+            document.getElementById(`lyric-${lastActiveIndex}`);
+
+        if (!currentLine) {
+            return;
+        }
+
+        const offset =
+            currentLine.offsetTop -
+            (wrapperEl.offsetHeight / 2) +
+            (currentLine.offsetHeight / 2);
+
+        containerEl.style.transform =
+            `translateY(-${Math.max(0, offset)}px)`;
+    }
+
+    // ------------------------------------------------------------
     // API
     // ------------------------------------------------------------
 
     return {
         init,
         parse,
-        sync
+        sync,
+        scrollToCurrent
     };
 
 })();

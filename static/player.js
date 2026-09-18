@@ -141,10 +141,7 @@
             if (miniCover) miniCover.style.display = 'block';
         }
 
-        let favSvg = '';
-        if (checkFav && window.favoriteList && window.favoriteList.includes(text)) {
-            favSvg = `<svg style="flex-shrink: 0; margin-left: 4px;" viewBox="0 0 24 24" width="18" height="18" fill="var(--primary)" color="var(--primary)"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>`;
-        }
+        // 🌟 跟进上游 v1.3.3：移除标题里的红心标识（底栏已有收藏按钮，保持标题区纯净）
 
         let extHtml = '';
         let extension = '';
@@ -204,7 +201,7 @@
           <div class="np-marquee-container" style="display: flex; align-items: center; white-space: nowrap;">
             <span class="np-title-text">${window.escapeHtml(text)}</span>
             <div class="np-title-extra" style="display: flex; align-items: center; flex-shrink: 0;">
-              ${extHtml}${favSvg}
+              ${extHtml}
             </div>
           </div>
         `;
@@ -283,6 +280,7 @@
         if (!fullPlayer) return;
         const isOpen = forceState !== undefined ? forceState : !fullPlayer.classList.contains('open');
         if (isOpen) {
+            fullPlayer.style.transform = ''; // 清掉拖拽遗留的内联位移，交回 CSS 动画
             window.syncDesktopTrackInfo();
             fullPlayer.classList.add('open');
             document.body.classList.add('player-open');
@@ -290,8 +288,13 @@
             const audioEl = $('audio');
             if (audioEl && window.LyricsEngine) window.LyricsEngine.sync(audioEl.currentTime || 0);
             if (window.isIOS || window.innerWidth < 600) document.body.style.overflow = 'hidden';
+            // 🌟 跟进上游 v1.3.3：布局稳定后让歌词强行回中（宽屏切换 32/68 播放页时高度会变）
+            if (window.LyricsEngine && typeof window.LyricsEngine.scrollToCurrent === 'function') {
+                setTimeout(() => window.LyricsEngine.scrollToCurrent(), 50);
+            }
         } else {
             fullPlayer.classList.remove('open');
+            fullPlayer.style.transform = ''; // 清掉拖拽遗留的内联位移
             document.body.classList.remove('player-open');
             placeCornerToolsInActiveSurface();
             document.body.style.overflow = '';
@@ -355,19 +358,31 @@
         }
         if (!plId) { window.showToast("❌ 找不到收藏歌单"); return; }
 
-        window.showToast("⏳ 正在同步...");
         try {
+            // 🌟 跟进上游 v1.3.3：收藏只在内存里同步，不再触发全库 reloadGlobalData()
+            //    （宽屏分栏下右栏列表不会再整体重绘/闪动，也省掉一轮 meta_bulk + 分片请求）
             if (isFav) {
                 await fetch(`/api/v1/playlists/${plId}/songs/${rawSong.id}`, { method: 'DELETE' });
+                if (Array.isArray(window.favoriteList)) {
+                    window.favoriteList = window.favoriteList.filter(name => name !== songName);
+                }
+                if (window.allPlaylists && Array.isArray(window.allPlaylists['收藏'])) {
+                    window.allPlaylists['收藏'] = window.allPlaylists['收藏'].filter(item => window.getSongNameObj(item) !== songName);
+                }
             } else {
                 await fetch(`/api/v1/playlists/${plId}/songs`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ song_ids: [rawSong.id] })
                 });
+                if (Array.isArray(window.favoriteList) && !window.favoriteList.includes(songName)) {
+                    window.favoriteList.push(songName);
+                }
+                if (window.allPlaylists && Array.isArray(window.allPlaylists['收藏'])
+                    && !window.allPlaylists['收藏'].some(item => window.getSongNameObj(item) === songName)) {
+                    window.allPlaylists['收藏'].push(rawSong);
+                }
             }
 
-            if (window.reloadGlobalData) await window.reloadGlobalData();
-
-            const currentlyFav = window.favoriteList.includes(songName);
+            const currentlyFav = !isFav;
             const favIcon = $(`fav-${index}`);
             if (favIcon) favIcon.style.display = currentlyFav ? 'block' : 'none';
 
@@ -375,7 +390,7 @@
             else window.showToast(`💔 已取消收藏: ${songName}`);
 
             if (songName === window.currentSongName) {
-                window.updateNpTitleUI(window.currentSongName);
+                window.updateNpTitleUI(window.currentSongName, false);
                 const coverSrc = $('fp-cover') ? $('fp-cover').src : window.defaultCover;
                 if(window.updateMediaSession) window.updateMediaSession(window.currentSongName, coverSrc, window.favoriteList, window.APP_LOGO);
 
