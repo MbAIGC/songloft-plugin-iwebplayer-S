@@ -43,3 +43,26 @@
 - `npm test`（vitest）50 项全通过、`npx tsc --noEmit` 无错误、`npm run build` 构建成功；
 - `index.html` 内联脚本语法 + CSS 花括号配平、`lyrics.js` / `player.js` 语法检查通过；
 - CRLF / 混合行尾文件（`player.js`）全部使用字节级替换，`git -c core.whitespace=cr-at-eol diff --check` 通过，无换行污染。
+
+## 附：本次顺带修复的 CI 环境回归（APK 构建）
+
+推送后 **插件工作流成功，APK 工作流 15 秒失败**，失败点是 `Setup Android SDK`：
+
+```text
+[command] .../cmdline-tools/16.0/bin/sdkmanager tools
+Warning: Failed to find package 'tools'
+Error: The process 'sdkmanager' failed with exit code 1
+```
+
+原因是 `android-actions/setup-android@v3` 内部会安装旧版 `tools` 包，而 Google 已从 SDK 仓库移除该包；重跑同样失败（非瞬时问题），与本项目代码无关。
+
+**修复**：两个 APK 工作流（`build-apk-dev.yml`、`build-apk.yml`）都不再使用该 action，改为直接使用 runner 预装的 Android SDK，并容错补齐本工程所需包：
+
+```yaml
+SDKMGR="$(ls -d "$SDK_ROOT"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | tail -1)"
+yes | "$SDKMGR" --licenses >/dev/null 2>&1 || true
+"$SDKMGR" "platform-tools" "platforms;android-35" "build-tools;35.0.0" || \
+  echo "::warning::部分 SDK 包安装失败，交给 Gradle 自行补齐"
+```
+
+修复后 APK 工作流成功（1m33s），`dev-1.3.5` 预发行版同时包含 APK 与插件 zip。
