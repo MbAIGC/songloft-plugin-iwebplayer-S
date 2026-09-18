@@ -208,6 +208,11 @@
   .tbs-playlist { width: var(--tbs-pl-w, 32%); display: flex; align-items: center; gap: 2px; overflow: visible; position: relative; }
   .tbs-playlist #playlist-container { flex: 1; position: static; min-width: 0; overflow: visible; }
   .tbs-playlist #playlist-val { padding: 0 24px 0 8px; font-size: 13px; background-position: right 4px center; background-size: 12px; }
+  /* 🌟 歌单名优先：名字保留最小宽度（约 4.5 个字），空间不足时先裁掉 (数量) 而不是把名字截成「所有歌…」。
+     formatPlaylistText 里数量是 inline 的 flex-shrink:0，必须用 !important 才能覆盖。
+     结构固定为：span1=图标、span2=名字、span3=(数量)、可选的 tags。 */
+  #playlist-val > div > span:nth-child(2) { min-width: 4.5em !important; }
+  #playlist-val > div > span:nth-child(3) { flex-shrink: 1 !important; min-width: 0 !important; overflow: hidden !important; white-space: nowrap !important; }
   .tbs-playlist #menu-dropzone-row1 { display: flex; height: 100%; flex: 0 0 auto; }
   .tbs-playlist #menu-dropzone-row1 .divider-v { display: none; }
   .tbs-playlist #global-menu-1-opts { z-index: 310; }
