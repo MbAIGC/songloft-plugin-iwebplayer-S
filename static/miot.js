@@ -47,6 +47,19 @@
         init: async function() {
             await this.loadDevices();
 
+            // 🌟 推送歌单旧名迁移：歌单元数据由 reloadGlobalData 拉取，这里挂一层，
+            //    每次刷新后都尝试改名（幂等、只在发现旧名时才发请求），升级后无需再推送一次即可生效。
+            const self = this;
+            if (!window.__miotPushRenameHooked && typeof window.reloadGlobalData === 'function') {
+                const origReloadGlobalData = window.reloadGlobalData;
+                window.reloadGlobalData = async function (...args) {
+                    const result = await origReloadGlobalData.apply(this, args);
+                    try { await self.migrateLegacyPushPlaylist(); } catch (e) {}
+                    return result;
+                };
+                window.__miotPushRenameHooked = true;
+            }
+
             // 🌟 新增：读取偏好设置，决定默认启动设备
             const prefs = typeof window.getPreferences === 'function' ? window.getPreferences() : {};
             const defDevSetting = prefs.defaultDevice || 'last';
@@ -393,15 +406,57 @@
             }
         },
 
+        // 🌟 推送歌单命名：v1.3.5 起为 iWP-S推送；旧名 iWebPlayer-S推送 会自动改名迁移
+        PUSH_PLAYLIST_NAME: 'iWP-S推送',
+        LEGACY_PUSH_PLAYLIST_NAMES: ['iWebPlayer-S推送'],
+
+        // 🌟 旧推送歌单自动改名：宿主支持 PUT /api/v1/playlists/{id} { name }
+        //    （App 的「重命名歌单」用的就是它），因此直接改名即可 —— 不删歌单、不打断音箱当前播放。
+        migrateLegacyPushPlaylist: async function() {
+            try {
+                const meta = Array.isArray(window.playlistMeta) ? window.playlistMeta : null;
+                if (!meta || meta.length === 0) return false;
+                const legacy = meta.filter(p => p && this.LEGACY_PUSH_PLAYLIST_NAMES.indexOf(p.name) !== -1);
+                if (legacy.length === 0) return false;
+                const hasNew = meta.some(p => p && p.name === this.PUSH_PLAYLIST_NAME);
+                if (hasNew) return false; // 已有新名歌单：旧名留给下次推送清理，避免重名冲突
+                const target = legacy[0];
+                const res = await fetch(`/api/v1/playlists/${target.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: this.PUSH_PLAYLIST_NAME })
+                });
+                if (res.ok) {
+                    // 🌟 改名成功后同步内存：歌单键名、元数据、当前歌单，并重绘下拉，
+                    //    否则界面仍会显示旧名（要等下一次整库刷新才变）。
+                    const oldName = target.name;
+                    target.name = this.PUSH_PLAYLIST_NAME;
+                    if (window.allPlaylists && window.allPlaylists[oldName] !== undefined) {
+                        window.allPlaylists[this.PUSH_PLAYLIST_NAME] = window.allPlaylists[oldName];
+                        delete window.allPlaylists[oldName];
+                    }
+                    if (window.currentPlaylist === oldName) window.currentPlaylist = this.PUSH_PLAYLIST_NAME;
+                    if (typeof window.initPlaylistDropdown === 'function') window.initPlaylistDropdown();
+                    console.log('[MIoT] 推送歌单已改名:', oldName, '→', this.PUSH_PLAYLIST_NAME);
+                    return true;
+                }
+                console.warn('[MIoT] 推送歌单改名失败:', res.status);
+            } catch (e) {
+                console.warn('[MIoT] 推送歌单改名异常:', e);
+            }
+            return false;
+        },
+
         // 🌟 新增：将前端的虚拟列表，动态打包注入到专属推送歌单中！
         syncListToPushPlaylist: async function(currentList) {
             try {
-                // 🌟 推送歌单名：v1.3.5 起简化为 iWP-S推送；旧名（iWebPlayer-S推送）仍会被识别，
-                //    这样升级后能直接复用/清理旧歌单，不会在音箱上留下一个孤儿歌单。
-                const PUSH_PLAYLIST_NAME = 'iWP-S推送';
-                const LEGACY_PUSH_PLAYLIST_NAMES = ['iWebPlayer-S推送'];
+                const PUSH_PLAYLIST_NAME = this.PUSH_PLAYLIST_NAME;
+                const LEGACY_PUSH_PLAYLIST_NAMES = this.LEGACY_PUSH_PLAYLIST_NAMES;
                 const isPushPlaylist = (pl) => !!pl
                     && (pl.name === PUSH_PLAYLIST_NAME || LEGACY_PUSH_PLAYLIST_NAMES.indexOf(pl.name) !== -1);
+
+                // 🌟 0. 先做旧名迁移：直接改名（宿主支持），而不是等重建时删了再建
+                await this.migrateLegacyPushPlaylist();
                 const currentSignature = getPushPlaylistSignature(currentList);
                 const knownPushPlaylist = Array.isArray(window.playlistMeta)
                     ? window.playlistMeta.find(isPushPlaylist)
@@ -418,7 +473,12 @@
                 let pushPl = window.playlistMeta ? window.playlistMeta.find(isPushPlaylist) : null;
                 if (!pushPl && this._pushPlaylistId) this._pushPlaylistId = null;
                 if (pushPl) {
-                    await fetch(`/api/v1/playlists/${pushPl.id}`, { method: 'DELETE' });
+                    // 新旧名可能同时存在（历史遗留），一并清理，保证音箱上只有一个推送歌单
+                    const allPush = window.playlistMeta.filter(isPushPlaylist);
+                    for (const pl of allPush) {
+                        const delRes = await fetch(`/api/v1/playlists/${pl.id}`, { method: 'DELETE' });
+                        if (!delRes.ok) console.warn('[MIoT] 旧推送歌单删除失败:', pl.name, delRes.status);
+                    }
                 }
 
                 // 2. 瞬间重生一个新的同名歌单，拿到它热乎的 playlist_id
