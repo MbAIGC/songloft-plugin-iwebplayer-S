@@ -225,9 +225,16 @@
   .tbs-divider { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
   .tbs-divider-v { width: 1px; height: 14px; background: var(--border); flex-shrink: 0; margin: 0 4px; }
   .tbs-lx-actions { display: flex; align-items: center; gap: 0; flex-shrink: 0; }
-  /* ① 三个按钮保持最简的纯文字按钮（不加图标、不加边框，宽度全留给搜索框），
-        只统一盒模型，解决「音源 ▾」与「搜歌 / 搜单」文字不在同一水平线的问题 */
-  .tbs-lx-actions .tbs-lx-btn { display: inline-flex; align-items: center; justify-content: center; height: 22px; padding: 0 6px; line-height: 1; }
+  /* ① 三个按钮采用「文字 + 底色」：无图标、无边框，宽度几乎不变，但一眼能看出是可点的按钮。
+        底色调与「本地 / 在线」开关的容器同源（--bg-color），hover 用 --hover-bg；
+        统一盒模型同时解决「音源 ▾」与「搜歌 / 搜单」文字不在同一水平线的问题。 */
+  .tbs-lx-actions .tbs-lx-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    height: 22px; padding: 0 7px; line-height: 1;
+    border: none; border-radius: 6px; background: var(--bg-color); color: var(--text-main);
+  }
+  .tbs-lx-actions .tbs-lx-btn:hover { background: var(--hover-bg); }
+  .tbs-lx-actions .tbs-lx-btn:active { opacity: 0.72; }
   /* 🌟 两套标签：宽屏显示「搜歌 / 搜单 / 音源 ▾」，半宽屏（见下方 @media）只显示「歌 / 单 / 源 ▾」 */
   .tbs-lx-btn .lbl-short { display: none; }
   .tbs-lx-btn { border: none; background: none; cursor: pointer; font-size: 12px; color: var(--text-main); padding: 2px 6px; white-space: nowrap; border-radius: 4px; }
@@ -332,7 +339,7 @@
   /* 🌟 半宽屏（仍在分栏内）紧凑规则：优先保证搜索框有可用宽度 */
   @media (max-width: 1099px) {
     body.split-view-active .tbs-playlist { min-width: 96px; max-width: 180px; }
-    body.split-view-active .tbs-lx-actions .tbs-lx-btn { padding: 0 4px; }
+    body.split-view-active .tbs-lx-actions .tbs-lx-btn { padding: 0 5px; }
     /* 🌟 半宽屏标签精简：只在「还没点搜索框」时用「歌 / 单 / 源 ▾」；
        点开搜索框后歌单栏已让位、空间充足，自动恢复「搜歌 / 搜单 / 音源 ▾」
        （基础状态就是完整文字，所以这里只写"未聚焦时"的覆盖规则即可） */
