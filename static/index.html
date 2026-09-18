@@ -275,7 +275,9 @@
     color: var(--primary); border-color: var(--primary); font-weight: bold;
     background: color-mix(in srgb, var(--primary) 12%, transparent);
   }
-  .tbs-src-sep { height: 1px; background: var(--border); margin: 8px 0; }
+  /* 两行芯片之间留出垂直距离（原来贴太近） */
+  .tbs-src-group > * + * { margin-top: 10px; }
+  .tbs-src-sep { height: 1px; background: var(--border); margin: 12px 0 10px; }
   .tbs-src-wd { display: flex; align-items: center; gap: 6px; }
   .tbs-src-wd input { flex: 1; border: none; outline: none; background: transparent; font-size: 13px; color: var(--text-main); min-width: 0; }
   .tbs-src-wd input::placeholder { color: var(--text-sub); }
@@ -4045,10 +4047,39 @@
             const isDav = window.PluginManager && window.PluginManager.currentEngineName === 'WebDAV';
             tbsLxInput.placeholder = isDav ? 'WebDAV 资源搜索' : 'LX-Music 在线资源搜索';
         }
-        // 引擎切换后刷新提示词（引擎芯片的点击由 online.js 的委托处理负责，这里只做收尾）
-        document.addEventListener('click', (e) => {
-            if (e.target.closest('#engine-opts .select-option')) setTimeout(updateWideOnlinePlaceholder, 0);
-        });
+
+        // 🌟 引擎切换时 online.js 会把关键词写回各自的原生输入框（#lx-search-input / #wd-search-input），
+        //    但工具栏用的是代理输入框，必须跟着同步，否则会出现「切了引擎但搜索框还是旧词/空词」的 bug。
+        function syncWideSearchInputsFromEngine() {
+            const isDav = !!(window.PluginManager && window.PluginManager.currentEngineName === 'WebDAV');
+            const lx = document.getElementById('lx-search-input');
+            const wd = document.getElementById('wd-search-input');
+            const src = isDav ? wd : lx;
+            // 现查元素，避免依赖后续才声明的变量（TDZ）
+            const tbsLx = document.getElementById('tbs-lx-input');
+            const tbsWd = document.getElementById('tbs-wd-input');
+            if (tbsLx && src) {
+                const v = src.value || '';
+                if (tbsLx.value !== v) tbsLx.value = v;
+            }
+            if (tbsWd && wd) {
+                const v = wd.value || '';
+                if (tbsWd.value !== v) tbsWd.value = v;
+            }
+            updateWideOnlinePlaceholder();
+        }
+
+        // 🌟 online.js 在任何引擎 / 视图切换后都会调用 refreshOnlineUI()，
+        //    这里做一层包装，保证工具栏的搜索框内容与提示词始终跟着引擎走（最稳的挂钩点）。
+        if (typeof window.refreshOnlineUI === 'function' && !window.__wideOnlineUIHooked) {
+            const origRefreshOnlineUI = window.refreshOnlineUI;
+            window.refreshOnlineUI = function (...args) {
+                const result = origRefreshOnlineUI.apply(this, args);
+                try { syncWideSearchInputsFromEngine(); } catch (e) {}
+                return result;
+            };
+            window.__wideOnlineUIHooked = true;
+        }
 
         // 🌟 浮层里的 WebDAV 搜索：代理到原有 #wd-search-input（复用其「输入即搜」逻辑）
         const tbsWdInput = document.getElementById('tbs-wd-input');
@@ -4080,14 +4111,30 @@
 
         // 🌟 音源 / 平台浮层：默认收起，点「音源 ▾」才展开（避免常驻占宽挤压歌单栏）
         const tbsEngineBtn = document.getElementById('tbs-engine-btn');
+        // 🌟 自愈：确保引擎 / 平台（服务器）两个选择器确实待在浮层里（防止被其它搬移逻辑挪走）
+        function ensureSourcePopoverContent() {
+            const group = document.getElementById('tbs-src-group-engine');
+            if (!group) return;
+            if (!document.body.classList.contains('split-view-active')) return;
+            const ec2 = document.getElementById('engine-container');
+            const mc2 = document.getElementById('mf-plugin-container');
+            if (ec2 && ec2.parentNode !== group) group.appendChild(ec2);
+            if (mc2 && mc2.parentNode !== group) group.appendChild(mc2);
+        }
         if (tbsEngineBtn && tbsOnline) {
             tbsEngineBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                tbsOnline.classList.toggle('src-open');
+                const willOpen = !tbsOnline.classList.contains('src-open');
+                if (willOpen) {
+                    ensureSourcePopoverContent();
+                    syncWideSearchInputsFromEngine();
+                }
+                tbsOnline.classList.toggle('src-open', willOpen);
             });
             document.addEventListener('click', (e) => {
                 if (!tbsOnline.classList.contains('src-open')) return;
                 if (e.target.closest('#tbs-engine-btn')
+                    || e.target.closest('#tbs-src-popover')
                     || e.target.closest('#engine-container')
                     || e.target.closest('#mf-plugin-container')) return;
                 tbsOnline.classList.remove('src-open');
