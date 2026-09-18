@@ -60,6 +60,14 @@
                 window.__miotPushRenameHooked = true;
             }
 
+            // 🔍 一次性诊断：把插件实际看到的推送歌单打印出来（排查改名/推送问题用）
+            setTimeout(async () => {
+                try {
+                    const list = await this.fetchPushPlaylistsFromHost();
+                    console.log('[MIoT][诊断] 推送歌单:', list.map(p => `${p.name}#${p.id}`));
+                } catch (e) {}
+            }, 8000);
+
             // 🌟 新增：读取偏好设置，决定默认启动设备
             const prefs = typeof window.getPreferences === 'function' ? window.getPreferences() : {};
             const defDevSetting = prefs.defaultDevice || 'last';
@@ -412,14 +420,34 @@
 
         // 🌟 旧推送歌单自动改名：宿主支持 PUT /api/v1/playlists/{id} { name }
         //    （App 的「重命名歌单」用的就是它），因此直接改名即可 —— 不删歌单、不打断音箱当前播放。
+        // 🔍 推送歌单查找：先查内存 meta，查不到再直接问宿主（自动创建的歌单可能不在 meta 里）
+        fetchPushPlaylistsFromHost: async function() {
+            const match = (list) => (list || []).filter(p => p && (p.name === this.PUSH_PLAYLIST_NAME
+                || this.LEGACY_PUSH_PLAYLIST_NAMES.indexOf(p.name) !== -1));
+            const fromMeta = match(window.playlistMeta);
+            if (fromMeta.length > 0) return fromMeta;
+            const urls = [];
+            if (window.API && window.API.list) urls.push(`${window.API.list}?action=meta_bulk`);
+            urls.push('/api/v1/playlists');
+            for (const url of urls) {
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) continue;
+                    const data = await res.json();
+                    const list = Array.isArray(data) ? data : (data._playlist_meta || data.playlists || data.data || []);
+                    const found = match(list);
+                    if (found.length > 0) return found;
+                } catch (e) {}
+            }
+            return [];
+        },
+
         migrateLegacyPushPlaylist: async function() {
             try {
-                const meta = Array.isArray(window.playlistMeta) ? window.playlistMeta : null;
-                if (!meta || meta.length === 0) return false;
-                const legacy = meta.filter(p => p && this.LEGACY_PUSH_PLAYLIST_NAMES.indexOf(p.name) !== -1);
+                const all = await this.fetchPushPlaylistsFromHost();
+                const legacy = all.filter(p => this.LEGACY_PUSH_PLAYLIST_NAMES.indexOf(p.name) !== -1);
                 if (legacy.length === 0) return false;
-                const hasNew = meta.some(p => p && p.name === this.PUSH_PLAYLIST_NAME);
-                if (hasNew) return false; // 已有新名歌单：旧名留给下次推送清理，避免重名冲突
+                if (all.some(p => p.name === this.PUSH_PLAYLIST_NAME)) return false; // 已有新名歌单，避免重名冲突
                 const target = legacy[0];
                 const res = await fetch(`/api/v1/playlists/${target.id}`, {
                     method: 'PUT',
@@ -438,9 +466,19 @@
                     if (window.currentPlaylist === oldName) window.currentPlaylist = this.PUSH_PLAYLIST_NAME;
                     if (typeof window.initPlaylistDropdown === 'function') window.initPlaylistDropdown();
                     console.log('[MIoT] 推送歌单已改名:', oldName, '→', this.PUSH_PLAYLIST_NAME);
+                    // 🔍 诊断：回读宿主，确认名字真的改了（若宿主按插件名派生名字，这里会看到旧名）
+                    try {
+                        const url = (window.API && window.API.list ? window.API.list : './musiclist') + '?action=meta_bulk';
+                        const chk = await fetch(url);
+                        if (chk.ok) {
+                            const data = await chk.json();
+                            const names = ((data && data._playlist_meta) || []).filter(p => p && /推送/.test(p.name)).map(p => p.name);
+                            console.log('[MIoT][诊断] 宿主返回的推送歌单名:', names);
+                        }
+                    } catch (e) {}
                     return true;
                 }
-                console.warn('[MIoT] 推送歌单改名失败:', res.status);
+                console.warn('[MIoT] 推送歌单改名失败(状态码', res.status, ')，将由下次推送时重建；若长期失败说明宿主不支持重命名插件歌单');
             } catch (e) {
                 console.warn('[MIoT] 推送歌单改名异常:', e);
             }
@@ -470,15 +508,13 @@
                 }
 
                 // 1. 只在虚拟列表内容变化或服务端歌单失效时重建推送歌单
-                let pushPl = window.playlistMeta ? window.playlistMeta.find(isPushPlaylist) : null;
+                // 🌟 用宿主侧查找（meta 可能不含自动歌单）：新旧名一并清理，保证只剩一个推送歌单
+                const pushPls = await this.fetchPushPlaylistsFromHost();
+                const pushPl = pushPls.find(p => p.name === PUSH_PLAYLIST_NAME) || pushPls[0] || null;
                 if (!pushPl && this._pushPlaylistId) this._pushPlaylistId = null;
-                if (pushPl) {
-                    // 新旧名可能同时存在（历史遗留），一并清理，保证音箱上只有一个推送歌单
-                    const allPush = window.playlistMeta.filter(isPushPlaylist);
-                    for (const pl of allPush) {
-                        const delRes = await fetch(`/api/v1/playlists/${pl.id}`, { method: 'DELETE' });
-                        if (!delRes.ok) console.warn('[MIoT] 旧推送歌单删除失败:', pl.name, delRes.status);
-                    }
+                for (const pl of pushPls) {
+                    const delRes = await fetch(`/api/v1/playlists/${pl.id}`, { method: 'DELETE' });
+                    if (!delRes.ok) console.warn('[MIoT] 旧推送歌单删除失败:', pl.name, delRes.status);
                 }
 
                 // 2. 瞬间重生一个新的同名歌单，拿到它热乎的 playlist_id
