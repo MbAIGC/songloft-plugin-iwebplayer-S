@@ -244,10 +244,22 @@
   .tbs-online.mode-local .tbs-lx-actions,
   .tbs-online.mode-local #engine-container,
   .tbs-online.mode-local #mf-plugin-container { display: none !important; }
-  /* 在线模式：隐藏本地输入框，常显引擎/插件选择 */
+  /* 在线模式：隐藏本地输入框 */
   .tbs-online.mode-online #search-inline-wrap { display: none !important; }
-  .tbs-online.mode-online #engine-container,
-  .tbs-online.mode-online #mf-plugin-container { display: flex; align-items: center; height: 100%; flex: 0 0 auto; }
+  /* 🌟 引擎/插件不再常驻：点「音源 ▾」以浮层展开，避免占用行内宽度挤压歌单栏 */
+  body.split-view-active .tbs-online { position: relative; }
+  body.split-view-active .tbs-online #engine-container,
+  body.split-view-active .tbs-online #mf-plugin-container { display: none !important; }
+  body.split-view-active .tbs-online.src-open { overflow: visible; }
+  body.split-view-active .tbs-online.src-open #engine-container,
+  body.split-view-active .tbs-online.src-open #mf-plugin-container {
+    display: flex !important; position: absolute; top: calc(100% + 4px); right: 0; z-index: 330;
+    width: max-content; min-width: 220px; max-width: 320px; height: auto; align-items: center; gap: 8px;
+    padding: 6px 10px; background: var(--card-bg); border: 1px solid var(--border);
+    border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  }
+  /* 本地模式没有音源概念：隐藏「音源」按钮 */
+  .tbs-online.mode-local #tbs-engine-btn { display: none !important; }
   /* 本地搜索框移入搜索栏后的样式（沿用原 .tbs-library 内的设定） */
   .tbs-online #search-inline-wrap { display: flex; flex: 1; height: 100%; align-items: center; border: none; background: transparent; padding: 0; gap: 6px; min-width: 0; }
   .tbs-online #search-inline-wrap .divider-v { display: none; }
@@ -259,18 +271,21 @@
   body.split-view-active .tbs-library,
   body.split-view-active .tbs-library + .tbs-divider { display: none !important; }
   body.split-view-active .tbs-online { flex: 1 1 auto; width: auto; }
-  body.split-view-active .tbs-playlist { flex: 0 0 auto; width: 30%; }
+  /* 歌单栏必须可收缩：否则被挤的只有搜索栏，内容会溢出盖住它 */
+  body.split-view-active .tbs-playlist { flex: 0 1 auto; width: auto; min-width: 132px; max-width: 240px; }
   body.split-view-active .tbs-device { flex: 0 0 auto; width: auto; }
-  /* ⚠️ .tbs 基础样式是 overflow: hidden，会把下拉菜单裁掉 —— 设备栏与在线模式的引擎/插件都需要放开 */
-  .tbs-device,
-  .tbs-online.mode-online { overflow: visible; position: relative; }
+  /* ⚠️ .tbs 基础样式是 overflow: hidden，会把下拉菜单裁掉 —— 设备栏需要放开；
+     搜索栏的引擎/插件浮层由 .src-open 单独放开，默认保持 hidden 以免溢出遮挡歌单栏 */
+  .tbs-device { overflow: visible; position: relative; }
   /* 设备选择器搬进工具栏后，header 右侧不再需要占位 */
   body.split-view-active .header-controls { display: none !important; }
-  /* 🌟 工具栏整体并入 header 行（即原来「本机/小爱音箱」所在那一行），不再单独占第二行 */
-  /* 🌟 header 左半（品牌/设置）固定 50%，工具栏只占右半栏，绝不越过中界线 */
-  body.split-view-active .header-left-group { flex: 0 0 50%; min-width: 0; }
-  body.split-view-active .header > #toolbar-split { flex: 1 1 auto; min-width: 0; margin-left: 12px; }
-  body.split-view-active:not(.player-open) #playlist-row { display: none !important; }
+  /* 🌟 工具栏与 header 同行（即原来「本机/小爱音箱」那一行）：仅在窗口足够宽时启用，
+     由 JS 按宽度给 body 加 .wide-toolbar-inline；窄于阈值自动回退成两行，避免拥挤与遮挡。 */
+  body.wide-toolbar-inline .header-left-group { flex: 0 0 50%; min-width: 0; }
+  body.wide-toolbar-inline .header > #toolbar-split { flex: 1 1 auto; min-width: 0; margin-left: 12px; }
+  body.wide-toolbar-inline:not(.player-open) #playlist-row { display: none !important; }
+  /* 同行时右栏列表只需让开导航栏；两行时仍要加上工具栏那一行 */
+  body.wide-toolbar-inline.split-view-active:not(.player-open) { --split-list-top: 58px; }
 
   /* 左栏：引擎/平台选择器 — 默认隐藏，展开后显示 */
   .tbs-online #engine-container,
@@ -1572,9 +1587,9 @@
     /* Compact the split-home control strip so it leaves more vertical room for lyrics. */
     body.split-view-active:not(.player-open) {
       --player-height: 118px;
-      /* 宽屏右栏列表顶部偏移：工具栏已并入 header，只剩顶部导航 56px（+2px 余量）。
-         工具栏行高变化或与 header 分离时同步改这里。 */
-      --split-list-top: 58px;
+      /* 宽屏右栏列表顶部偏移：顶部导航 56px + 宽屏工具栏（约 59px）。
+         若工具栏与 header 同行（body.wide-toolbar-inline），会由上面的规则覆盖成 58px。 */
+      --split-list-top: 115px;
     }
     body.split-view-active:not(.player-open) .progress-container {
       top: -14px;
@@ -1923,6 +1938,9 @@
               <button class="tbs-lx-btn" id="tbs-lx-search-btn">搜歌</button>
               <div class="tbs-divider-v"></div>
               <button class="tbs-lx-btn" id="tbs-lx-playlist-btn">搜单</button>
+              <div class="tbs-divider-v"></div>
+              <!-- 🌟 音源/平台选择改为浮层按需展开，不再常驻占宽 -->
+              <button class="tbs-lx-btn" id="tbs-engine-btn" title="选择音源 / 平台">音源 ▾</button>
             </div>
           </div>
         </div>
@@ -3946,6 +3964,8 @@
         // 🌟 宽屏搜索来源：本地曲库 / 在线资源 合并为一个输入框。
         //    默认跟随当前歌单（在「在线资源」里默认在线，其它默认本地）；用户手动切换后记住选择。
         const WIDE_SEARCH_MODE_KEY = 'iwebplayer-s.wide_search_mode';
+        // 🌟 低于此宽度时工具栏不再与 header 同行（回第二行），避免一行塞不下导致拥挤/遮挡
+        const WIDE_TOOLBAR_INLINE_MIN = 1100;
         let tbsSplitHome = null; // 宽屏工具栏的原始位置（窄屏时还原）
 
         function setWideSearchMode(mode, opts) {
@@ -3962,6 +3982,7 @@
             if (opts.persist !== false) {
                 try { localStorage.setItem(WIDE_SEARCH_MODE_KEY, online ? 'online' : 'local'); } catch (e) {}
             }
+            if (!online && tbsOnline) tbsOnline.classList.remove('src-open'); // 本地模式无音源概念
             if (opts.focus) {
                 const target = online ? tbsLxInput : document.getElementById('search-input');
                 if (target) target.focus();
@@ -3982,6 +4003,22 @@
         if (tbsSrcLocalBtn) tbsSrcLocalBtn.addEventListener('click', () => setWideSearchMode('local', { focus: true }));
         if (tbsSrcOnlineBtn) tbsSrcOnlineBtn.addEventListener('click', () => setWideSearchMode('online', { focus: true }));
 
+        // 🌟 音源 / 平台浮层：默认收起，点「音源 ▾」才展开（避免常驻占宽挤压歌单栏）
+        const tbsEngineBtn = document.getElementById('tbs-engine-btn');
+        if (tbsEngineBtn && tbsOnline) {
+            tbsEngineBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                tbsOnline.classList.toggle('src-open');
+            });
+            document.addEventListener('click', (e) => {
+                if (!tbsOnline.classList.contains('src-open')) return;
+                if (e.target.closest('#tbs-engine-btn')
+                    || e.target.closest('#engine-container')
+                    || e.target.closest('#mf-plugin-container')) return;
+                tbsOnline.classList.remove('src-open');
+            });
+        }
+
         function moveToolbarControls(isSplit) {
             const pc = document.getElementById('playlist-container');
             const mz = document.getElementById('menu-dropzone-row1');
@@ -3992,6 +4029,10 @@
             const headerControls = document.querySelector('.header-controls');
             const deviceInner = document.getElementById('tbs-device-inner');
             const tbsSplit = document.getElementById('toolbar-split');
+
+            // 工具栏是否与 header 同行（只受宽度与分栏状态影响）
+            const inlineRow = isSplit && window.innerWidth >= WIDE_TOOLBAR_INLINE_MIN;
+            document.body.classList.toggle('wide-toolbar-inline', inlineRow);
 
             // 搜索框提示文字：宽屏走本地/在线开关，手机版恢复原样
             const si = document.getElementById('search-input');
@@ -4014,14 +4055,20 @@
                 }
                 // 🌟 设备选择器 → 工具栏最右，不再单独占 header 一行
                 if (dc && deviceInner && dc.parentNode !== deviceInner) deviceInner.appendChild(dc);
-                // 🌟 整个工具栏搬进 header 行（即原来「本机/小爱音箱」所在的那一行），
-                //    原来的第二行 #playlist-row 由 CSS 在宽屏下隐藏，顶部只保留一行。
+                // 🌟 窗口够宽时：整个工具栏搬进 header 行（即原来「本机/小爱音箱」那一行），
+                //    第二行 #playlist-row 由 body.wide-toolbar-inline 的 CSS 隐藏；
+                //    不够宽时保持原来的两行布局（工具栏在 #playlist-row 里），避免一行挤爆。
                 if (tbsSplit) {
                     if (!tbsSplitHome) tbsSplitHome = { parent: tbsSplit.parentNode, next: tbsSplit.nextSibling };
                     const headerEl = document.querySelector('.header');
                     const headerLeft = document.querySelector('.header > .header-left-group');
-                    if (headerEl && tbsSplit.parentNode !== headerEl) {
-                        headerEl.insertBefore(tbsSplit, headerLeft ? headerLeft.nextSibling : null);
+                    if (inlineRow) {
+                        if (headerEl && tbsSplit.parentNode !== headerEl) {
+                            headerEl.insertBefore(tbsSplit, headerLeft ? headerLeft.nextSibling : null);
+                        }
+                    } else if (tbsSplitHome && tbsSplit.parentNode !== tbsSplitHome.parent) {
+                        try { tbsSplitHome.parent.insertBefore(tbsSplit, tbsSplitHome.next || null); }
+                        catch (e) { tbsSplitHome.parent.appendChild(tbsSplit); }
                     }
                 }
                 applyWideSearchMode();
@@ -4061,6 +4108,7 @@
                     try { tbsSplitHome.parent.insertBefore(tbsSplit, tbsSplitHome.next || null); }
                     catch (e) { tbsSplitHome.parent.appendChild(tbsSplit); }
                 }
+                if (tbsOnline) tbsOnline.classList.remove('src-open');
             }
         }
 
@@ -4070,6 +4118,15 @@
         // 监听 split-view-active 变化
         const splitObserver = new MutationObserver(function() {
             moveToolbarControls(document.body.classList.contains('split-view-active'));
+        });
+
+        // 🌟 窗口宽度跨过阈值时，在同号/两行两种布局间切换
+        let toolbarResizeTimer = null;
+        window.addEventListener('resize', () => {
+            if (toolbarResizeTimer) clearTimeout(toolbarResizeTimer);
+            toolbarResizeTimer = setTimeout(() => {
+                moveToolbarControls(document.body.classList.contains('split-view-active'));
+            }, 150);
         });
         splitObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
