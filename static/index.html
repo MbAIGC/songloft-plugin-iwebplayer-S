@@ -320,6 +320,12 @@
   body.split-view-active .header-left-group { flex: 0 0 50%; min-width: 0; }
   body.split-view-active .header > #toolbar-split { flex: 1 1 auto; min-width: 0; margin-left: 12px; }
   body.split-view-active #playlist-row { display: none !important; }
+  /* 🌟 半宽屏（iPad 分屏约 2/3 宽）下点搜索框时，把「所有歌曲」栏让出来给输入框，失焦自动恢复 */
+  body.split-view-active.toolbar-search-focus .tbs-playlist,
+  body.split-view-active.toolbar-search-focus .tbs-playlist + .tbs-divider { display: none !important; }
+  /* 搜索框保证一个最小可点宽度：被挤成 0 宽就点不到，也就没法触发上面的收起 */
+  body.split-view-active .tbs-online .tbs-input,
+  body.split-view-active .tbs-online #search-input { min-width: 80px; }
   /* 🌟 半宽屏（仍在分栏内）紧凑规则：优先保证搜索框有可用宽度 */
   @media (max-width: 1099px) {
     body.split-view-active .tbs-playlist { min-width: 96px; max-width: 180px; }
@@ -3913,11 +3919,12 @@
         }
 
         if (tbsLxInput) {
-            tbsLxInput.addEventListener('focus', () => { tbsExpandOnline(); setWideSearchMode('online'); });
+            tbsLxInput.addEventListener('focus', () => { tbsExpandOnline(); setWideSearchMode('online'); setToolbarSearchFocus(true); });
             tbsLxInput.addEventListener('blur', (e) => {
                 // 焦点移到左栏内部（按钮/下拉）时不收起
                 if (e.relatedTarget && tbsOnline && tbsOnline.contains(e.relatedTarget)) return;
                 if (!tbsLxInput.value.trim()) tbsReset();
+                setToolbarSearchFocus(false);
             });
             tbsLxInput.addEventListener('input', (e) => {
                 const lxInput = document.getElementById('lx-search-input');
@@ -3992,6 +3999,7 @@
             };
             tbsSearchInputEl.addEventListener('focus', () => {
                 if (!document.body.classList.contains('split-view-active')) return;
+                setToolbarSearchFocus(true);
                 setWideSearchMode('local');
                 tbsExpandLibrary();
                 ensureLibrarySearchMode();
@@ -4007,6 +4015,7 @@
             });
             tbsSearchInputEl.addEventListener('blur', () => {
                 if (!tbsSearchInputEl.value.trim()) tbsReset();
+                setToolbarSearchFocus(false);
             });
         }
 
@@ -4019,6 +4028,12 @@
         //    默认跟随当前歌单（在「在线资源」里默认在线，其它默认本地）；用户手动切换后记住选择。
         const WIDE_SEARCH_MODE_KEY = 'iwebplayer-s.wide_search_mode';
         let tbsSplitHome = null; // 宽屏工具栏的原始位置（窄屏时还原）
+
+        // 🌟 半宽屏下点搜索框：收起「所有歌曲」栏把宽度让给输入框（失焦恢复）
+        function setToolbarSearchFocus(on) {
+            const inSplit = document.body.classList.contains('split-view-active');
+            document.body.classList.toggle('toolbar-search-focus', !!on && inSplit);
+        }
 
         function setWideSearchMode(mode, opts) {
             opts = opts || {};
@@ -4250,6 +4265,7 @@
                     catch (e) { tbsSplitHome.parent.appendChild(tbsSplit); }
                 }
                 if (tbsOnline) tbsOnline.classList.remove('src-open');
+                document.body.classList.remove('toolbar-search-focus');
             }
         }
 
