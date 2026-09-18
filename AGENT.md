@@ -127,7 +127,7 @@ iWebPlayer-S 是 SongLoft 平台的播放器插件，基于 iWebPlayer 适配宽
 2. **main 分支**是稳定版，从 dev 合入
 3. 文档文件统一放在 `docs/` 目录（`README.md`、`DEV_RELEASE_NOTES.md`、`AGENT.md` 除外）
 4. `DEV_RELEASE_NOTES.md` 由 CI 自动读入 pre-release notes，开发者只需更新功能描述列表
-5. 构建时 `inject-version-hashes.mjs` 自动计算静态文件内容哈希并注入 `?v=`，无需手动维护缓存版本号
+5. 构建时 `inject-version-hashes.mjs` 自动计算内容哈希并注入 `?v=`：覆盖 `./static/*.js`、`<meta id="app-logo">` 的 logo 图片（页头 / favicon / apple-touch-icon）、PWA `manifest.json` 本体及其 `icons[]`。无需手动维护缓存版本号；源码里的 `?v0.8.0` 等是历史占位值，构建时会被覆盖（不回写源码）。宿主对子资源发 `immutable, max-age=1年`，**新增任何图片/字体等子资源时都要纳入该脚本**
 6. **版本号 / 构建版本 / tag / manifest 规则不得擅自改动**（见上文「硬性约束」）
 7. **部分文件是 CRLF 行尾**：`static/playlist.js`、`static/miot.js`、`static/online.js`、`static/plugins.js`、`static/utils.js`、`static/icons.js`（`static/player.js` 为混合行尾）。
    编辑这些文件时不要用会把整文件转成 LF 的方式，否则 diff 会被换行符淹没；建议做字节级替换，改完用

@@ -120,6 +120,33 @@ S 版在 v1.1.3 同一版本号的两次构建之间，`player.js` 内容变了�
 
 ---
 
+## 六、落地记录
+
+| 条目 | 状态 | 说明 |
+| --- | --- | --- |
+| **P0 方案 A**（构建期自动生成 `?v=`） | ✅ 已落地 | `package.json` 的 build = `songloft-plugin build && node scripts/inject-version-hashes.mjs`；给 `index.html` 里 10 个 `./static/*.js` 注入 `sha256[:8]` |
+| **P1 方案 C**（修探针正则） | ✅ 已落地 | 现为 `/window\.APP_VERSION\s*=\s*['"](.*?)['"]/`；后续又增强为「APP_VERSION + 静态 JS 内容哈希」双重比对 + 限次自动刷新 |
+| P2 评估 `staticHash: true` | ⬜ 未做 | 维持 `false`；方案 A 已覆盖主要风险 |
+| 方案 D 人工 bump `?v=` | ➖ 不需要 | 已被方案 A 取代；源码里的 `?v0.8.0 / ?v1.1.2 / ?v1.1.6 …` 只是历史占位值，构建时会被覆盖（不回写源码） |
+
+### 6.1 补充：图片与 PWA manifest（2026-09-18 补齐）
+
+方案 A 原文范围只写了 `<script src="./static/x.js?v=...">`，但本文第 1 层表格已明确指出**图片同样是 `public, max-age=31536000, immutable`**。因此换 logo 后会出现：隐私/无痕模式正常、普通手机浏览器长期显示旧 logo、安卓 APK 正常（`LOAD_NO_CACHE` + `clearCache(true)`）。这是**方案范围的漏项**，不是实现遗漏。
+
+已在同一个脚本内补齐（仍属方案 A 机制，只改构建目录、不碰版本号 / tag / 构建序号规则）：
+
+| 引用 | 注入结果（示例，取自 1.3.5 构建） |
+| --- | --- |
+| `<meta id="app-logo" content="./static/logo.png">` | `./static/logo.png?v=e1982461` —— favicon / apple-touch-icon 由它派生，一并生效 |
+| `<link rel="manifest" href="./static/manifest.json">` | `./static/manifest.json?v=bcaf5823` —— 用「改写图标后」的 manifest 内容计算 |
+| PWA `manifest.json` 的 `icons[].src` | `./icon-192.png?v=5bd17de6`、`./icon-512.png?v=2e4cd680` |
+
+注意事项：
+
+- 相同内容 → 哈希稳定（重复构建结果一致），内容变化才换 URL，immutable 长缓存的性能优势保留；
+- PWA「添加到主屏幕」的图标由系统缓存，补哈希后能失效，但**已安装的主屏图标通常仍需删除重加**；
+- 未覆盖（影响很小，另行评估）：iOS 描述文件里硬编码的 `basePath + '/static/logo.png'`；`plugin.json.icon`（由宿主拉取，另一套机制）。
+
 ## 附：关键证据索引
 
 | 证据 | 位置 |
@@ -127,14 +154,14 @@ S 版在 v1.1.3 同一版本号的两次构建之间，`player.js` 内容变了�
 | 服务端缓存头（HTML no-cache / 子资源 immutable 1年） | `songloft-server/internal/jsplugin/routes.go:399-444`（第 435、441 行） |
 | 服务端缓存设计意图（#278） | `songloft-server/internal/jsplugin/routes.go:31-61` |
 | 插件 `staticHash: false` | `plugin.json:19` |
-| 手工 `?v=` 引用（9 个 script 标签） | `static/index.html:1445-1453` |
-| 真实版本标记 `window.APP_VERSION` | `static/index.html:2361` |
-| 探针正则（不匹配，死代码） | `static/index.html:3844-3861`（正则第 3848 行） |
-| Android 壳强制绕过缓存 | `android/.../MainActivity.java:113,154`（`LOAD_NO_CACHE` + `clearCache`） |
+| 手工 `?v=` 引用（9 个带 `?v=` + 1 个无参的 `lz-string.min.js`） | `static/index.html:1714-1723` |
+| 真实版本标记 `window.APP_VERSION` | `static/index.html:2704`（构建期占位符 `__APP_VERSION__`） |
+| 探针正则（已修复） | `static/index.html:4578` |
+| Android 壳强制绕过缓存 | `android/.../MainActivity.java`（`setCacheMode(LOAD_NO_CACHE)` + `clearCache(true)`） |
 | 上游探针同样损坏 | 上游 `static/index.html`（`window.APP_VERSION` vs `/const APP_VERSION/`） |
 | S 版 player.js 内容变而 `?v` 未变 | `dist/_build/static/player.js`（935 行） vs 已发布 zip（894 行），`?v1.1.6` 相同 |
 | entryHash/zipHash 不对称（纯 static 更新对 entryHash 不可见） | `dist/_build/plugin.json`（entryHash `46782c82…` 同已发布 zip，zipHash `ed808b04…` 不同） |
 
 ---
 
-*分析日期：2026-08-18*
+*分析日期：2026-08-18 ｜ 落地记录补充：2026-09-18*
