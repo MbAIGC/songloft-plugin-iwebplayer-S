@@ -47,26 +47,9 @@
         init: async function() {
             await this.loadDevices();
 
-            // 🌟 推送歌单旧名迁移：歌单元数据由 reloadGlobalData 拉取，这里挂一层，
-            //    每次刷新后都尝试改名（幂等、只在发现旧名时才发请求），升级后无需再推送一次即可生效。
-            const self = this;
-            if (!window.__miotPushRenameHooked && typeof window.reloadGlobalData === 'function') {
-                const origReloadGlobalData = window.reloadGlobalData;
-                window.reloadGlobalData = async function (...args) {
-                    const result = await origReloadGlobalData.apply(this, args);
-                    try { await self.migrateLegacyPushPlaylist(); } catch (e) {}
-                    return result;
-                };
-                window.__miotPushRenameHooked = true;
-            }
-
-            // 🔍 一次性诊断：把插件实际看到的推送歌单打印出来（排查改名/推送问题用）
-            setTimeout(async () => {
-                try {
-                    const list = await this.fetchPushPlaylistsFromHost();
-                    console.log('[MIoT][诊断] 推送歌单:', list.map(p => `${p.name}#${p.id}`));
-                } catch (e) {}
-            }, 8000);
+            // 🌟 推送歌单旧名迁移：等歌单元数据加载完，静默尝试一次改名（幂等，只在发现旧名时才发请求）。
+            //    不去猴补丁 reloadGlobalData，避免侵入别处逻辑；推送前还会再试一次。
+            setTimeout(() => { this.migrateLegacyPushPlaylist().catch(() => {}); }, 6000);
 
             // 🌟 新增：读取偏好设置，决定默认启动设备
             const prefs = typeof window.getPreferences === 'function' ? window.getPreferences() : {};
@@ -466,19 +449,9 @@
                     if (window.currentPlaylist === oldName) window.currentPlaylist = this.PUSH_PLAYLIST_NAME;
                     if (typeof window.initPlaylistDropdown === 'function') window.initPlaylistDropdown();
                     console.log('[MIoT] 推送歌单已改名:', oldName, '→', this.PUSH_PLAYLIST_NAME);
-                    // 🔍 诊断：回读宿主，确认名字真的改了（若宿主按插件名派生名字，这里会看到旧名）
-                    try {
-                        const url = (window.API && window.API.list ? window.API.list : './musiclist') + '?action=meta_bulk';
-                        const chk = await fetch(url);
-                        if (chk.ok) {
-                            const data = await chk.json();
-                            const names = ((data && data._playlist_meta) || []).filter(p => p && /推送/.test(p.name)).map(p => p.name);
-                            console.log('[MIoT][诊断] 宿主返回的推送歌单名:', names);
-                        }
-                    } catch (e) {}
                     return true;
                 }
-                console.warn('[MIoT] 推送歌单改名失败(状态码', res.status, ')，将由下次推送时重建；若长期失败说明宿主不支持重命名插件歌单');
+                console.warn('[MIoT] 推送歌单改名失败(状态码', res.status, ')，将由下次推送时重建为新名');
             } catch (e) {
                 console.warn('[MIoT] 推送歌单改名异常:', e);
             }
