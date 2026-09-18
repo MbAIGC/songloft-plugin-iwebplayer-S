@@ -235,7 +235,7 @@
      🌟 宽屏搜索合并：本地曲库 / 在线资源 共用一个输入框 + 来源开关
      ========================================== */
   .tbs-src-toggle { display: flex; align-items: center; gap: 2px; flex-shrink: 0; background: var(--bg-color); border: 1px solid var(--border); border-radius: 6px; padding: 2px; }
-  .tbs-src-btn { border: none; background: none; cursor: pointer; font-size: 11px; line-height: 1; color: var(--text-sub); padding: 4px 7px; border-radius: 4px; white-space: nowrap; }
+  .tbs-src-btn { border: none; background: none; cursor: pointer; font-size: 12px; line-height: 1; color: var(--text-sub); padding: 4px 7px; border-radius: 4px; white-space: nowrap; }
   .tbs-src-btn.active { background: var(--card-bg); color: var(--primary); font-weight: bold; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06); }
   /* 本地模式：隐藏在线输入框与其附加控件 */
   .tbs-online.mode-local #tbs-lx-input,
@@ -248,22 +248,27 @@
   .tbs-online.mode-online #search-inline-wrap { display: none !important; }
   .tbs-online.mode-online #engine-container,
   .tbs-online.mode-online #mf-plugin-container { display: flex; align-items: center; height: 100%; flex: 0 0 auto; }
-  .tbs-online.mode-online #engine-val,
-  .tbs-online.mode-online #mf-plugin-val { font-size: 12px; padding: 0 14px 0 4px; background-position: right 2px center; background-size: 10px; border: none; box-shadow: none; }
   /* 本地搜索框移入搜索栏后的样式（沿用原 .tbs-library 内的设定） */
   .tbs-online #search-inline-wrap { display: flex; flex: 1; height: 100%; align-items: center; border: none; background: transparent; padding: 0; gap: 6px; min-width: 0; }
   .tbs-online #search-inline-wrap .divider-v { display: none; }
   .tbs-online #search-inline-wrap .search-inline-icon { display: block; }
-  .tbs-online #search-inline-wrap input { font-size: 13px; }
+  /* 两种模式的输入框统一使用正常字号（不靠缩字省空间） */
+  .tbs-online .tbs-input,
+  .tbs-online #search-inline-wrap input { font-size: 14px; }
   /* 宽屏横向布局：搜索栏自适应、歌单栏 30%、设备栏贴右 */
   body.split-view-active .tbs-library,
   body.split-view-active .tbs-library + .tbs-divider { display: none !important; }
   body.split-view-active .tbs-online { flex: 1 1 auto; width: auto; }
   body.split-view-active .tbs-playlist { flex: 0 0 auto; width: 30%; }
   body.split-view-active .tbs-device { flex: 0 0 auto; width: auto; }
-  .tbs-device #device-val { font-size: 12px; padding: 0 18px 0 6px; background-position: right 2px center; background-size: 10px; border: none; box-shadow: none; }
+  /* ⚠️ .tbs 基础样式是 overflow: hidden，会把下拉菜单裁掉 —— 设备栏与在线模式的引擎/插件都需要放开 */
+  .tbs-device,
+  .tbs-online.mode-online { overflow: visible; position: relative; }
   /* 设备选择器搬进工具栏后，header 右侧不再需要占位 */
   body.split-view-active .header-controls { display: none !important; }
+  /* 🌟 工具栏整体并入 header 行（即原来「本机/小爱音箱」所在那一行），不再单独占第二行 */
+  body.split-view-active .header > #toolbar-split { flex: 1 1 auto; min-width: 0; margin-left: 12px; }
+  body.split-view-active:not(.player-open) #playlist-row { display: none !important; }
 
   /* 左栏：引擎/平台选择器 — 默认隐藏，展开后显示 */
   .tbs-online #engine-container,
@@ -989,7 +994,7 @@
       /* 🛑 宽屏下 .player-bar 只占左半栏 (width:50%; left:0)，右栏下方并没有播放条，
          因此不能再扣 --player-height，否则列表底部会悬空约一个播放条的高度、最后一张卡片被容器底边截断。
          这里只扣「顶部导航 + 宽屏工具栏」高度和一点底部内缩，列表才能真正贴到底。 */
-      max-height: calc(100vh - var(--split-list-top, 115px) - 12px) !important; overflow-y: auto !important;
+      max-height: calc(100vh - var(--split-list-top, 58px) - 12px) !important; overflow-y: auto !important;
       padding-bottom: 20px !important; -webkit-overflow-scrolling: touch;
     }
     /* 🔐 修复：ambient 分栏列表恢复可见细滚动条（全局已隐藏原生滚动条，此处单独恢复）
@@ -1565,8 +1570,9 @@
     /* Compact the split-home control strip so it leaves more vertical room for lyrics. */
     body.split-view-active:not(.player-open) {
       --player-height: 118px;
-      /* 宽屏右栏列表顶部偏移：顶部导航 56px + 宽屏工具栏（约 59px）。工具栏高度变化时同步改这里。 */
-      --split-list-top: 115px;
+      /* 宽屏右栏列表顶部偏移：工具栏已并入 header，只剩顶部导航 56px（+2px 余量）。
+         工具栏行高变化或与 header 分离时同步改这里。 */
+      --split-list-top: 58px;
     }
     body.split-view-active:not(.player-open) .progress-container {
       top: -14px;
@@ -3935,6 +3941,7 @@
         // 🌟 宽屏搜索来源：本地曲库 / 在线资源 合并为一个输入框。
         //    默认跟随当前歌单（在「在线资源」里默认在线，其它默认本地）；用户手动切换后记住选择。
         const WIDE_SEARCH_MODE_KEY = 'iwebplayer-s.wide_search_mode';
+        let tbsSplitHome = null; // 宽屏工具栏的原始位置（窄屏时还原）
 
         function setWideSearchMode(mode, opts) {
             opts = opts || {};
@@ -3979,6 +3986,7 @@
             const dc = document.getElementById('device-container');
             const headerControls = document.querySelector('.header-controls');
             const deviceInner = document.getElementById('tbs-device-inner');
+            const tbsSplit = document.getElementById('toolbar-split');
 
             // 搜索框提示文字：宽屏走本地/在线开关，手机版恢复原样
             const si = document.getElementById('search-input');
@@ -4001,6 +4009,16 @@
                 }
                 // 🌟 设备选择器 → 工具栏最右，不再单独占 header 一行
                 if (dc && deviceInner && dc.parentNode !== deviceInner) deviceInner.appendChild(dc);
+                // 🌟 整个工具栏搬进 header 行（即原来「本机/小爱音箱」所在的那一行），
+                //    原来的第二行 #playlist-row 由 CSS 在宽屏下隐藏，顶部只保留一行。
+                if (tbsSplit) {
+                    if (!tbsSplitHome) tbsSplitHome = { parent: tbsSplit.parentNode, next: tbsSplit.nextSibling };
+                    const headerEl = document.querySelector('.header');
+                    const headerLeft = document.querySelector('.header > .header-left-group');
+                    if (headerEl && tbsSplit.parentNode !== headerEl) {
+                        headerEl.insertBefore(tbsSplit, headerLeft ? headerLeft.nextSibling : null);
+                    }
+                }
                 applyWideSearchMode();
             } else {
                 // 移回手机版工具栏
@@ -4033,6 +4051,11 @@
                 // 🌟 设备选择器回 header 右侧；清除宽屏搜索模式类
                 if (dc && headerControls && dc.parentNode !== headerControls) headerControls.appendChild(dc);
                 if (tbsOnline) tbsOnline.classList.remove('mode-local', 'mode-online');
+                // 🌟 工具栏回 #playlist-row 原位置
+                if (tbsSplit && tbsSplitHome && tbsSplit.parentNode !== tbsSplitHome.parent) {
+                    try { tbsSplitHome.parent.insertBefore(tbsSplit, tbsSplitHome.next || null); }
+                    catch (e) { tbsSplitHome.parent.appendChild(tbsSplit); }
+                }
             }
         }
 
