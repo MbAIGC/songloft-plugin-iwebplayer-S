@@ -5545,7 +5545,9 @@
       if (metaThemeEl) {
         // 播放页开启且已提取封面主色时，不覆盖（交给封面联动逻辑）
         const playerOpen = document.body && document.body.classList.contains('player-open');
-        const hasTopColor = document.body && document.body.style.getPropertyValue('--top-color');
+        // transparent = 取色未成功（跨域封面等）→ 视为"没有顶色"，让状态栏回落主题色
+        const rawTopColor = document.body && document.body.style.getPropertyValue('--top-color');
+        const hasTopColor = rawTopColor && !/transparent/i.test(rawTopColor);
         if (!playerOpen || !hasTopColor) {
           metaThemeEl.content = isDark ? '#111827' : '#f3f4f6';
         }
@@ -5605,6 +5607,21 @@
 
     document.getElementById('fp-cover').addEventListener('load', function() {
         if (!document.body.classList.contains('ambient-active')) return;
+        // 🌟 逐曲兜底：先清掉"上一首"的取色结果再重新提取。
+        //    原因：封面若是跨域图片，canvas 会被污染 → ctx.getImageData 抛 SecurityError → catch 只打日志，
+        //    于是 --top-color / --bottom-color / ambient-top-* 会**沿用上一首的值**，
+        //    表现为"个别歌曲"顶栏与状态栏颜色不对（已由像素对比复现）。
+        //    清成 transparent 的副作用正好是好的：沉浸页顶栏变透明 → 直接透出背景画报，天然无缝。
+        document.body.style.setProperty('--top-color', 'transparent');
+        document.body.style.setProperty('--bottom-color', 'transparent');
+        document.body.classList.remove('ambient-top-dark-bg', 'ambient-top-light-bg');
+        {
+            const meta = document.querySelector('meta[name="theme-color"]');
+            const forced = document.documentElement.getAttribute('data-theme');
+            const isDarkNow = forced === 'dark'
+                || (forced !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            if (meta) meta.content = isDarkNow ? '#111827' : '#f3f4f6';
+        }
         try {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
