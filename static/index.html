@@ -350,7 +350,11 @@
      输入框的可用宽度交给下面的"聚焦收起歌单栏"来腾。 */
   /* 🌟 半宽屏（仍在分栏内）紧凑规则：优先保证搜索框有可用宽度 */
   @media (max-width: 1099px) {
-    body.split-view-active .tbs-playlist { min-width: 96px; max-width: 180px; }
+    /* 🌟 静态压缩（与聚焦状态无关，因此不会在光标下方改布局）：
+       歌单栏与设备栏各收一档、并去掉按钮之间的竖线分隔，
+       把这些宽度稳定地让给搜索框 —— 这是"聚焦收起栏"（已撤销）的正确替代做法。 */
+    body.split-view-active .tbs-playlist { min-width: 76px; max-width: 150px; }
+    body.split-view-active .tbs-lx-actions .tbs-divider-v { display: none; }
     body.split-view-active .tbs-lx-actions .tbs-lx-btn { padding: 0 5px; }
     /* 🌟 半宽屏标签精简（**静态**）：≤1099px 一律用「歌 / 单 / 源 ▾」。
        🛑 曾经写成「聚焦搜索框时恢复完整文字、失焦再精简」——那会在光标下方改变按钮宽度，
@@ -363,7 +367,7 @@
     body.split-view-active .tbs-online #search-input::placeholder { font-size: 12px; }
     body.split-view-active .tbs-src-toggle { padding: 1px; }
     body.split-view-active .tbs-src-btn { padding: 3px 5px; }
-    body.split-view-active .tbs-device #device-val { max-width: 84px; }
+    body.split-view-active .tbs-device #device-val { max-width: 68px; }
   }
 
   /* 左栏：引擎/平台选择器 — 默认隐藏，展开后显示 */
