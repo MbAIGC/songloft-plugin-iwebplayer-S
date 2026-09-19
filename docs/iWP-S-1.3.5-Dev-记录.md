@@ -50,7 +50,8 @@
 | 38 | `cee58ef` | 修 bug2（半宽屏露出手势箭头）、bug1.1（手机档切歌横向抖动）、bug1.3（手机沉浸页暗色未适配） | 🐞 修复·布局 |
 | 39 | `2768d2e` | 回退 1.3.5.25 带来的"锁死页面滚动"回归（bug1.2 与 bug1.1 的真因），恢复 v1.3.3 既定行为 | 🐞 修复·布局 |
 | 40 | `f1148a1` | 去掉手机沉浸页的"半透明暗色覆盖"（1.3.5.38 自伤），改用上游同源最小兜底；封面容器裁剪修切歌抖动 | 🐞 修复·布局 |
-> 共 **40** 条改动，其中布局相关 **25** 条。
+| 41 | `39ec50f` | 暗色沉浸页顶栏与状态栏改实色深底；给"整页横向位移"加两道保险（切歌抖动第 3 版尝试） | 🐞 修复·布局 |
+> 共 **41** 条改动，其中布局相关 **26** 条。
 
 ---
 
@@ -336,7 +337,7 @@
 
 > `2026-09-19` ｜ `chore(debug): add long-press layout diagnostic badge (temporary)` ｜ 文件：`static/index.html`
 
-## 阶段 7 · 回归定位与布局重构（1.3.5.25 – 1.3.5.40）
+## 阶段 7 · 回归定位与布局重构（1.3.5.25 – 1.3.5.41）
 
 ### 1.3.5.25-Dev　0cd1dee　　🐞 修复·布局
 
@@ -599,3 +600,21 @@
 > 教训：给沉浸页加"兜底色"时必须用**实色**；半透明会让下层内容穿帮。
 
 > `2026-09-19` ｜ `fix(ui): drop translucent dark override on mobile immersive page; clip cover-breath overflow to stop horizontal jitter` ｜ 文件：`static/index.html`
+
+### 1.3.5.41-Dev　39ec50f　　🐞 修复·布局
+
+**概述**：暗色沉浸页顶栏与状态栏改实色深底；给"整页横向位移"加两道保险（切歌抖动第 3 版尝试）
+
+**用户需求**：① 关闭沉浸后透明问题已修复；② 切歌抖动依旧；③ 暗色沉浸页顶栏整条是白底，观感割裂。
+
+**③ 暗色顶栏发白（已修，两处根因）**：
+- 上游沉浸页顶栏取**封面主色** `body.ambient-active.player-open .header { background: var(--top-color) }` → 暗色下遇到亮封面就是一条白底；
+- 更上面那条**状态栏色**同样来自封面：封面 onload 里 `metaThemeEl.content = topColor.rgbString`。
+→ 暗色下分别改为实色深底 `#111827`（顶栏 CSS）与深色 meta（JS），其余仍交回上游。
+
+**② 切歌抖动（第 3 版尝试）**：逐一排查并**排除**了三个假设——封面呼吸动画（已裁剪）、滚动条槽位（`scrollbar-gutter: stable` 已恢复）、播放条滚动标题跑马灯（`.np-text-group` / `.now-playing-title` 本身已有 `overflow: hidden`）。本轮改为**从机制上杜绝"整页横向位移"**：
+- `html { overflow-x: hidden }`（手机档是 480px 居中框，页面横向滚动在本插件里没有用途）；
+- `.playlist { overflow-x: clip }`（`scrollIntoView` 默认 `inline: nearest`，会连带横向滚动 → 从源头去掉列表的横向溢出）。
+若仍存在，需用户区分：是**整页**位移（连底部播放条内容一起动）还是**仅列表**位移、列表短时是否也抖、是一次性跳变还是持续抖动 —— 三条中任一即可定位。
+
+> `2026-09-19` ｜ `fix(ui): dark immersive header and status bar use solid dark; forbid page-level horizontal displacement (jitter guards)` ｜ 文件：`static/index.html`
