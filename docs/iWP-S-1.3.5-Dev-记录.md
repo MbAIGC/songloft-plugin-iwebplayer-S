@@ -203,3 +203,14 @@
 - **详情**：事件源（resize / orientationchange / mq.change / visualViewport / RO）全部只调 `syncLayout()`；
 - **详情**：聚焦放大挂在 `#toolbar-split.search-expand`（**不挂 body**），且只在 <1100px 生效；
 - **详情**：新增布局自检：只在真的不一致时 `console.warn` 并显示红条（平时零观察者、零定时器）。
+
+## 1.3.5.30-Dev　0677fee　宽屏工具栏改为「结构性」放在 header 内（任何宽度都一行）；删除两行模式与工具栏搬移　🏗 重构·布局
+
+- **日期**：2026-09-19
+- **提交**：`ui: put the wide toolbar structurally in the header (always one row), drop two-row mode and toolbar moving`
+- **涉及文件**：`static/index.html`
+- **详情**：**问题** —— 半宽屏下工具栏又回到第二行（沿用 1.3.5.25 的「<1440 回第二行」策略），而需求是任何宽度都在顶栏。
+- **详情**：**做法** —— 把 `#toolbar-split` 在 **HTML 里直接放进 `.header`**，不再用 JS 搬来搬去；`syncLayout` 只保留 `split` / `narrow` 两态；删除 `placeToolbar`、`_toolbarHome`、`WIDE_INLINE_MIN` 与 `wide-toolbar-inline` 类。
+- **详情**：CSS 门控由 `body.wide-toolbar-inline` 改为 `body.split-view-active`；`--split-list-top` 基准统一为 `58px`。
+- **详情**：**收益** —— ① 任何宽度都在顶栏；② 启动时不再有「先第二行、再跳到顶栏」的闪动；③ 布局自检的不变量简化为「工具栏必须待在 `.header` 内」。
+- **验证**：内联脚本语法 ✓ / CSS 括号平衡 ✓ / `npm test` 通过 ✓ / 构建通过 ✓ / 产物中 `wide-toolbar-inline`、`placeToolbar` 残留均为 0 ✓
