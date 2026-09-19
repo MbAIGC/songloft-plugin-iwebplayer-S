@@ -49,7 +49,8 @@
 | 37 | `b552452` | 落实低风险优化 1–6（观察器过滤 / 布局签名早退 / rAF 合并 / 查询缓存），并纳入 GPT 评估文件 | 🚀 性能·重构 |
 | 38 | `cee58ef` | 修 bug2（半宽屏露出手势箭头）、bug1.1（手机档切歌横向抖动）、bug1.3（手机沉浸页暗色未适配） | 🐞 修复·布局 |
 | 39 | `2768d2e` | 回退 1.3.5.25 带来的"锁死页面滚动"回归（bug1.2 与 bug1.1 的真因），恢复 v1.3.3 既定行为 | 🐞 修复·布局 |
-> 共 **39** 条改动，其中布局相关 **24** 条。
+| 40 | `f1148a1` | 去掉手机沉浸页的"半透明暗色覆盖"（1.3.5.38 自伤），改用上游同源最小兜底；封面容器裁剪修切歌抖动 | 🐞 修复·布局 |
+> 共 **40** 条改动，其中布局相关 **25** 条。
 
 ---
 
@@ -335,7 +336,7 @@
 
 > `2026-09-19` ｜ `chore(debug): add long-press layout diagnostic badge (temporary)` ｜ 文件：`static/index.html`
 
-## 阶段 7 · 回归定位与布局重构（1.3.5.25 – 1.3.5.39）
+## 阶段 7 · 回归定位与布局重构（1.3.5.25 – 1.3.5.40）
 
 ### 1.3.5.25-Dev　0cd1dee　　🐞 修复·布局
 
@@ -582,3 +583,19 @@
 **修复（整段回退到 v1.3.3 既定行为）**：① 恢复 `body { overflow: visible !important; }` 护盾；② 恢复 `html { overflow-y: scroll; scrollbar-gutter: stable; }`；③ 回退 1.3.5.38 里我给手机档加的 `overflow-x: clip`（真因已在①②解决，保持与上游一致）；④ 移除 `syncLayout` 里对 `body.style.overflow` 的副写（护盾 `!important` 下本无效果，去掉以免与上游行为混淆）。核对：三项与 `v1.3.3` 逐条一致 ✓。
 
 > `2026-09-19` ｜ `fix(ui): revert the 1.3.5.25 scroll-lock regression (restore body overflow shield and stable scrollbar gutter)` ｜ 文件：`static/index.html`
+
+### 1.3.5.40-Dev　f1148a1　　🐞 修复·布局
+
+**概述**：去掉手机沉浸页的"半透明暗色覆盖"（1.3.5.38 自伤），改用上游同源最小兜底；封面容器裁剪修切歌抖动
+
+**用户需求**：① 关闭沉浸后，暗色下歌词/封面变透明、底部透出歌曲列表；② 切歌抖动仍在；③ 暗色沉浸页观感不如原版浅色协调。
+
+**根因与修法**：
+1. **①③ 是 1.3.5.38 那组兜底自己造成的**：当时给 `.full-player`/`.player-bar` 写了**半透明**深色底 `rgba(17,24,39,0.35)`，还给 `.header` 半透明底、强行把封面压暗（`brightness(0.85)`）、强制白字 —— 结果沉浸页把**下面一层（歌曲列表）透出来**，且破坏了上游"封面取色"的沉浸体系（观感不协调）。
+   → **删除整组覆盖**，只留一条与上游同源的最小兜底：暗色下给 `#fp-ambient-bg` **实底** `#0b1220`（防封面未就绪时透出下层）；其余一律交给上游既有的 `prefers-color-scheme: dark` / `:root[data-theme="dark"]` 规则处理。
+2. **② 切歌抖动的真正溢出源**：`.fp-cover { animation: cover-breath }` 的 `transform: scale(1.03)`，在 `.fp-cover-wrapper`（flex、未裁剪）里放大后，于手机档 480px 居中框内短暂撑出**横向溢出**；而 v1.3.3 的护盾 `body{overflow:visible!important}` 不会拦它 → 整框左右抖（随机播放大幅滚动时最明显，**原版同样存在**）。
+   → 只给 `.fp-cover-wrapper` 加 `overflow-x: clip; overflow-y: visible`：裁掉这一层的横向溢出，纵向阴影与布局不受影响，**不改变页面滚动模型**（1.3.5.38 那次误加在 `body` 上，已随 1.3.5.39 一并回退）。
+
+> 教训：给沉浸页加"兜底色"时必须用**实色**；半透明会让下层内容穿帮。
+
+> `2026-09-19` ｜ `fix(ui): drop translucent dark override on mobile immersive page; clip cover-breath overflow to stop horizontal jitter` ｜ 文件：`static/index.html`
