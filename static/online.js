@@ -618,21 +618,30 @@
     // ==========================================
     // 7. 滚动翻页事件接管
     // ==========================================
+    // 🌟 rAF 合并 + 把布局读取（scrollHeight 等）移出滚动回调：
+    //    原先每个 scroll 事件都会同步读 scrollHeight（强制布局），滚动时增加主线程压力。
+    let scrollPagingPending = false;
     window.addEventListener('scroll', () => {
         if (window.currentPlaylist !== '在线资源') return;
-        const scrollTop = window.scrollY || document.documentElement.scrollTop;
-        const clientHeight = window.innerHeight || document.documentElement.clientHeight;
-        const scrollHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+        if (scrollPagingPending) return;   // 一帧最多处理一次
+        scrollPagingPending = true;
+        requestAnimationFrame(() => {
+            scrollPagingPending = false;
+            if (window.currentPlaylist !== '在线资源') return;
+            const scrollTop = window.scrollY || document.documentElement.scrollTop;
+            const clientHeight = window.innerHeight || document.documentElement.clientHeight;
+            const scrollHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
 
-        if (scrollTop + clientHeight > scrollHeight - 100) {
-            const list = document.getElementById('playlist');
-            const grid = document.getElementById('playlist-grid');
-            if (list && list.style.display !== 'none' && window.currentOnlineView === 'song') {
-                if (!isFetchingOnline && hasMoreOnlineSearch) window.doOnlineSearch(true);
-            } else if (grid && grid.style.display !== 'none') {
-                if (!isFetchingLxPlaylists && hasMoreLxPlaylists) window.doLxPlaylistSearch(true);
+            if (scrollTop + clientHeight > scrollHeight - 100) {
+                const list = document.getElementById('playlist');
+                const grid = document.getElementById('playlist-grid');
+                if (list && list.style.display !== 'none' && window.currentOnlineView === 'song') {
+                    if (!isFetchingOnline && hasMoreOnlineSearch) window.doOnlineSearch(true);
+                } else if (grid && grid.style.display !== 'none') {
+                    if (!isFetchingLxPlaylists && hasMoreLxPlaylists) window.doLxPlaylistSearch(true);
+                }
             }
-        }
+        });
     }, { passive: true });
 
     // ==========================================

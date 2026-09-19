@@ -3172,7 +3172,7 @@
         if (el && (!header || el.parentNode !== header)) problems.push('工具栏不在 header 内');
         if (problems.length === 0) {
             if (_layoutWarnBadge) { _layoutWarnBadge.remove(); _layoutWarnBadge = null; }
-            return;
+            return true;
         }
         console.warn('[layout] 状态不一致：', problems.join('、'),
             { mode, mq: SPLIT_MQ.matches, w: document.documentElement.clientWidth });
@@ -3184,28 +3184,60 @@
         }
         _layoutWarnBadge.textContent = 'layout≠判据: ' + problems.join('/') + ' | mq=' + SPLIT_MQ.matches
             + ' w=' + document.documentElement.clientWidth + ' mode=' + mode;
+        return false;
     }
 
     // 🌟 唯一的布局执行者：CSS 状态 + 工具栏归属 + 栏内控件搬运，全都收在这里
+    // 🌟 布局签名：模式 + 关键控件/容器的"父节点"。
+    //    用途：模式与关键归属都没变时，syncLayout 可直接早退（省掉约 20 次查询 + 可能的 DOM 搬运）。
+    //    ⚠️ 不能只比较 mode —— 一旦工具栏/控件被外部代码挪走，签名就会变化，于是照旧走完整流程自愈。
+    function layoutSignature(mode) {
+        const parentOf = (id) => {
+            const el = document.getElementById(id);
+            if (!el || !el.parentNode) return '-';
+            const p = el.parentNode;
+            return p.id || p.className || p.tagName;
+        };
+        return [
+            mode,
+            // ⚠️ 必须包含 body 上的实际状态：否则"外部清掉 class"这类改动不会改变签名，
+            //    早退就会把自愈一起砍掉（本项由桩测试场景⑤抓出）。
+            document.body.classList.contains('split-view-active') ? 'split' : 'narrow',
+            parentOf('toolbar-split'),
+            parentOf('playlist-container'),
+            parentOf('menu-dropzone-row1'),
+            parentOf('search-inline-wrap'),
+            parentOf('engine-container'),
+            parentOf('device-container'),
+            document.body.classList.contains('search-expand') ? 'expand' : '-',
+        ].join('|');
+    }
+
+    let _lastLayoutSig = null;
+
     function syncLayout(reason) {
         if (_syncingLayout) return;
+        const mode = currentLayoutMode();
+        if (layoutSignature(mode) === _lastLayoutSig) return; // 模式与关键归属都一致 → 无需重复同步
         _syncingLayout = true;
         try {
-            const mode = currentLayoutMode();
             const wantSplit = mode !== 'narrow';
             if (document.body.classList.contains('split-view-active') !== wantSplit) {
                 document.body.classList.toggle('split-view-active', wantSplit);
                 if (wantSplit) document.body.style.overflow = '';
                 else if (document.body.classList.contains('player-open')) document.body.style.overflow = 'hidden';
             }
-            document.body.dataset.layout = mode;
+            // 仅变化时写（它只服务诊断；属性写入还会扰动 MutationObserver）
+            if (document.body.dataset.layout !== mode) document.body.dataset.layout = mode;
             // 焦点态（搜索栏临时占满整行）不跨模式保留，避免"搬完还带着旧状态"
             const bar = document.getElementById('toolbar-split');
             if (bar) bar.classList.remove('search-expand');
             if (_moveToolbarControls) _moveToolbarControls(wantSplit);
-            layoutSelfCheck(mode);
+            // 一切正常才记住签名；一旦自检发现问题就作废记忆，让下一次事件继续尝试自愈
+            _lastLayoutSig = layoutSelfCheck(mode) ? layoutSignature(mode) : null;
         } catch (e) {
             console.warn('[layout] syncLayout 失败:', e);
+            _lastLayoutSig = null;
         } finally {
             _syncingLayout = false;
         }
@@ -3263,7 +3295,15 @@
       else if (SPLIT_MQ.addListener) SPLIT_MQ.addListener(() => syncLayout('mq'));
       if (window.visualViewport) window.visualViewport.addEventListener('resize', () => syncLayout('visualViewport'));
       if (window.ResizeObserver) {
-          try { new ResizeObserver(() => syncLayout('ro')).observe(document.documentElement); } catch (e) {}
+          // rAF 合并：RO 可能在一帧内触发多次（且 syncLayout 自身也会改 DOM），一帧最多同步一次
+          let roPending = false;
+          try {
+              new ResizeObserver(() => {
+                  if (roPending) return;
+                  roPending = true;
+                  requestAnimationFrame(() => { roPending = false; syncLayout('ro'); });
+              }).observe(document.documentElement);
+          } catch (e) {}
       }
     }
 
@@ -4399,15 +4439,29 @@
             });
         }
 
+        // 🌟 控件引用缓存：减少每次调用的重复查询；元素若被替换（!isConnected）会自动重新查询。
+        //    注意：这里**不做** isSplit 早退 —— 本函数还要同步搜索模式/placeholder 并兜底自愈。
+        const _ctrlCache = Object.create(null);
+        const ctrl = (id) => {
+            const c = _ctrlCache[id];
+            if (c && c.isConnected) return c;
+            return (_ctrlCache[id] = document.getElementById(id));
+        };
+        const ctrlQuery = (sel) => {
+            const c = _ctrlCache[sel];
+            if (c && c.isConnected) return c;
+            return (_ctrlCache[sel] = document.querySelector(sel));
+        };
+
         function moveToolbarControls(isSplit) {
-            const pc = document.getElementById('playlist-container');
-            const mz = document.getElementById('menu-dropzone-row1');
-            const sw = document.getElementById('search-inline-wrap');
-            const ec = document.getElementById('engine-container');
-            const mc = document.getElementById('mf-plugin-container');
-            const dc = document.getElementById('device-container');
-            const headerControls = document.querySelector('.header-controls');
-            const deviceInner = document.getElementById('tbs-device-inner');
+            const pc = ctrl('playlist-container');
+            const mz = ctrl('menu-dropzone-row1');
+            const sw = ctrl('search-inline-wrap');
+            const ec = ctrl('engine-container');
+            const mc = ctrl('mf-plugin-container');
+            const dc = ctrl('device-container');
+            const headerControls = ctrlQuery('.header-controls');
+            const deviceInner = ctrl('tbs-device-inner');
             // 搜索框提示文字：宽屏走本地/在线开关，手机版恢复原样
             const si = document.getElementById('search-input');
             if (si) si.placeholder = isSplit ? '本地曲库搜索' : '请输入关键字...';
@@ -5602,7 +5656,8 @@
             }
         });
     });
-    bodyClassObserver.observe(document.body, { attributes: true });
+    // 只关心 class（回调本来也只处理 class）；否则 data-layout / style 等写入都会白跑一遍
+    bodyClassObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
         // 🌟 跟随模式下由 applyThemeMode 统一处理；手动锁定时系统切换不影响页面主题
