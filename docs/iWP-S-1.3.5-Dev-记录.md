@@ -45,7 +45,8 @@
 | 33 | `66d5a99` | 补齐 768–959px 分栏带缺失的显示规则（列表内部滚动、氛围保护壳、偏移变量） | 🐞 修复·布局 |
 | 34 | `596b0c0` | 分栏下右栏列表一律内部滚动（不再只在开启氛围背景时才生效） | 🐞 修复·布局 |
 | 35 | `988223e` | 补齐 768–959px 段的层叠顺序（header / 底栏抬到左栏之上） | 🐞 修复·布局 |
-> 共 **35** 条改动，其中布局相关 **20** 条。
+| 36 | `bc09131` | 新增断点覆盖审计工具（npm run audit:breakpoints），并用它抓到并修掉 #loading 缺 z-index | 🧪 工具·修复 |
+> 共 **36** 条改动，其中布局相关 **21** 条。
 
 ---
 
@@ -331,7 +332,7 @@
 
 > `2026-09-19` ｜ `chore(debug): add long-press layout diagnostic badge (temporary)` ｜ 文件：`static/index.html`
 
-## 阶段 7 · 回归定位与布局重构（1.3.5.25 – 1.3.5.35）
+## 阶段 7 · 回归定位与布局重构（1.3.5.25 – 1.3.5.36）
 
 ### 1.3.5.25-Dev　0cd1dee　　🐞 修复·布局
 
@@ -470,3 +471,17 @@
 **改造思路**：做**层叠顺序审计**（逐元素比对两段的 z-index 值）后发现：≥960 段有一整块「分层防遮挡」规则，768–959 段完全没有 —— 其中 header 的 z-index:260 与底栏的 z-index:200 决定谁压谁。缺了它们之后：header 只有全局 150、底栏只有全局 170，**都低于左栏 .full-player 的 190** → ① 播放器盖住 header → **左上 logo / 设置菜单看不见**；② 歌词（在 .full-player 内）盖住底栏 → **进度条被压住**。已把该块（透明结界 + header 260 + 下拉 300 + 工具栏 220/210 + 底栏 200）按 ≥960 的写法镜像到 768–959 段。
 
 > `2026-09-19` ｜ `fix(ui): mirror 960+ layering rules into 768-959 (header and player-bar above the player column)` ｜ 文件：`static/index.html`
+
+### 1.3.5.36-Dev　bc09131　　🧪 工具·修复
+
+**概述**：新增断点覆盖审计工具（npm run audit:breakpoints），并用它抓到并修掉 #loading 缺 z-index
+
+**用户需求**：把这次连续定位同类问题所用的审计方法，固化成可复用的工具。
+
+**改造思路**：
+- 新建 `scripts/audit-breakpoints.mjs`：① 只扫 CSS、按大括号深度判定每条规则所属的 `@media` 段；② 逐条检查「关注点 × 分栏带」（`768–959` 与 `≥960` 必须成对）；③ 逐元素比对两段的 z-index（含防误报处理：多选择器需全部命中、过滤 `::before/::after`、目标须是选择器末尾元素）；④ `--strict` 有发现时退出码 1，可作为提交前门禁。
+- 用它复扫时立刻抓到一处**真实漏项**：`body.split-view-active #loading { position: relative; z-index: 145 }` 只在 ≥960 段 → 在 768–959 段里「正在加载 / 登录失效 / 重新登录」提示会被氛围遮罩（135）盖住。已按 ≥960 的写法补进该段。
+- 工具自检：在旧版本 `ea7c892` 上运行，能准确报出 1.3.5.35 修掉的那批缺失（header 260 / 工具栏 220 / 搜索框 210 / select-options 300）；在当前版本上 0 项问题、`--strict` 退出码 0。
+- `package.json` 增加 `audit:breakpoints`；`AGENT.md` 增加**约定 13**（改 CSS 后先跑断点审计）。
+
+> `2026-09-19` ｜ `feat(tooling): add breakpoint coverage audit (npm run audit:breakpoints); fix #loading z-index gap in 768-959` ｜ 文件：`scripts/audit-breakpoints.mjs`、`static/index.html`、`package.json`、`AGENT.md`
