@@ -9,7 +9,8 @@
     "validate": "songloft-plugin validate",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "publish:release": "songloft-plugin publish"
+    "publish:release": "songloft-plugin publish",
+    "audit:breakpoints": "node scripts/audit-breakpoints.mjs"
   },
   "devDependencies": {
     "@songloft/plugin-builder": "^2.0.0-alpha.1",

@@ -1904,6 +1904,8 @@
        ② 底栏 .player-bar 只有全局 170，同样低于 190 → 底栏的播放进度条被歌词区压住。
        这里的 200 与 ≥960 段一致（底栏之上、header 260 之下）。 */
     body.split-view-active .player-bar { z-index: 200 !important; }
+    /* #loading 承载「正在加载 / 登录失效」提示，必须同样挣脱氛围遮罩（与 ≥960 段一致） */
+    body.split-view-active #loading { position: relative !important; z-index: 145 !important; }
     body.ambient-active.split-view-active .full-player,
     body.ambient-active.split-view-active .header,
     body.ambient-active.split-view-active .playlist-row,
