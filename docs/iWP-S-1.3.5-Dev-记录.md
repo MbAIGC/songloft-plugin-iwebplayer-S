@@ -48,7 +48,8 @@
 | 36 | `bc09131` | 新增断点覆盖审计工具（npm run audit:breakpoints），并用它抓到并修掉 #loading 缺 z-index | 🧪 工具·修复 |
 | 37 | `b552452` | 落实低风险优化 1–6（观察器过滤 / 布局签名早退 / rAF 合并 / 查询缓存），并纳入 GPT 评估文件 | 🚀 性能·重构 |
 | 38 | `cee58ef` | 修 bug2（半宽屏露出手势箭头）、bug1.1（手机档切歌横向抖动）、bug1.3（手机沉浸页暗色未适配） | 🐞 修复·布局 |
-> 共 **38** 条改动，其中布局相关 **23** 条。
+| 39 | `2768d2e` | 回退 1.3.5.25 带来的"锁死页面滚动"回归（bug1.2 与 bug1.1 的真因），恢复 v1.3.3 既定行为 | 🐞 修复·布局 |
+> 共 **39** 条改动，其中布局相关 **24** 条。
 
 ---
 
@@ -334,7 +335,7 @@
 
 > `2026-09-19` ｜ `chore(debug): add long-press layout diagnostic badge (temporary)` ｜ 文件：`static/index.html`
 
-## 阶段 7 · 回归定位与布局重构（1.3.5.25 – 1.3.5.38）
+## 阶段 7 · 回归定位与布局重构（1.3.5.25 – 1.3.5.39）
 
 ### 1.3.5.25-Dev　0cd1dee　　🐞 修复·布局
 
@@ -554,4 +555,30 @@
 - **已排除**：没有规则隐藏这些元素（两版都没有）；`scrollToCurrent()` 用 `translateY` 不滚动页面；`applyThemeMode` 不会因 `data-theme` 已存在而跳过；z-index 上 header(150) 高于 full-player(140)。
 - **当前结论（证据链）**：`.header` 是 `position: sticky; top:0`；而进入手机沉浸页时 `player.js` 会 `document.body.style.overflow='hidden'`（上游行为，我们的 `syncLayout` 也会在 class 变化时补设一次）。**sticky 的吸附参照是最近的滚动容器** → body 一旦 `overflow:hidden` 而实际滚动发生在 html/页面层，header 会**随内容一起滚走**；而随机播放会触发 `playlist.js:575` 的 `scrollIntoView({behavior:'smooth', block:'center'})` 把页面滚到列表中段 → 「列表大幅滚动」正是触发条件（与 bug1.1 同一触发源）→ 表现为间歇性顶部丢失、关闭沉浸也停在滚动位置。
 - **拟修法（待确认）**：① 移除 `syncLayout` 里对 `body.style.overflow` 的副写；② 手机进入/退出沉浸页时保存并恢复 `window.scrollY`（或在打开时改锁页面为 `position: fixed` + 还原滚动）；③ 关闭沉浸时把滚动位置复位到进入前。
-- **状态**：分析中（2026-09-19 登记）。
+- **状态**：✅ **已在 1.3.5.39 修复**（根因＝1.3.5.25 带回了被 `7c8cc72` 回退的"锁死页面滚动"实验；已整段回退到 v1.3.3 行为）。
+
+### 1.3.5.39-Dev　2768d2e　　🐞 修复·布局
+
+**概述**：回退 1.3.5.25 带来的"锁死页面滚动"回归（bug1.2 与 bug1.1 的真因），恢复 v1.3.3 既定行为
+
+**用户需求**：bug1.2（手机歌词页顶部丢失）在原版正常 → 判定为我们引入，要求定位并修复。
+
+**定位过程**：拿**真正的上个发布版 `v1.3.3`** 做 diff（而不是 1.3.5 前的提交），立刻命中三处：
+
+```
+-  body { overflow: visible !important; }                      ← v1.3.3（正常）
++  body.player-open { overflow: hidden; }                       ← 1.3.5.25 引入
++  body.split-view-active:not(.player-open) { overflow: visible; }
+-  html { overflow-y: scroll; scrollbar-gutter: stable; }        ← v1.3.3
++  html { overflow-y: auto; scrollbar-gutter: auto; }            ← 1.3.5.25 引入
+```
+
+并且 `git log` 证明 **`7c8cc72`（2026-08-29）就是 `Revert "fix(scroll): unify list scrolling into #scroll-wrapper; kill page-level scrollbar entirely"`** —— 团队当初**故意**把"锁死页面滚动"那套实验回退掉，并在源码里留下「终极护盾：用最高权限强制可见，彻底废掉底层 JS 强制锁屏的命令，根除 iOS 乱跳」。**1.3.5.25 的修复等于把被回退的实验又带了回来** ✗。
+
+**两个 bug 同一根因**：
+- **bug1.2**：`body.player-open{overflow:hidden}` 让 body 成为滚动容器 → **sticky header 的吸附参照失效** → 随机播放触发 `playlist.js:575` 的 `scrollIntoView({behavior:'smooth'})` 把页面滚到列表中段后，顶部（菜单/logo/设备）随内容一起被滚走，关闭沉浸也停在滚动位置、列表顶部一段看不到 → 表现为间歇性"顶部不显示"；
+- **bug1.1**：`scrollbar-gutter: auto` 使滚动条出现/消失时内容宽度变化 → 480px 居中框左右抖（随机播放大幅滚动时最明显）。
+
+**修复（整段回退到 v1.3.3 既定行为）**：① 恢复 `body { overflow: visible !important; }` 护盾；② 恢复 `html { overflow-y: scroll; scrollbar-gutter: stable; }`；③ 回退 1.3.5.38 里我给手机档加的 `overflow-x: clip`（真因已在①②解决，保持与上游一致）；④ 移除 `syncLayout` 里对 `body.style.overflow` 的副写（护盾 `!important` 下本无效果，去掉以免与上游行为混淆）。核对：三项与 `v1.3.3` 逐条一致 ✓。
+
+> `2026-09-19` ｜ `fix(ui): revert the 1.3.5.25 scroll-lock regression (restore body overflow shield and stable scrollbar gutter)` ｜ 文件：`static/index.html`
