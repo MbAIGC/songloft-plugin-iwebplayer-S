@@ -57,7 +57,8 @@
 | 45 | `079aaeb` | 深色模式下手机沉浸（歌词）页改为与浅色一致（全页跟随封面取色），删除此前加的顶栏遮罩 | 🐞 修复·外观 |
 | 46 | `9d78350` | 修「个别歌曲顶栏/状态栏颜色不对」：跨域封面取色失败会沿用上一首的颜色；取色前先清空旧值 | 🐞 修复·外观 |
 | 47 | `86dc8a3` | 兜底（占位）封面不再参与取色 —— CORS 受限封面会回落到默认 SVG，导致顶栏取到"占位图"的深色 | 🐞 修复·外观 |
-> 共 **47** 条改动，其中布局相关 **32** 条。
+| 48 | `6fd2388` | 手机沉浸态 Header 改为真正透明（采纳 GPT《暗色顶部透明分析》方向 A），从原理上消除顶部色带 | 🐞 修复·外观 |
+> 共 **48** 条改动，其中布局相关 **33** 条。
 
 ---
 
@@ -343,7 +344,7 @@
 
 > `2026-09-19` ｜ `chore(debug): add long-press layout diagnostic badge (temporary)` ｜ 文件：`static/index.html`
 
-## 阶段 7 · 回归定位与布局重构（1.3.5.25 – 1.3.5.47）
+## 阶段 7 · 回归定位与布局重构（1.3.5.25 – 1.3.5.48）
 
 ### 1.3.5.25-Dev　0cd1dee　　🐞 修复·布局
 
@@ -733,3 +734,32 @@
 **待观察**：本项修的是"封面服务器不支持 CORS"这一类；若仍有歌曲异常，需要区分：顶栏是**偏暗**（占位色/其它路径）还是**偏亮**（浅色封面取色被压暗），以及是否只在**在线资源**出现（源站不同）—— 据此可继续收敛。
 
 > `2026-09-19` ｜ `fix(ui): never sample the placeholder cover for ambient colours (CORS-blocked covers fell back to the default SVG)` ｜ 文件：`static/index.html`
+
+### 1.3.5.48-Dev　6fd2388　　🐞 修复·外观
+
+**概述**：手机沉浸态 Header 改为真正透明（采纳 GPT《暗色顶部透明分析》方向 A），从原理上消除顶部色带
+
+**用户需求**：提供 GPT 的分析文档 `docs/GPT暗色顶部透明分析.md`，其结论与用户诉求一致 —— **Logo 栏应真正透明、透出氛围画报**，而不是实色层。
+
+**结构性根因（GPT 分析要点，与此前像素实测相互印证）**：
+- **Header**：`background: var(--top-color, var(--bg-color))` —— **封面顶部 5px 取色得到的实色**；
+- **画报主体**：`#fp-ambient-img`（封面图 `opacity:0.28` + `transform: scale(1.05)`）+ `.fp-ambient-overlay`（`rgba(255,255,255,0.35)`）；
+- **播放器区**：`rgba(255,255,255,0.08)` + `backdrop-filter: blur(20px)`。
+→ 三者是**不同的合成路径**；只要"封面顶部色"与"整体色调"不一致（**取决于封面本身**），顶部就会形成独立底色带 → 表现为**个别歌曲**、暗色下最明显。此前 1.3.5.43 / 44 / 45 几版都在"调色值 / 调强度"，属治标。
+
+**修法（方向 A：Header 真正透明）**：
+```css
+body.ambient-active.player-open:not(.split-view-active) .header {
+  background: transparent !important;
+  backdrop-filter: none !important; border: none !important; box-shadow: none !important;
+}
+```
+- 透明后 Header 与**正下方那一条显示的是同一层内容**（full-player / 画报层）→ **从原理上不可能产生接缝**，也不再依赖取色是否准确；
+- 文字/图标对比度仍由 `ambient-top-dark-bg` / `ambient-top-light-bg` 负责（判据本就是"封面顶部亮暗"，与透明 Header 之下透出的内容一致）；
+- 取色失败时颜色为 `transparent`，同样自洽；`meta theme-color` 逻辑不变；
+- **仅作用于手机沉浸态**：分栏下的 Header 早已由上游结界规则设为 transparent，不受影响；z-index 关系不变（ambient 135 < full-player 140 < header 150），文字清晰；
+- 上游的实色规则**保留**（其它场景仍使用）。
+
+**采纳 GPT 的"不建议继续尝试"**：不再调 `#111827` / `rgba(17,24,39,0.25|0.35|0.6)` / `--bg-color` / `meta theme-color` / 再加 Header 暗色遮罩 —— 这些只能改变色带的颜色或明暗，解决不了"合成路径不一致"的结构问题。
+
+> `2026-09-19` ｜ `fix(ui): make the mobile immersive header truly transparent (GPT direction A) - shows the ambient artwork, no seam by construction` ｜ 文件：`static/index.html`；`docs/GPT暗色顶部透明分析.md` 一并入库
