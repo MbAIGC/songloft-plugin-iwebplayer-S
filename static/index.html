@@ -956,7 +956,12 @@
     html { background-color: #e5e7eb; overflow-y: auto; scrollbar-gutter: auto; }
     @media (prefers-color-scheme: dark) { html:not([data-theme="light"]) { background-color: #050505; } }
     html[data-theme="dark"] { background-color: #050505; }
-    body { width: 480px !important; margin: 0 auto !important; min-height: 100vh; box-shadow: 0 0 60px rgba(0,0,0,0.15); border-left: 1px solid var(--border); border-right: 1px solid var(--border); overflow-x: visible; }
+    /* 🐞 Bug1.1 修复：原为 overflow-x: visible —— 切歌时封面呼吸动画(scale 1.03) +
+       随机播放的 scrollIntoView(smooth) 会短暂撑出横向溢出，使这层 480px 居中框左右抖动。
+       改为 clip（不产生滚动容器，不影响 sticky/fixed，也不会像 hidden 那样改变滚动模型）。 */
+    body { width: 480px !important; margin: 0 auto !important; min-height: 100vh; box-shadow: 0 0 60px rgba(0,0,0,0.15); border-left: 1px solid var(--border); border-right: 1px solid var(--border); overflow-x: clip !important; }
+    /* 封面容器同样裁剪：呼吸动画的放大不会溢出到框外 */
+    .fp-cover-wrapper { overflow-x: clip !important; }
     .player-bar, .full-player { width: 480px !important; left: 50% !important; margin-left: -240px !important; }
     .about-modal-backdrop { left: 50%; width: 480px; margin-left: -240px; }
     #fp-lyrics-wrapper { cursor: grab; }
@@ -1207,6 +1212,26 @@
   :root[data-theme="dark"] body.ambient-active.player-open .full-player,
   :root[data-theme="dark"] body.ambient-active.player-open .player-bar { background: rgba(17, 24, 39, 0.25) !important; }
   :root[data-theme="dark"] body.ambient-active.player-open #device-val { background-color: rgba(31, 41, 55, 0.35) !important; border-color: rgba(255, 255, 255, 0.1) !important; }
+
+  /* 🐞 Bug1.3 修复（追加式，不改上游规则）：暗色模式下「手机沉浸（歌词）页」的兜底。
+     ★ 上游的暗色沉浸规则全部带 body.ambient-active 前置条件 → 未开启「氛围背景」或封面取色缺失时，
+       暗色模式下沉浸页仍是亮色（未适配）。这里按 data-theme 兜底，并保留封面画报只做压暗。 */
+  :root:not([data-theme="light"]) body.player-open:not(.split-view-active) .full-player,
+  :root:not([data-theme="light"]) body.player-open:not(.split-view-active) .player-bar {
+    background: rgba(17, 24, 39, 0.35) !important;
+  }
+  :root:not([data-theme="light"]) body.player-open:not(.split-view-active) .header {
+    background: rgba(17, 24, 39, 0.85) !important; border: none !important; box-shadow: none !important;
+  }
+  :root:not([data-theme="light"]) body.player-open:not(.split-view-active) .lyric-line {
+    color: rgba(255, 255, 255, 0.72) !important;
+  }
+  :root:not([data-theme="light"]) body.player-open:not(.split-view-active) .lyric-line.active {
+    color: #ffffff !important;
+  }
+  :root:not([data-theme="light"]) body.player-open:not(.split-view-active) #fp-ambient-bg .fp-ambient-img {
+    opacity: 0.35 !important; filter: saturate(115%) brightness(0.85) !important;
+  }
   @media (min-width: 960px) {
     :root[data-theme="dark"] body.ambient-active.split-view-active .header,
     :root[data-theme="dark"] body.ambient-active.split-view-active .playlist-row { background: transparent !important; border: none !important; }
@@ -1906,6 +1931,11 @@
     body.split-view-active .player-bar { z-index: 200 !important; }
     /* #loading 承载「正在加载 / 登录失效」提示，必须同样挣脱氛围遮罩（与 ≥960 段一致） */
     body.split-view-active #loading { position: relative !important; z-index: 145 !important; }
+    /* 🐞 Bug2 修复：手机版专属手势箭头（收起沉浸 .drawer-handle / 展开 .up-arrow）
+       上游把这两条隐藏规则只写在 @media (min-width: 960px) 里 → 768–959（半宽屏）无人隐藏。
+       按上游写法原样补齐，保持与 ≥960 一致。 */
+    body.split-view-active .drawer-handle { display: none !important; }
+    body.split-view-active .up-arrow { visibility: hidden !important; pointer-events: none !important; }
     body.ambient-active.split-view-active .full-player,
     body.ambient-active.split-view-active .header,
     body.ambient-active.split-view-active .playlist-row,

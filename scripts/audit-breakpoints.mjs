@@ -130,6 +130,8 @@ const CONCERNS = [
       && d.prop === 'background' && /^transparent/.test(d.value)],
   ['进度条分栏定位(top:-14px)', (d) => /\.progress-container/.test(d.selector)
       && d.prop === 'top' && /^-14px/.test(d.value)],
+  ['手机手势箭头隐藏(.drawer-handle/.up-arrow)', (d) => /split-view-active[^{]*\.(drawer-handle|up-arrow)\s*$/.test(d.selector)
+      && ((d.prop === 'display' && /^none/.test(d.value)) || (d.prop === 'visibility' && /^hidden/.test(d.value)))],
   ['氛围遮罩分栏全宽', (d) => /fp-ambient-bg/.test(d.selector)
       && d.prop === 'width' && /^100%/.test(d.value)],
 ];
