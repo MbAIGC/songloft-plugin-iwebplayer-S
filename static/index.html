@@ -449,7 +449,8 @@
   /* ==========================================
      6. 歌曲列表与海报墙 (Playlist & Grid View)
      ========================================== */
-  .playlist { list-style: none; padding: 10px; max-width: 800px; margin: 0 auto; background-color: transparent; }
+  /* 🐞 Bug1.1（第 3 版）保险 2：列表自身不产生横向溢出（scrollIntoView 默认 inline:nearest 会连带横向滚） */
+  .playlist { list-style: none; padding: 10px; max-width: 800px; margin: 0 auto; background-color: transparent; overflow-x: clip; }
   #loading { text-align: center; padding: 20px; color: var(--text-sub); background-color: transparent; }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) #loading, :root:not([data-theme="light"]) .playlist { background-color: transparent; } }
   :root[data-theme="dark"] #loading, :root[data-theme="dark"] .playlist { background-color: transparent; }
@@ -961,7 +962,9 @@
      12. 桌面端宽屏适配与双栏无缝切分 (Media Queries)
      ========================================== */
   @media (min-width: 600px) {
-    html { background-color: #e5e7eb; overflow-y: scroll; scrollbar-gutter: stable; }
+    /* 🐞 Bug1.1（第 3 版）保险：杜绝"整页横向位移"这一类抖动 —— 任何瞬时的横向溢出都不再能推动页面。
+       页面横向滚动在本插件里没有任何用途（手机档是 480px 居中框）。 */
+    html { background-color: #e5e7eb; overflow-y: scroll; scrollbar-gutter: stable; overflow-x: hidden; }
     @media (prefers-color-scheme: dark) { html:not([data-theme="light"]) { background-color: #050505; } }
     html[data-theme="dark"] { background-color: #050505; }
     body { width: 480px !important; margin: 0 auto !important; min-height: 100vh; box-shadow: 0 0 60px rgba(0,0,0,0.15); border-left: 1px solid var(--border); border-right: 1px solid var(--border); overflow-x: visible; }
@@ -1223,6 +1226,12 @@
        其余一律交给上游规则（它已按 prefers-color-scheme / data-theme 对沉浸层做过压暗）。 */
   :root:not([data-theme="light"]) body.player-open:not(.split-view-active) #fp-ambient-bg {
     background: #0b1220 !important;
+  }
+  /* 🐞 暗色沉浸页「顶部 logo 栏是一条白底」：上游沉浸页顶栏取**封面主色** var(--top-color)，
+     暗色下遇到亮封面就会白得与页面割裂。这里暗色下给顶栏实色深底（与页面同源），不动其它上游规则。 */
+  :root:not([data-theme="light"]) body.player-open:not(.split-view-active) .header {
+    background: #111827 !important;
+    border: none !important; box-shadow: none !important;
   }
   @media (min-width: 960px) {
     :root[data-theme="dark"] body.ambient-active.split-view-active .header,
@@ -5628,7 +5637,13 @@
 
             if (topColor) {
                 document.body.style.setProperty('--top-color', topColor.rgbString);
-                if (document.body.classList.contains('player-open')) metaThemeEl.content = topColor.rgbString;
+                if (document.body.classList.contains('player-open')) {
+                    // 🐞 暗色下不要用封面主色刷状态栏（会让顶部整条发白），改用与主题一致的深色
+                    const rootAttr = document.documentElement.getAttribute('data-theme');
+                    const isDarkNow = rootAttr === 'dark'
+                        || (rootAttr !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                    metaThemeEl.content = isDarkNow ? '#111827' : topColor.rgbString;
+                }
 
                 // 🌟 核心新增：计算顶部颜色的相对亮度 (WCAG 标准公式)
                 const topLuma = (topColor.r * 299 + topColor.g * 587 + topColor.b * 114) / 1000;
