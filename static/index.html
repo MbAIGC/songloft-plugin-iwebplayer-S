@@ -449,8 +449,7 @@
   /* ==========================================
      6. 歌曲列表与海报墙 (Playlist & Grid View)
      ========================================== */
-  /* 🐞 Bug1.1（第 3 版）保险 2：列表自身不产生横向溢出（scrollIntoView 默认 inline:nearest 会连带横向滚） */
-  .playlist { list-style: none; padding: 10px; max-width: 800px; margin: 0 auto; background-color: transparent; overflow-x: clip; }
+  .playlist { list-style: none; padding: 10px; max-width: 800px; margin: 0 auto; background-color: transparent; }
   #loading { text-align: center; padding: 20px; color: var(--text-sub); background-color: transparent; }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) #loading, :root:not([data-theme="light"]) .playlist { background-color: transparent; } }
   :root[data-theme="dark"] #loading, :root[data-theme="dark"] .playlist { background-color: transparent; }
@@ -560,10 +559,7 @@
   .down-arrow { display: flex; justify-content: center; align-items: center; color: var(--text-sub); animation: bounce-down 2s infinite; width: 40px; height: 40px; transition: color 0.3s ease; }
   @keyframes bounce-down { 0%, 20%, 50%, 80%, 100% {transform: translateY(0);} 40% {transform: translateY(5px);} 60% {transform: translateY(3px);} }
 
-  /* 🐞 Bug1.1 修复（第 2 版）：封面呼吸动画 .fp-cover 会 scale(1.03) → 在手机档 480px 居中框里
-     短暂撑出横向溢出，使整框左右抖动（随机播放大幅滚动时最明显；原版同样存在）。
-     只裁掉这一层的横向溢出，纵向与布局不受影响，也不改变页面的滚动模型。 */
-  .fp-cover-wrapper { width: 100%; display: flex; justify-content: center; align-items: center; padding: 18px 16px 8px 16px; flex-shrink: 0; overflow-x: clip; overflow-y: visible; }
+  .fp-cover-wrapper { width: 100%; display: flex; justify-content: center; align-items: center; padding: 18px 16px 8px 16px; flex-shrink: 0; }
   .desktop-player-main { display: contents; }
   .desktop-track-meta { display: none; }
   .fp-cover {
@@ -962,9 +958,7 @@
      12. 桌面端宽屏适配与双栏无缝切分 (Media Queries)
      ========================================== */
   @media (min-width: 600px) {
-    /* 🐞 Bug1.1（第 3 版）保险：杜绝"整页横向位移"这一类抖动 —— 任何瞬时的横向溢出都不再能推动页面。
-       页面横向滚动在本插件里没有任何用途（手机档是 480px 居中框）。 */
-    html { background-color: #e5e7eb; overflow-y: scroll; scrollbar-gutter: stable; overflow-x: hidden; }
+    html { background-color: #e5e7eb; overflow-y: scroll; scrollbar-gutter: stable; }
     @media (prefers-color-scheme: dark) { html:not([data-theme="light"]) { background-color: #050505; } }
     html[data-theme="dark"] { background-color: #050505; }
     body { width: 480px !important; margin: 0 auto !important; min-height: 100vh; box-shadow: 0 0 60px rgba(0,0,0,0.15); border-left: 1px solid var(--border); border-right: 1px solid var(--border); overflow-x: visible; }
@@ -1219,20 +1213,9 @@
   :root[data-theme="dark"] body.ambient-active.player-open .player-bar { background: rgba(17, 24, 39, 0.25) !important; }
   :root[data-theme="dark"] body.ambient-active.player-open #device-val { background-color: rgba(31, 41, 55, 0.35) !important; border-color: rgba(255, 255, 255, 0.1) !important; }
 
-  /* 🐞 Bug1.3 修复（第 2 版，最小化）：暗色模式下「手机沉浸（歌词）页」的兜底。
-     ★ 第 1 版（1.3.5.38）给 .full-player/.player-bar/.header 加了**半透明**深色底 → 沉浸页会把
-       下面的歌曲列表透出来（关闭沉浸后尤其明显）、观感也破坏上游的封面取色体系。已删除。
-     ★ 现在只做一件事：确保沉浸页的**画报层**有实底，避免封面未就绪时透出下层；
-       其余一律交给上游规则（它已按 prefers-color-scheme / data-theme 对沉浸层做过压暗）。 */
-  :root:not([data-theme="light"]) body.player-open:not(.split-view-active) #fp-ambient-bg {
-    background: #0b1220 !important;
-  }
-  /* 🐞 暗色沉浸页「顶部 logo 栏是一条白底」：上游沉浸页顶栏取**封面主色** var(--top-color)，
-     暗色下遇到亮封面就会白得与页面割裂。这里暗色下给顶栏实色深底（与页面同源），不动其它上游规则。 */
-  :root:not([data-theme="light"]) body.player-open:not(.split-view-active) .header {
-    background: #111827 !important;
-    border: none !important; box-shadow: none !important;
-  }
+  /* 说明（1.3.5.42）：此处曾有过 1.3.5.38/40/41 三版「暗色沉浸页兜底」实验，
+     结论是**全部撤销、沿用上游原方案** —— 上游沉浸页的顶栏与底部控制区都是**透明**的，
+     上下底色由封面取色（--top-color / --bottom-color）决定，观感更协调；自加实底反而割裂。 */
   @media (min-width: 960px) {
     :root[data-theme="dark"] body.ambient-active.split-view-active .header,
     :root[data-theme="dark"] body.ambient-active.split-view-active .playlist-row { background: transparent !important; border: none !important; }
@@ -5637,13 +5620,7 @@
 
             if (topColor) {
                 document.body.style.setProperty('--top-color', topColor.rgbString);
-                if (document.body.classList.contains('player-open')) {
-                    // 🐞 暗色下不要用封面主色刷状态栏（会让顶部整条发白），改用与主题一致的深色
-                    const rootAttr = document.documentElement.getAttribute('data-theme');
-                    const isDarkNow = rootAttr === 'dark'
-                        || (rootAttr !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-                    metaThemeEl.content = isDarkNow ? '#111827' : topColor.rgbString;
-                }
+                if (document.body.classList.contains('player-open')) metaThemeEl.content = topColor.rgbString;
 
                 // 🌟 核心新增：计算顶部颜色的相对亮度 (WCAG 标准公式)
                 const topLuma = (topColor.r * 299 + topColor.g * 587 + topColor.b * 114) / 1000;
