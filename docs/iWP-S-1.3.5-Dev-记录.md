@@ -47,7 +47,8 @@
 | 35 | `988223e` | 补齐 768–959px 段的层叠顺序（header / 底栏抬到左栏之上） | 🐞 修复·布局 |
 | 36 | `bc09131` | 新增断点覆盖审计工具（npm run audit:breakpoints），并用它抓到并修掉 #loading 缺 z-index | 🧪 工具·修复 |
 | 37 | `b552452` | 落实低风险优化 1–6（观察器过滤 / 布局签名早退 / rAF 合并 / 查询缓存），并纳入 GPT 评估文件 | 🚀 性能·重构 |
-> 共 **37** 条改动，其中布局相关 **22** 条。
+| 38 | `cee58ef` | 修 bug2（半宽屏露出手势箭头）、bug1.1（手机档切歌横向抖动）、bug1.3（手机沉浸页暗色未适配） | 🐞 修复·布局 |
+> 共 **38** 条改动，其中布局相关 **23** 条。
 
 ---
 
@@ -333,7 +334,7 @@
 
 > `2026-09-19` ｜ `chore(debug): add long-press layout diagnostic badge (temporary)` ｜ 文件：`static/index.html`
 
-## 阶段 7 · 回归定位与布局重构（1.3.5.25 – 1.3.5.37）
+## 阶段 7 · 回归定位与布局重构（1.3.5.25 – 1.3.5.38）
 
 ### 1.3.5.25-Dev　0cd1dee　　🐞 修复·布局
 
@@ -534,3 +535,23 @@
 ### ④ `player.js` 中 `isSplitHome` 的重复判断清理
 - **内容**：`document.body.classList.contains('split-view-active')` 被重复写了两行（统一判据时留下的），逻辑等价，仅清理。
 - **状态**：登记待办（可与其他改动一起做）。
+
+### 1.3.5.38-Dev　cee58ef　　🐞 修复·布局
+
+**概述**：修 bug2（半宽屏露出手势箭头）、bug1.1（手机档切歌横向抖动）、bug1.3（手机沉浸页暗色未适配）
+
+**用户需求**：修复这三个问题；**手机界面显示效果以上游为主**，改动要便于后续跟进上游；bug1.2 继续分析。
+
+**改造思路**（全部为**追加式最小改动，不改上游规则本体**）：
+1. **bug2（半宽屏露出手机手势箭头）**：上游把 `body.split-view-active .drawer-handle{display:none}` 与 `.up-arrow{visibility:hidden}` **只写在 `@media (min-width: 960px)`** → 768–959 无人隐藏。按上游写法原样补进 768–959 段；并把这两个元素登记进 `scripts/audit-breakpoints.mjs` 的 `CONCERNS`（工具此前漏检，正因为它们不在清单里）。
+2. **bug1.1（手机档切歌左右抖动）**：手机档是 ≥600 的 480px 居中框，原为 `body{overflow-x:visible}`；切歌时封面呼吸动画 `scale(1.03)` + 随机播放 `scrollIntoView({behavior:'smooth'})` 会短暂撑出横向溢出 → 整框左右抖。改为 `overflow-x: clip`（**不创建滚动容器**，不影响 sticky/fixed，也不像 `hidden` 那样改变滚动模型），并给 `.fp-cover-wrapper` 同样裁剪。原版同样存在（用户已确认），属 pre-existing。
+3. **bug1.3（手机沉浸页暗色未适配）**：上游暗色沉浸规则**全部带 `body.ambient-active` 前置条件** → 未开启「氛围背景」或封面取色缺失时，暗色模式下沉浸页仍是亮色。追加一组**不依赖 ambient** 的 `:root:not([data-theme="light"]) body.player-open:not(.split-view-active)` 兜底（沉浸层/顶栏/歌词文字/画报压暗），保留封面画报只做压暗。
+
+> `2026-09-19` ｜ `fix(ui): hide mobile gesture arrows in 768-959, clip phone-frame horizontal overflow, dark fallback for mobile immersive page` ｜ 文件：`static/index.html`、`scripts/audit-breakpoints.mjs`
+
+### ⑤ bug1.2 手机沉浸页顶部丢失（分析中，待修）
+- **现象**：进入歌词页后，顶部左侧菜单/logo、右侧设备切换按钮不显示；**关闭沉浸后也不恢复**，且列表顶部一段同样看不到（间歇性，有时正常）。
+- **已排除**：没有规则隐藏这些元素（两版都没有）；`scrollToCurrent()` 用 `translateY` 不滚动页面；`applyThemeMode` 不会因 `data-theme` 已存在而跳过；z-index 上 header(150) 高于 full-player(140)。
+- **当前结论（证据链）**：`.header` 是 `position: sticky; top:0`；而进入手机沉浸页时 `player.js` 会 `document.body.style.overflow='hidden'`（上游行为，我们的 `syncLayout` 也会在 class 变化时补设一次）。**sticky 的吸附参照是最近的滚动容器** → body 一旦 `overflow:hidden` 而实际滚动发生在 html/页面层，header 会**随内容一起滚走**；而随机播放会触发 `playlist.js:575` 的 `scrollIntoView({behavior:'smooth', block:'center'})` 把页面滚到列表中段 → 「列表大幅滚动」正是触发条件（与 bug1.1 同一触发源）→ 表现为间歇性顶部丢失、关闭沉浸也停在滚动位置。
+- **拟修法（待确认）**：① 移除 `syncLayout` 里对 `body.style.overflow` 的副写；② 手机进入/退出沉浸页时保存并恢复 `window.scrollY`（或在打开时改锁页面为 `position: fixed` + 还原滚动）；③ 关闭沉浸时把滚动位置复位到进入前。
+- **状态**：分析中（2026-09-19 登记）。
