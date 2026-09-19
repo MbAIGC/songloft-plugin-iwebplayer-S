@@ -373,6 +373,12 @@
      ⚠️ 状态来自工具栏自身（#toolbar-split.search-expand），不来自 body —— 见 3.23 的回归教训。 */
   #toolbar-split.search-expand .tbs-playlist,
   #toolbar-split.search-expand .tbs-playlist + .tbs-divider { display: none !important; }
+  /* 展开后空间充足 → 恢复「宽敞态」：完整文案（搜歌 / 搜单 / 音源 ▾）+ 按钮之间的竖线间距。
+     用 ID 选择器覆盖 ≤1099 的紧凑规则（紧凑态是静态压缩，展开态才恢复完整文案）。 */
+  #toolbar-split.search-expand .tbs-lx-actions { gap: 2px; }
+  #toolbar-split.search-expand .tbs-lx-btn .lbl-long { display: inline; }
+  #toolbar-split.search-expand .tbs-lx-btn .lbl-short { display: none; }
+  #toolbar-split.search-expand .tbs-lx-actions .tbs-divider-v { display: block; }
 
   /* 左栏：引擎/平台选择器 — 默认隐藏，展开后显示 */
   .tbs-online #engine-container,
