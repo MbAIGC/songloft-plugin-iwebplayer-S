@@ -5622,6 +5622,14 @@
                 || (forced !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
             if (meta) meta.content = isDarkNow ? '#111827' : '#f3f4f6';
         }
+        // 🛑 兜底图不参与取色：封面服务器若不支持 CORS，#fp-cover（带 crossorigin）会加载失败 →
+        //    onerror 把 src 换成 window.defaultCover（data:image/svg+xml 占位图）→ 于是取到的是
+        //    "占位图"的深色，而页面背景用的是 #fp-ambient-img（无 crossorigin，能正常显示真实封面）
+        //    → 顶栏/状态栏颜色必然与画报不一致（实测的"个别歌曲"就是这个）。
+        //    这里直接跳过：颜色保持上面的 transparent，顶栏透出真实画报，天然无缝。
+        const isPlaceholderCover = (this.src || '').startsWith('data:image/svg+xml')
+            || (window.defaultCover && (this.src === window.defaultCover || this.currentSrc === window.defaultCover));
+        if (isPlaceholderCover) return;
         try {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
