@@ -1834,7 +1834,7 @@
   body.app-error.split-view-active .full-player { display: none !important; }
 
   </style>
-  <script src="./static/lz-string.min.js"></script>
+  <script src="./static/lz-string.min.js" defer></script>
   <script src="./static/icons.js?v0.8.0" defer></script>
   <script src="./static/utils.js?v1.1.2" defer></script>
   <script src="./static/lyrics.js?v0.7.3" defer></script>
@@ -1847,6 +1847,25 @@
 
 </head>
 <body>
+  <!-- 🌟 A+B：首帧就定好「分栏 / 主题」，避免先画手机端再切成宽屏（以及深色模式先白后黑）。
+       判断条件必须与 initSplitView()、applyThemeMode() 保持一致 —— 改那两处时要同步这里。 -->
+  <script>
+    (function () {
+      try {
+        // 分栏：与 initSplitView() 完全同条件（localStorage.iwebplayer-s.split_mode + 视口 >= 768）
+        if (localStorage.getItem('iwebplayer-s.split_mode') !== 'false' && window.innerWidth >= 768) {
+          document.body.classList.add('split-view-active');
+        }
+      } catch (e) {}
+      try {
+        // 主题：与 applyThemeMode() 同判断（light / dark / system + 系统偏好）
+        var mode = localStorage.getItem('iwebplayer-s.theme') || 'system';
+        var isDark = mode === 'dark'
+          || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+      } catch (e) {}
+    })();
+  </script>
 
   <div class="header">
     <div class="header-left-group">
