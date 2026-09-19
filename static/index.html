@@ -1051,18 +1051,27 @@
     border: none !important; box-shadow: none !important;
     transition: none !important; /* 🌟 彻底干掉动画，0秒瞬间同步 iOS 状态栏 */
   }
-  /* 🐞 暗色下沉浸页顶栏"看着不透明"：
-     ★ 与上游 v1.3.5 逐条核对过 —— 上游的顶栏底色是 `var(--top-color)`（封面主色，实色），
-       而暗色块只压暗了画报层与底部控制区、**没有压暗顶栏** → 当封面顶部是**浅色**时，
-       顶栏就是一条满亮度的亮条压在已压暗的背景上，显得不透明、割裂。这是上游自身的缺口。
-     ★ 这里沿用上游的判断方式（上游已有 `ambient-top-light-bg` = 封面顶部为浅色），
-       只在"封面顶部浅色"时才给顶栏叠一层深色遮罩 —— 保留封面色相、与背景同步压暗，
-       因此看上去仍是"跟随封面"的透明观感。深色封面不受影响（不动上游行为）。
-       想更暗/更亮只调 alpha。 */
-  :root:not([data-theme="light"]) body.ambient-active.player-open:not(.split-view-active).ambient-top-light-bg .header {
-    background:
-      linear-gradient(rgba(17, 24, 39, 0.6), rgba(17, 24, 39, 0.6)),
-      var(--top-color, var(--bg-color)) !important;
+  /* 🌟 深色模式下「手机沉浸（歌词）页」保持与浅色一致的"跟随封面"观感（方案 ②，用户选定）：
+     上游暗色规则会给 .full-player / .player-bar 套 rgba(17,24,39,0.25)、把画报层压暗、并把 #device-val
+     改成深色，而顶栏底色仍是封面主色 `var(--top-color)` → 同页出现三种色调（实测 98 / 169 / 220），
+     视觉上"分裂"。这里把手机沉浸页的这几处**恢复成浅色模式的值**，整页即统一由封面取色；
+     分栏（≥768 分栏带）与 App 其它界面完全不受影响。
+     ⚠️ 这是有意与上游暗色沉浸规则不同的一处；跟进上游时只需保留本块即可。 */
+  :root:not([data-theme="light"]) body.ambient-active.player-open:not(.split-view-active) .full-player,
+  :root:not([data-theme="light"]) body.ambient-active.player-open:not(.split-view-active) .player-bar {
+    background: rgba(255, 255, 255, 0.08) !important;
+    backdrop-filter: blur(20px) !important; -webkit-backdrop-filter: blur(20px) !important;
+  }
+  :root:not([data-theme="light"]) body.ambient-active.player-open:not(.split-view-active) #fp-ambient-bg .fp-ambient-overlay {
+    background: rgba(255, 255, 255, 0.35) !important;
+  }
+  :root:not([data-theme="light"]) body.ambient-active.player-open:not(.split-view-active) #fp-ambient-bg .fp-ambient-img {
+    opacity: 0.28 !important; filter: none !important;
+  }
+  :root:not([data-theme="light"]) body.ambient-active.player-open:not(.split-view-active) #device-val,
+  :root:not([data-theme="light"]) body.ambient-active.player-open:not(.split-view-active) .fp-corner-btn {
+    background-color: rgba(255, 255, 255, 0.18) !important;
+    border: 1px solid rgba(255, 255, 255, 0.25) !important;
   }
   body.ambient-active.player-open .full-player,
   body.ambient-active.player-open .player-bar {
