@@ -284,7 +284,7 @@
             window.syncDesktopTrackInfo();
             fullPlayer.classList.add('open');
             document.body.classList.add('player-open');
-            placeCornerToolsInActiveSurface();
+            refreshFullPlayerLayout();
             const audioEl = $('audio');
             if (audioEl && window.LyricsEngine) window.LyricsEngine.sync(audioEl.currentTime || 0);
             if (window.isIOS || window.innerWidth < 600) document.body.style.overflow = 'hidden';
@@ -296,13 +296,22 @@
             fullPlayer.classList.remove('open');
             fullPlayer.style.transform = ''; // 清掉拖拽遗留的内联位移
             document.body.classList.remove('player-open');
-            placeCornerToolsInActiveSurface();
+            refreshFullPlayerLayout();
             document.body.style.overflow = '';
         }
     };
 
-    window.addEventListener('DOMContentLoaded', placeCornerToolsInActiveSurface);
-    window.addEventListener('resize', placeCornerToolsInActiveSurface);
+    function refreshFullPlayerLayout() {
+        placeCornerToolsInActiveSurface();
+        if (window.LyricsEngine && typeof window.LyricsEngine.scrollToCurrent === 'function') {
+            requestAnimationFrame(() => requestAnimationFrame(() => window.LyricsEngine.scrollToCurrent()));
+        }
+    }
+
+    window.addEventListener('DOMContentLoaded', refreshFullPlayerLayout);
+    window.addEventListener('resize', refreshFullPlayerLayout);
+    window.addEventListener('orientationchange', () => setTimeout(refreshFullPlayerLayout, 150));
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', refreshFullPlayerLayout);
 
     window.closeAllSongMenus = function() {
         if (window.activeSongMenuIndex !== -1) {

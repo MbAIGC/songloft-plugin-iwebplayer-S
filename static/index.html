@@ -105,9 +105,10 @@
     padding-bottom: calc(var(--player-height) + env(safe-area-inset-bottom) + 10px);
   }
 
-  /* 🌟 终极护盾：用最高权限强制可见，彻底废掉底层 JS 强制锁屏的命令，根除 iOS 乱跳！ */
-  body {
-    overflow: visible !important;
+  /* 全屏播放时锁定页面滚动，避免歌词手势与底层页面滚动冲突。 */
+  body.player-open { overflow: hidden; }
+  @media (min-width: 768px) {
+    body.split-view-active:not(.player-open) { overflow: visible; }
   }
 
   /* 通用原子类与初始显隐状态 */
@@ -200,6 +201,8 @@
 
   /* 三栏工具栏（全局默认隐藏，仅宽屏 split-view 模式下显示） */
   .toolbar-split-only { display: none; min-width: 0; }
+  /* 分栏模式下工具栏始终可见；仅在 wide-toolbar-inline 时并入 header。 */
+  body.split-view-active .toolbar-split-only { display: flex; }
   .toolbar-split-inner { display: flex; flex: 1; align-items: center; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; height: 40px; overflow: visible; min-width: 0; }
   .tbs { display: flex; align-items: center; transition: width 0.25s ease; overflow: hidden; height: 100%; min-width: 0; }
   .tbs-inner { display: flex; align-items: center; height: 100%; width: 100%; padding: 0 8px; gap: 6px; }
@@ -324,16 +327,15 @@
   .tbs-device #device-val { display: flex; align-items: center; height: 100%; line-height: normal; background-color: transparent; border: none; font-size: 13px; padding: 0 20px 0 8px; background-position: right 6px center; background-size: 12px; color: var(--text-main); }
   /* 设备选择器搬进工具栏后，header 右侧不再需要占位 */
   body.split-view-active .header-controls { display: none !important; }
-  /* 🌟 工具栏始终并入 header 行（即原来「本机/小爱音箱」那一行），任何宽度下都不再退回第二行：
-     header 左半（品牌/设置）固定 50%，工具栏只占右半栏、绝不越过中界线；
-     窗口变窄时由搜索框自行收窄（半宽屏另见下方 @media 的紧凑规则），#playlist-row 整体隐藏。 */
-  body.split-view-active .header-left-group { flex: 0 0 50%; min-width: 0; }
-  body.split-view-active .header > #toolbar-split { flex: 1 1 auto; min-width: 0; margin-left: 12px; }
-  /* 🛑 全屏播放时隐藏宽屏工具栏：旧版它住在 #playlist-row（player-open 时被隐藏），
-     搬到 header 后必须显式隐藏，否则会露在全屏播放界面；
-     而且氛围态下它是 25px backdrop-filter 卡片，留在播放页会让逐字歌词/进度每帧重新模糊（卡顿来源）。 */
-  body.split-view-active.player-open .header > #toolbar-split { display: none !important; }
-  body.split-view-active #playlist-row { display: none !important; }
+  /* 🌟 宽屏工具栏：足够宽时并入 header；半宽屏回到原来的独立工具栏行。
+     强制把所有控件塞进 header 会让搜索框只剩几十像素，并造成频繁重排和下拉菜单遮挡。 */
+  body.wide-toolbar-inline .header-left-group { flex: 0 0 50%; min-width: 0; }
+  body.wide-toolbar-inline .header > #toolbar-split { flex: 1 1 auto; min-width: 0; margin-left: 12px; }
+  body.wide-toolbar-inline:not(.player-open) #playlist-row { display: none !important; }
+  body.wide-toolbar-inline.split-view-active:not(.player-open) { --split-list-top: 58px; }
+  /* 全屏时无论工具栏位于 header 还是 playlist-row 都不能显示。 */
+  body.split-view-active.player-open .header > #toolbar-split,
+  body.split-view-active.player-open #playlist-row { display: none !important; }
   /* 🌟 半宽屏（iPad 分屏约 2/3 宽）下点搜索框时，把「所有歌曲」栏让出来给输入框，失焦自动恢复 */
   body.split-view-active.toolbar-search-focus .tbs-playlist,
   body.split-view-active.toolbar-search-focus .tbs-playlist + .tbs-divider { display: none !important; }
@@ -1657,9 +1659,10 @@
     /* Compact the split-home control strip so it leaves more vertical room for lyrics. */
     body.split-view-active:not(.player-open) {
       --player-height: 118px;
-      /* 宽屏右栏列表顶部偏移：工具栏已并入 header 行，只剩顶部导航 56px（+2px 余量）。
-         工具栏行高变化或与 header 分离时同步改这里。 */
-      --split-list-top: 58px;
+      /* 宽屏右栏列表顶部偏移（两行模式的基准值）：顶部导航 56px + 宽屏工具栏行（约 59px）。
+         工具栏与 header 同行时（body.wide-toolbar-inline）由上方规则覆盖为 58px。
+         工具栏行高变化、或同行/两行策略调整时，这里与那条覆盖规则要同步改。 */
+      --split-list-top: 115px;
     }
     body.split-view-active:not(.player-open) .progress-container {
       top: -14px;
@@ -4083,7 +4086,10 @@
         // 🌟 宽屏搜索来源：本地曲库 / 在线资源 合并为一个输入框。
         //    默认跟随当前歌单（在「在线资源」里默认在线，其它默认本地）；用户手动切换后记住选择。
         const WIDE_SEARCH_MODE_KEY = 'iwebplayer-s.wide_search_mode';
+        const WIDE_TOOLBAR_INLINE_MIN = 1440;
+        const WIDE_TOOLBAR_SEARCH_MIN = 160;
         let tbsSplitHome = null; // 宽屏工具栏的原始位置（窄屏时还原）
+        let wideInlineBlockedAt = 0;
 
         // 🌟 半宽屏下点搜索框：收起「所有歌曲」栏把宽度让给输入框（失焦恢复）
         function setToolbarSearchFocus(on) {
@@ -4248,6 +4254,11 @@
             const deviceInner = document.getElementById('tbs-device-inner');
             const tbsSplit = document.getElementById('toolbar-split');
 
+            const inlineRow = isSplit
+                && window.innerWidth >= WIDE_TOOLBAR_INLINE_MIN
+                && window.innerWidth !== wideInlineBlockedAt;
+            document.body.classList.toggle('wide-toolbar-inline', inlineRow);
+
 
             // 搜索框提示文字：宽屏走本地/在线开关，手机版恢复原样
             const si = document.getElementById('search-input');
@@ -4279,11 +4290,23 @@
                     if (!tbsSplitHome) tbsSplitHome = { parent: tbsSplit.parentNode, next: tbsSplit.nextSibling };
                     const headerEl = document.querySelector('.header');
                     const headerLeft = document.querySelector('.header > .header-left-group');
-                    if (headerEl && tbsSplit.parentNode !== headerEl) {
+                    if (inlineRow && headerEl && tbsSplit.parentNode !== headerEl) {
                         headerEl.insertBefore(tbsSplit, headerLeft ? headerLeft.nextSibling : null);
+                    } else if (!inlineRow && tbsSplitHome.parent && tbsSplit.parentNode !== tbsSplitHome.parent) {
+                        tbsSplitHome.parent.insertBefore(tbsSplit, tbsSplitHome.next || null);
                     }
                 }
                 applyWideSearchMode();
+                if (inlineRow && tbsSplit) {
+                    const probe = document.getElementById(tbsOnline.classList.contains('mode-online') ? 'tbs-lx-input' : 'search-input');
+                    if (probe && probe.getBoundingClientRect().width < WIDE_TOOLBAR_SEARCH_MIN) {
+                        wideInlineBlockedAt = window.innerWidth;
+                        document.body.classList.remove('wide-toolbar-inline');
+                        if (tbsSplitHome && tbsSplit.parentNode !== tbsSplitHome.parent) {
+                            tbsSplitHome.parent.insertBefore(tbsSplit, tbsSplitHome.next || null);
+                        }
+                    }
+                }
             } else {
                 // 移回手机版工具栏
                 const mfRow = document.getElementById('mf-plugin-row');
@@ -4334,6 +4357,14 @@
         });
 
         splitObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        let toolbarResizeTimer = null;
+        window.addEventListener('resize', () => {
+            clearTimeout(toolbarResizeTimer);
+            toolbarResizeTimer = setTimeout(() => {
+                wideInlineBlockedAt = 0;
+                moveToolbarControls(document.body.classList.contains('split-view-active'));
+            }, 150);
+        });
 
         // 同步保存的关键词到搜索框（移动后 handle 由原 search-input 事件自动处理）
         // 无需额外逻辑
@@ -5474,88 +5505,6 @@
     });
 
     document.addEventListener('DOMContentLoaded', init);
-  </script>
-
-  <!-- 🔍 临时诊断条（排查「全屏 ↔ 小窗口」布局问题）：长按左上角 logo 1.5 秒显示/隐藏。
-       定位完成后删除本段即可。 -->
-  <script>
-    (function () {
-      var badge = document.createElement('div');
-      badge.id = 'layout-debug-badge';
-      badge.style.cssText = 'position:fixed;top:64px;right:8px;z-index:9999;display:none;'
-        + 'font:11px/1.55 ui-monospace,Menlo,Consolas,monospace;color:#fff;background:rgba(0,0,0,.78);'
-        + 'padding:6px 8px;border-radius:8px;pointer-events:none;white-space:pre;max-width:94vw';
-      document.body.appendChild(badge);
-
-      var events = [];
-      var nameOf = function (el) {
-        if (!el || !el.parentNode) return 'none';
-        var p = el.parentNode;
-        return p.id || (p.className ? String(p.className).split(' ')[0] : '') || p.tagName.toLowerCase();
-      };
-      var hOf = function (el) { return el ? Math.round(el.getBoundingClientRect().height) : -1; };
-      // 元素底边到视口底部的距离（正值 = 该元素下方留了空隙，正是"底部黑块"的来源）
-      var gapOf = function (sel) {
-        var el = typeof sel === 'string' ? document.querySelector(sel) : sel;
-        if (!el) return 'x';
-        var r = el.getBoundingClientRect();
-        if (!r.height) return 'x';
-        return Math.round(innerHeight - r.bottom);
-      };
-      var render = function () {
-        try {
-        var q = function (id) { return document.getElementById(id); };
-        var row = q('playlist-row');
-        badge.textContent = [
-          'w=' + innerWidth + ' h=' + innerHeight + ' dpr=' + (window.devicePixelRatio || 1).toFixed(2),
-          'split=' + document.body.classList.contains('split-view-active')
-            + ' open=' + document.body.classList.contains('player-open')
-            + ' ambient=' + document.body.classList.contains('ambient-active'),
-          'toolbar->' + nameOf(q('toolbar-split')) + '  device->' + nameOf(q('device-container')),
-          'row=' + (row ? getComputedStyle(row).display : '?') + '  header=' + hOf(document.querySelector('.header')),
-          'h: fp=' + hOf(q('full-player')) + ' bar=' + hOf(document.querySelector('.player-bar'))
-            + ' list=' + hOf(q('playlist')) + ' grid=' + hOf(q('playlist-grid'))
-            + ' amb=' + hOf(q('fp-ambient-bg')),
-          '底部空隙: fp=' + gapOf('#full-player') + ' bar=' + gapOf('.player-bar')
-            + ' list=' + gapOf('#playlist') + ' grid=' + gapOf('#playlist-grid')
-            + ' amb=' + gapOf('#fp-ambient-bg') + ' body=' + gapOf('body'),
-          'body=' + hOf(document.body) + '  scroll=' + ((document.documentElement || {}).scrollHeight || 0)
-            + '  evt: ' + (events.join(' > ') || '-')
-        ].join('\n');
-        } catch (e) { badge.textContent = 'badge error: ' + e.message; }
-      };
-      var push = function (tag) { events.push(tag); if (events.length > 4) events.shift(); };
-      window.addEventListener('resize', function () { push('resize'); });
-      window.addEventListener('orientationchange', function () { push('orient'); });
-      try {
-        var mq = window.matchMedia('(min-width: 768px)');
-        if (mq.addEventListener) mq.addEventListener('change', function () { push('mq'); });
-      } catch (e) {}
-      if (window.ResizeObserver) {
-        try { new ResizeObserver(function () { push('RO'); }).observe(document.documentElement); } catch (e) {}
-      }
-      setInterval(function () { if (badge.style.display !== 'none') render(); }, 500);
-
-      var logo = document.getElementById('headerLogo');
-      if (logo) {
-        var timer = null;
-        var start = function () {
-          clearTimeout(timer);
-          timer = setTimeout(function () {
-            var willShow = badge.style.display === 'none';
-            badge.style.display = willShow ? 'block' : 'none';
-            if (willShow) render();
-          }, 1500);
-        };
-        var cancel = function () { clearTimeout(timer); };
-        logo.addEventListener('touchstart', start, { passive: true });
-        logo.addEventListener('touchend', cancel);
-        logo.addEventListener('touchcancel', cancel);
-        logo.addEventListener('mousedown', start);
-        logo.addEventListener('mouseup', cancel);
-        logo.addEventListener('mouseleave', cancel);
-      }
-    })();
   </script>
 
 </body>
