@@ -767,6 +767,40 @@ body.ambient-active.player-open:not(.split-view-active) .header {
 
 > `2026-09-19` ｜ `fix(ui): make the mobile immersive header truly transparent (GPT direction A) - shows the ambient artwork, no seam by construction` ｜ 文件：`static/index.html`；`docs/GPT暗色顶部透明分析.md` 一并入库
 
+### 1.3.5.49-Dev　0b0fdc3　　🐞 修复·布局
+
+**概述**：修分栏下"所有歌曲"与"播放设备"按钮不显示 —— 1.3.5.29 的签名早退使工具栏搬运一次都没执行。
+
+**用户需求**：宽屏模式（≥960 分栏）下"所有歌曲"与"播放设备切换"按钮不显示；半宽屏（768–959）正常。
+
+**根因（1.3.5.29 引入的回归）**：执行顺序与"布局签名记忆"撞车 ——
+```
+initSplitView() → syncLayout('initSplitView')   // 此时 _moveToolbarControls 仍为 null，控件未搬运
+                                                // 但签名（含各控件父节点）已被记录 = "未搬运"状态 ✗
+bindAllEvents() → _moveToolbarControls = moveToolbarControls
+                → syncLayout('bindAllEvents')   // 签名与记录相同 → **早退** ✗
+                                                // ⇒ moveToolbarControls 一次都没执行
+```
+后果：`#playlist-container`（"所有歌曲"）留在分栏下被隐藏的 `.toolbar-main-box` 里；`#device-container`（设备切换）留在同样隐藏的 `.header-controls` 里 → 两个按钮都不显示。
+（半宽屏"看起来正常"，是因为那里出现过签名变化（如聚焦搜索框触发 `search-expand`）→ 走完整流程顺带把搬运补上了 → 表现为"某个宽度段才出问题"。）
+
+**修法**：注入搬运函数后**作废签名记忆**（`_lastLayoutSig = null`）再同步，保证搬运逻辑必定执行一次：
+```js
+_moveToolbarControls = moveToolbarControls;
+_lastLayoutSig = null;          // ← 关键
+syncLayout('bindAllEvents');
+```
+
+**验证（桩模拟，可复跑）**：
+```
+✅ 复现 旧写法：注入前记签名 → 注入后早退，搬运执行 0 次
+✅ 修复后：作废签名 → 搬运执行 1 次
+```
+
+**教训**：把"记忆化/早退"引入既有流程时，必须检查**首次执行时机早于依赖注入**的情况 —— 早退会把"还没做过的事"当成"不需要做"。
+
+> `2026-09-19` ｜ `fix(ui): invalidate the layout signature after injecting the toolbar mover (split mode never moved playlist/device controls - 1.3.5.29 regression)` ｜ 文件：`static/index.html`
+
 ### ⑥ GPT《iWP-S-1.3.5.48 审阅结果》条目（已核实，先记录、暂不动）
 > 核实结论：**P0-1 已被 1.3.5.23 解决**（`body.split-view-active.player-open .header > #toolbar-split, … #playlist-row { display:none !important }` 已是完整收口）；**P2-2 的"JS 尾随空白"为 CRLF 误判**（实测 `static/*.js` 尾随空白行全为 0）；其余条目成立。
 - **⑥ 补 `fullscreenchange` 监听**（统一走 `syncLayout`）—— 全屏切换在个别平台不触发 resize；1 行改动。
