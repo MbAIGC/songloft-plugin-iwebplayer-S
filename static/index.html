@@ -329,6 +329,10 @@
      窗口变窄时由搜索框自行收窄（半宽屏另见下方 @media 的紧凑规则），#playlist-row 整体隐藏。 */
   body.split-view-active .header-left-group { flex: 0 0 50%; min-width: 0; }
   body.split-view-active .header > #toolbar-split { flex: 1 1 auto; min-width: 0; margin-left: 12px; }
+  /* 🛑 全屏播放时隐藏宽屏工具栏：旧版它住在 #playlist-row（player-open 时被隐藏），
+     搬到 header 后必须显式隐藏，否则会露在全屏播放界面；
+     而且氛围态下它是 25px backdrop-filter 卡片，留在播放页会让逐字歌词/进度每帧重新模糊（卡顿来源）。 */
+  body.split-view-active.player-open .header > #toolbar-split { display: none !important; }
   body.split-view-active #playlist-row { display: none !important; }
   /* 🌟 半宽屏（iPad 分屏约 2/3 宽）下点搜索框时，把「所有歌曲」栏让出来给输入框，失焦自动恢复 */
   body.split-view-active.toolbar-search-focus .tbs-playlist,
@@ -3078,17 +3082,32 @@
       btn.addEventListener('mouseup', cancelSplitPress);
       btn.addEventListener('mouseleave', cancelSplitPress);
 
-      window.addEventListener('resize', () => {
-          if (window.innerWidth >= 768) {
-              if (localStorage.getItem('iwebplayer-s.split_mode') !== 'false') {
-                  document.body.classList.add('split-view-active');
-                  document.body.style.overflow = '';
-              }
+      // 🌟 分栏状态判定：改成幂等函数 —— 无论当前 class 是什么，都校正到「按宽度应有的状态」。
+      //    这样即使某次切换被漏掉（class 卡住），下一次事件也能自己纠正回来。
+      const applySplitByWidth = () => {
+          const wantSplit = window.innerWidth >= 768
+              && localStorage.getItem('iwebplayer-s.split_mode') !== 'false';
+          const hasSplit = document.body.classList.contains('split-view-active');
+          if (wantSplit === hasSplit) return; // 状态已一致：直接返回，避免 ResizeObserver 自激
+          if (wantSplit) {
+              document.body.classList.add('split-view-active');
+              document.body.style.overflow = '';
           } else {
               document.body.classList.remove('split-view-active');
               if (document.body.classList.contains('player-open')) document.body.style.overflow = 'hidden';
           }
-      });
+      };
+
+      window.addEventListener('resize', applySplitByWidth);
+      window.addEventListener('orientationchange', () => setTimeout(applySplitByWidth, 150));
+      // 🌟 兜底 1：matchMedia 变化（部分 WebView 只发它、不发 resize）
+      const mqSplit = window.matchMedia('(min-width: 768px)');
+      if (mqSplit.addEventListener) mqSplit.addEventListener('change', applySplitByWidth);
+      else if (mqSplit.addListener) mqSplit.addListener(applySplitByWidth);
+      // 🌟 兜底 2：观察根元素尺寸（安卓多窗口 / 分屏缩放的场景 resize 可能不触发）
+      if (window.ResizeObserver) {
+          try { new ResizeObserver(applySplitByWidth).observe(document.documentElement); } catch (e) {}
+      }
     }
 
     function initDeviceDropdown() {
