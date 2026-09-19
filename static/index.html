@@ -1793,6 +1793,15 @@
       border-radius: 0 !important;
       z-index: 190 !important;
     }
+    /* 🛑 768–959px 这一段也必须把右栏列表抬到氛围遮罩之上：
+       氛围层 .fp-ambient-bg 是 z-index:135 的不透明全屏层，而"抬到 140"的规则原先只写在
+       @media (min-width: 960px) 里 → 在这一段里左栏(z-index:190)与顶栏(150/260)都在遮罩之上、
+       唯独右栏歌单没有 z-index，被遮罩盖住，表现为"只有顶部工具栏、歌单不见了"。 */
+    body.ambient-active.split-view-active .playlist,
+    body.ambient-active.split-view-active .playlist-grid {
+      position: relative !important;
+      z-index: 140 !important;
+    }
     body.split-view-active:not(.player-open) .player-bar {
       height: calc(var(--player-height) + env(safe-area-inset-bottom));
       background: transparent !important;
