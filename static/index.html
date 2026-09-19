@@ -336,9 +336,13 @@
   /* 全屏时无论工具栏位于 header 还是 playlist-row 都不能显示。 */
   body.split-view-active.player-open .header > #toolbar-split,
   body.split-view-active.player-open #playlist-row { display: none !important; }
-  /* 🌟 半宽屏（iPad 分屏约 2/3 宽）下点搜索框时，把「所有歌曲」栏让出来给输入框，失焦自动恢复 */
-  body.split-view-active.toolbar-search-focus .tbs-playlist,
-  body.split-view-active.toolbar-search-focus .tbs-playlist + .tbs-divider { display: none !important; }
+  /* 🛑 已撤销（1.3.5.13 引入、1.3.5.27 撤回）：曾在此于「搜索框聚焦时隐藏『所有歌曲』栏」。
+     实测该行为会让窗口缩放失效（1.3.5.12 正常 / 1.3.5.13 起失败；删掉同时引入的 min-width
+     后 1.3.5.26 仍失败 → 排除法指向这里）。原因：输入框处于聚焦状态时隐藏一整栏，
+     布局在光标下方突变，平板浏览器为了保持光标可见会平移/缩放页面；
+     叠加 maximum-scale=1.0 与"全屏锁滚动"后无法自行恢复，看起来就是"缩放失败"。
+     若要给搜索框腾宽度，应改为**不随聚焦变化**的静态压缩（例如常驻把歌单栏 min-width 调小），
+     绝不能在聚焦瞬间改布局。 */
   /* 🛑 这里曾经给搜索框设过 min-width: 80px —— 它让工具栏在窄分栏下的最小内容宽度
      超过可用宽度（约 408~446px > 768 半栏 384px），导致整页横向溢出，
      在 Pad 的 maximum-scale=1.0 视口下表现为"缩放失败"（用户二分定位：1.3.5.13 起）。
@@ -348,11 +352,12 @@
   @media (max-width: 1099px) {
     body.split-view-active .tbs-playlist { min-width: 96px; max-width: 180px; }
     body.split-view-active .tbs-lx-actions .tbs-lx-btn { padding: 0 5px; }
-    /* 🌟 半宽屏标签精简：只在「还没点搜索框」时用「歌 / 单 / 源 ▾」；
-       点开搜索框后歌单栏已让位、空间充足，自动恢复「搜歌 / 搜单 / 音源 ▾」
-       （基础状态就是完整文字，所以这里只写"未聚焦时"的覆盖规则即可） */
-    body.split-view-active:not(.toolbar-search-focus) .tbs-lx-btn .lbl-long { display: none; }
-    body.split-view-active:not(.toolbar-search-focus) .tbs-lx-btn .lbl-short { display: inline; }
+    /* 🌟 半宽屏标签精简（**静态**）：≤1099px 一律用「歌 / 单 / 源 ▾」。
+       🛑 曾经写成「聚焦搜索框时恢复完整文字、失焦再精简」——那会在光标下方改变按钮宽度，
+          同样是"聚焦瞬间改布局"，与已撤销的"聚焦收起歌单栏"一起造成窗口缩放失效（1.3.5.27 撤回）。
+          这里必须与聚焦状态无关，布局才不会抖。 */
+    body.split-view-active .tbs-lx-btn .lbl-long { display: none; }
+    body.split-view-active .tbs-lx-btn .lbl-short { display: inline; }
     /* 提示文字在半宽屏缩小一档，小框里更协调（输入后的正文仍保持 14px） */
     body.split-view-active .tbs-online .tbs-input::placeholder,
     body.split-view-active .tbs-online #search-input::placeholder { font-size: 12px; }
@@ -3980,12 +3985,11 @@
         }
 
         if (tbsLxInput) {
-            tbsLxInput.addEventListener('focus', () => { tbsExpandOnline(); setWideSearchMode('online'); setToolbarSearchFocus(true); });
+            tbsLxInput.addEventListener('focus', () => { tbsExpandOnline(); setWideSearchMode('online'); });
             tbsLxInput.addEventListener('blur', (e) => {
                 // 焦点移到左栏内部（按钮/下拉）时不收起
                 if (e.relatedTarget && tbsOnline && tbsOnline.contains(e.relatedTarget)) return;
                 if (!tbsLxInput.value.trim()) tbsReset();
-                setToolbarSearchFocus(false);
             });
             tbsLxInput.addEventListener('input', (e) => {
                 const lxInput = document.getElementById('lx-search-input');
@@ -4060,7 +4064,6 @@
             };
             tbsSearchInputEl.addEventListener('focus', () => {
                 if (!document.body.classList.contains('split-view-active')) return;
-                setToolbarSearchFocus(true);
                 setWideSearchMode('local');
                 tbsExpandLibrary();
                 ensureLibrarySearchMode();
@@ -4076,7 +4079,6 @@
             });
             tbsSearchInputEl.addEventListener('blur', () => {
                 if (!tbsSearchInputEl.value.trim()) tbsReset();
-                setToolbarSearchFocus(false);
             });
         }
 
@@ -4092,12 +4094,6 @@
         const WIDE_TOOLBAR_SEARCH_MIN = 160;
         let tbsSplitHome = null; // 宽屏工具栏的原始位置（窄屏时还原）
         let wideInlineBlockedAt = 0;
-
-        // 🌟 半宽屏下点搜索框：收起「所有歌曲」栏把宽度让给输入框（失焦恢复）
-        function setToolbarSearchFocus(on) {
-            const inSplit = document.body.classList.contains('split-view-active');
-            document.body.classList.toggle('toolbar-search-focus', !!on && inSplit);
-        }
 
         function setWideSearchMode(mode, opts) {
             opts = opts || {};
@@ -4346,7 +4342,6 @@
                     catch (e) { tbsSplitHome.parent.appendChild(tbsSplit); }
                 }
                 if (tbsOnline) tbsOnline.classList.remove('src-open');
-                document.body.classList.remove('toolbar-search-focus');
             }
         }
 
