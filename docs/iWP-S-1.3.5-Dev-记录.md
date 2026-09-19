@@ -52,7 +52,9 @@
 | 40 | `f1148a1` | 去掉手机沉浸页的"半透明暗色覆盖"（1.3.5.38 自伤），改用上游同源最小兜底；封面容器裁剪修切歌抖动 | 🐞 修复·布局 |
 | 41 | `39ec50f` | 暗色沉浸页顶栏与状态栏改实色深底；给"整页横向位移"加两道保险（切歌抖动第 3 版尝试） | 🐞 修复·布局 |
 | 42 | `9b00fcb` | 撤销自造暗色覆盖与抖动保险，沉浸页回到上游原方案（顶栏/底栏透明、上下底色由封面决定） | ♻️ 回退·外观 |
-> 共 **42** 条改动，其中布局相关 **27** 条。
+| 43 | `c32cc8f` | 暗色下给沉浸页顶栏叠深色遮罩（第 1 版，无条件；后被 1.3.5.44 改为条件压暗） | 🐞 修复·外观 |
+| 44 | `65bc0ec` | 暗色沉浸页顶栏改为"仅当封面顶部为浅色时压暗"（复用上游 ambient-top-light-bg）；并把"以上游为对照基准"写成约定 | 🐞 修复·外观 |
+> 共 **44** 条改动，其中布局相关 **29** 条。
 
 ---
 
@@ -338,7 +340,7 @@
 
 > `2026-09-19` ｜ `chore(debug): add long-press layout diagnostic badge (temporary)` ｜ 文件：`static/index.html`
 
-## 阶段 7 · 回归定位与布局重构（1.3.5.25 – 1.3.5.42）
+## 阶段 7 · 回归定位与布局重构（1.3.5.25 – 1.3.5.44）
 
 ### 1.3.5.25-Dev　0cd1dee　　🐞 修复·布局
 
@@ -635,3 +637,31 @@
 **经验**：1.3 这条"暗色适配"的最终结论是**不要自造底色** —— 上游"透明 + 封面取色"本身是协调的，自加实底只会割裂。
 
 > `2026-09-19` ｜ `revert(ui): restore upstream immersive colour scheme (transparent header/bar driven by cover); drop self-made dark overrides and jitter guards` ｜ 文件：`static/index.html`
+
+### 1.3.5.43-Dev　c32cc8f　　🐞 修复·外观
+
+**概述**：暗色下给沉浸页顶栏叠一层深色遮罩，让"顶栏亮条"与已压暗的背景一致（**第 1 版：无条件**，后被 1.3.5.44 改为条件压暗）。
+
+**用户需求**：暗色模式下 logo 栏好像不是透明。
+
+**做法与复盘**：把 `var(--top-color)`（封面主色，实色）上叠 `rgba(17,24,39,0.6)` 遮罩。核对上游后（见 1.3.5.44）发现两点：① 上游顶栏规则与本条改动的**目标**一致（都是"跟随封面"），② 但**无条件**压暗会连深色封面一起压暗，偏离上游行为 → 故 1.3.5.44 收敛为"仅封面顶部为浅色时才压暗"。
+
+> `2026-09-19` ｜ `fix(ui): dim the immersive header in dark mode (cover hue + dark overlay) to match the dimmed ambient backdrop` ｜ 文件：`static/index.html`
+
+### 1.3.5.44-Dev　65bc0ec　　🐞 修复·外观
+
+**概述**：暗色沉浸页顶栏改为"仅当封面顶部为浅色时压暗"（复用上游 `ambient-top-light-bg` 判据）；并把"以上游为对照基准"固化为约定。
+
+**用户需求**：① 纠正对照基准 —— 应对比**上游**而不是我们自己的 `v1.3.3`；② 暗色下沉浸页 logo 栏"好像不是透明"。
+
+**上游核对（基准修正后）**：`git show upstream/main:static/index.html`（上游 main = v1.3.5，`21b4615`）逐条对比：
+- 沉浸页顶栏规则与上游**逐字一致**：`background: var(--top-color, var(--bg-color)) !important` —— 顶栏底色 = **封面顶部主色**（实色），这正是"看起来透明/跟随封面"的来源；
+- 上游暗色块只压暗**画报层**与 **`.full-player` / `.player-bar`**，**没有压暗顶栏** → "顶栏亮、背景暗"是**上游自身的缺口**，不是我们引入的。
+
+**修法（上游风格、最小改动）**：仅当封面顶部为浅色时（复用上游已有的 `ambient-top-light-bg` 类）给顶栏叠深色遮罩 —— 保留封面色相、与背景同步压暗，深色封面完全不受影响。
+
+**顺带用上游基准复核了 1.2/1.1 的结论**：上游**有** `body { overflow: visible !important }`、**没有** `body.player-open { overflow: hidden }`、使用 `scrollbar-gutter: stable` —— 与我们回退后的状态**完全一致** ✓，即 1.2/1.1 的修复正是"回到上游行为"，1.3.5.25 那次才是偏离。
+
+**约定固化**：`AGENT.md` 新增 **约定 14** —— 判断"是不是我们引入的 / 原版行为"时基准是**上游仓库**（`upstream` remote；`git show upstream/main:<路径>`）；**不要拿我们自己的历史 tag 当原版基准**（分栏/宽屏等我们独有功能除外）。
+
+> `2026-09-19` ｜ `fix(ui): dim immersive header in dark only when the cover top is light (upstream-idiomatic); document upstream as the comparison baseline` ｜ 文件：`static/index.html`、`AGENT.md`
