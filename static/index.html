@@ -559,7 +559,10 @@
   .down-arrow { display: flex; justify-content: center; align-items: center; color: var(--text-sub); animation: bounce-down 2s infinite; width: 40px; height: 40px; transition: color 0.3s ease; }
   @keyframes bounce-down { 0%, 20%, 50%, 80%, 100% {transform: translateY(0);} 40% {transform: translateY(5px);} 60% {transform: translateY(3px);} }
 
-  .fp-cover-wrapper { width: 100%; display: flex; justify-content: center; align-items: center; padding: 18px 16px 8px 16px; flex-shrink: 0; }
+  /* 🐞 Bug1.1 修复（第 2 版）：封面呼吸动画 .fp-cover 会 scale(1.03) → 在手机档 480px 居中框里
+     短暂撑出横向溢出，使整框左右抖动（随机播放大幅滚动时最明显；原版同样存在）。
+     只裁掉这一层的横向溢出，纵向与布局不受影响，也不改变页面的滚动模型。 */
+  .fp-cover-wrapper { width: 100%; display: flex; justify-content: center; align-items: center; padding: 18px 16px 8px 16px; flex-shrink: 0; overflow-x: clip; overflow-y: visible; }
   .desktop-player-main { display: contents; }
   .desktop-track-meta { display: none; }
   .fp-cover {
@@ -1213,24 +1216,13 @@
   :root[data-theme="dark"] body.ambient-active.player-open .player-bar { background: rgba(17, 24, 39, 0.25) !important; }
   :root[data-theme="dark"] body.ambient-active.player-open #device-val { background-color: rgba(31, 41, 55, 0.35) !important; border-color: rgba(255, 255, 255, 0.1) !important; }
 
-  /* 🐞 Bug1.3 修复（追加式，不改上游规则）：暗色模式下「手机沉浸（歌词）页」的兜底。
-     ★ 上游的暗色沉浸规则全部带 body.ambient-active 前置条件 → 未开启「氛围背景」或封面取色缺失时，
-       暗色模式下沉浸页仍是亮色（未适配）。这里按 data-theme 兜底，并保留封面画报只做压暗。 */
-  :root:not([data-theme="light"]) body.player-open:not(.split-view-active) .full-player,
-  :root:not([data-theme="light"]) body.player-open:not(.split-view-active) .player-bar {
-    background: rgba(17, 24, 39, 0.35) !important;
-  }
-  :root:not([data-theme="light"]) body.player-open:not(.split-view-active) .header {
-    background: rgba(17, 24, 39, 0.85) !important; border: none !important; box-shadow: none !important;
-  }
-  :root:not([data-theme="light"]) body.player-open:not(.split-view-active) .lyric-line {
-    color: rgba(255, 255, 255, 0.72) !important;
-  }
-  :root:not([data-theme="light"]) body.player-open:not(.split-view-active) .lyric-line.active {
-    color: #ffffff !important;
-  }
-  :root:not([data-theme="light"]) body.player-open:not(.split-view-active) #fp-ambient-bg .fp-ambient-img {
-    opacity: 0.35 !important; filter: saturate(115%) brightness(0.85) !important;
+  /* 🐞 Bug1.3 修复（第 2 版，最小化）：暗色模式下「手机沉浸（歌词）页」的兜底。
+     ★ 第 1 版（1.3.5.38）给 .full-player/.player-bar/.header 加了**半透明**深色底 → 沉浸页会把
+       下面的歌曲列表透出来（关闭沉浸后尤其明显）、观感也破坏上游的封面取色体系。已删除。
+     ★ 现在只做一件事：确保沉浸页的**画报层**有实底，避免封面未就绪时透出下层；
+       其余一律交给上游规则（它已按 prefers-color-scheme / data-theme 对沉浸层做过压暗）。 */
+  :root:not([data-theme="light"]) body.player-open:not(.split-view-active) #fp-ambient-bg {
+    background: #0b1220 !important;
   }
   @media (min-width: 960px) {
     :root[data-theme="dark"] body.ambient-active.split-view-active .header,
