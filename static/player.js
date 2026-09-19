@@ -67,7 +67,7 @@
         const playerBar = $('player-bar');
         if (!tools || !fullPlayer || !playerBar) return;
 
-        const isSplitHome = window.innerWidth >= 768
+        const isSplitHome = document.body.classList.contains('split-view-active')
             && document.body.classList.contains('split-view-active')
             && !document.body.classList.contains('player-open');
         const target = isSplitHome ? playerBar : fullPlayer;

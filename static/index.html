@@ -370,6 +370,11 @@
     body.split-view-active .tbs-device #device-val { max-width: 68px; }
   }
 
+  /* 🌟 聚焦搜索框时，让搜索栏临时占满整行（隐藏歌单栏）。
+     ⚠️ 状态来自工具栏自身（#toolbar-split.search-expand），不来自 body —— 见 3.23 的回归教训。 */
+  #toolbar-split.search-expand .tbs-playlist,
+  #toolbar-split.search-expand .tbs-playlist + .tbs-divider { display: none !important; }
+
   /* 左栏：引擎/平台选择器 — 默认隐藏，展开后显示 */
   .tbs-online #engine-container,
   .tbs-online #mf-plugin-container { display: none; }
@@ -1871,7 +1876,8 @@
     (function () {
       try {
         // 分栏：与 initSplitView() 完全同条件（localStorage.iwebplayer-s.split_mode + 视口 >= 768）
-        if (localStorage.getItem('iwebplayer-s.split_mode') !== 'false' && window.innerWidth >= 768) {
+        // 判据与运行时一致：用 matchMedia 而不是 innerWidth（与 CSS 同源，不受缩放影响）
+        if (window.matchMedia('(min-width: 768px)').matches && localStorage.getItem('iwebplayer-s.split_mode') !== 'false') {
           document.body.classList.add('split-view-active');
         }
       } catch (e) {}
@@ -3049,6 +3055,102 @@
     /* ==========================================
      * 5. 视图初始化与自适应
      * ========================================== */
+
+    /* ==========================================
+     * 🌟 布局模块：唯一判据 + 唯一执行者（P1–P4 加固）
+     *   · 判据只用 matchMedia('(min-width: 768px)')：与 CSS 同源，不受捏合缩放 visualViewport 影响
+     *   · 所有事件源（resize / orientationchange / mq.change / visualViewport / RO）都只调 syncLayout()
+     *   · 绝不用 MutationObserver 观察 body class 再决定布局（那是"拿结果当输入"，会竞态）
+     * ========================================== */
+    const SPLIT_MQ = window.matchMedia('(min-width: 768px)');
+    const WIDE_INLINE_MIN = 1440;      // 工具栏并入 header 行的宽度下限（两行策略）
+    let _moveToolbarControls = null;   // 由 bindAllEvents 注入：栏内控件搬运
+    let _toolbarHome = null;           // #toolbar-split 的原始父节点/后继（还原用）
+    let _syncingLayout = false;        // 重入保护
+
+    // 当前应有的布局模式：narrow（手机端）| split-rows（分栏·工具栏回第二行）| split-inline（分栏·工具栏并入 header）
+    function currentLayoutMode() {
+        const split = SPLIT_MQ.matches
+            && localStorage.getItem('iwebplayer-s.split_mode') !== 'false';
+        if (!split) return 'narrow';
+        return document.documentElement.clientWidth >= WIDE_INLINE_MIN ? 'split-inline' : 'split-rows';
+    }
+
+    // 工具栏这一行的归属：只在 header ↔ 原位置两处之间搬，幂等
+    function placeToolbar(mode) {
+        const el = document.getElementById('toolbar-split');
+        if (!el) return;
+        if (!_toolbarHome) _toolbarHome = { parent: el.parentNode, next: el.nextSibling };
+        const header = document.querySelector('.header');
+        const headerLeft = document.querySelector('.header > .header-left-group');
+        if (mode === 'split-inline') {
+            if (header && el.parentNode !== header) {
+                header.insertBefore(el, headerLeft ? headerLeft.nextSibling : null);
+            }
+        } else if (_toolbarHome && _toolbarHome.parent && el.parentNode !== _toolbarHome.parent) {
+            try { _toolbarHome.parent.insertBefore(el, _toolbarHome.next || null); }
+            catch (e) { _toolbarHome.parent.appendChild(el); }
+        }
+    }
+
+    // 布局自检（P4）：只在真的不一致时才提示；平时零观察者、零定时器、零噪音
+    let _layoutWarnBadge = null;
+    function layoutSelfCheck(mode) {
+        const problems = [];
+        const wantSplit = mode !== 'narrow';
+        if (document.body.classList.contains('split-view-active') !== wantSplit) problems.push('class≠判据');
+        const el = document.getElementById('toolbar-split');
+        const header = document.querySelector('.header');
+        if (el && wantSplit) {
+            const inHeader = header && el.parentNode === header;
+            if (inHeader !== (mode === 'split-inline')) problems.push('工具栏归属错');
+        }
+        if (el && !wantSplit && _toolbarHome && _toolbarHome.parent && el.parentNode !== _toolbarHome.parent) {
+            problems.push('工具栏未还原');
+        }
+        if (problems.length === 0) {
+            if (_layoutWarnBadge) { _layoutWarnBadge.remove(); _layoutWarnBadge = null; }
+            return;
+        }
+        console.warn('[layout] 状态不一致：', problems.join('、'),
+            { mode, mq: SPLIT_MQ.matches, w: document.documentElement.clientWidth });
+        if (!_layoutWarnBadge) {
+            _layoutWarnBadge = document.createElement('div');
+            _layoutWarnBadge.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:9999;font:11px/1.4 monospace;'
+                + 'color:#fff;background:rgba(190,30,30,.9);padding:4px 8px;border-radius:6px;pointer-events:none';
+            document.body.appendChild(_layoutWarnBadge);
+        }
+        _layoutWarnBadge.textContent = 'layout≠判据: ' + problems.join('/') + ' | mq=' + SPLIT_MQ.matches
+            + ' w=' + document.documentElement.clientWidth + ' mode=' + mode;
+    }
+
+    // 🌟 唯一的布局执行者：CSS 状态 + 工具栏归属 + 栏内控件搬运，全都收在这里
+    function syncLayout(reason) {
+        if (_syncingLayout) return;
+        _syncingLayout = true;
+        try {
+            const mode = currentLayoutMode();
+            const wantSplit = mode !== 'narrow';
+            if (document.body.classList.contains('split-view-active') !== wantSplit) {
+                document.body.classList.toggle('split-view-active', wantSplit);
+                if (wantSplit) document.body.style.overflow = '';
+                else if (document.body.classList.contains('player-open')) document.body.style.overflow = 'hidden';
+            }
+            document.body.classList.toggle('wide-toolbar-inline', mode === 'split-inline');
+            document.body.dataset.layout = mode;
+            placeToolbar(mode);
+            // 焦点态（搜索栏临时占满整行）不跨模式保留，避免"搬完还带着旧状态"
+            const bar = document.getElementById('toolbar-split');
+            if (bar) bar.classList.remove('search-expand');
+            if (_moveToolbarControls) _moveToolbarControls(wantSplit);
+            layoutSelfCheck(mode);
+        } catch (e) {
+            console.warn('[layout] syncLayout 失败:', e);
+        } finally {
+            _syncingLayout = false;
+        }
+    }
+
     function initSplitView() {
       const btn = document.createElement('div');
       btn.id = 'split-toggle-btn';
@@ -3057,10 +3159,8 @@
       btn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><polyline points="15 18 9 12 15 6"></polyline></svg>`;
       document.body.appendChild(btn);
 
-      const isSplit = localStorage.getItem('iwebplayer-s.split_mode') !== 'false';
-      if (isSplit && window.innerWidth >= 768) {
-          document.body.classList.add('split-view-active');
-      }
+      // 🌟 初始布局交给唯一的 syncLayout（判据在模块内部统一取）
+      syncLayout('initSplitView');
 
       btn.addEventListener('click', () => {
           if (suppressSplitClick) { suppressSplitClick = false; return; }
@@ -3068,10 +3168,9 @@
               // 🌟 修复：分栏模式下点击箭头 = 与点击首页封面一致，直接进入播放页
               if (typeof window.toggleFullPlayer === 'function') window.toggleFullPlayer(true);
           } else {
-              // 单栏模式下点击箭头：恢复分栏
-              document.body.classList.add('split-view-active');
+              // 单栏模式下点击箭头：只改"判据来源"，布局由 syncLayout 应用
               localStorage.setItem('iwebplayer-s.split_mode', 'true');
-              document.body.style.overflow = '';
+              syncLayout('toggle-on');
           }
       });
 
@@ -3084,8 +3183,8 @@
           splitPressTimer = setTimeout(() => {
               splitPressTimer = null;
               suppressSplitClick = true;
-              document.body.classList.remove('split-view-active');
               localStorage.setItem('iwebplayer-s.split_mode', 'false');
+              syncLayout('toggle-off');
               if (typeof window.toggleFullPlayer === 'function') window.toggleFullPlayer(false);
           }, 600);
       };
@@ -3096,31 +3195,15 @@
       btn.addEventListener('mouseup', cancelSplitPress);
       btn.addEventListener('mouseleave', cancelSplitPress);
 
-      // 🌟 分栏状态判定：改成幂等函数 —— 无论当前 class 是什么，都校正到「按宽度应有的状态」。
-      //    这样即使某次切换被漏掉（class 卡住），下一次事件也能自己纠正回来。
-      const applySplitByWidth = () => {
-          const wantSplit = window.innerWidth >= 768
-              && localStorage.getItem('iwebplayer-s.split_mode') !== 'false';
-          const hasSplit = document.body.classList.contains('split-view-active');
-          if (wantSplit === hasSplit) return; // 状态已一致：直接返回，避免 ResizeObserver 自激
-          if (wantSplit) {
-              document.body.classList.add('split-view-active');
-              document.body.style.overflow = '';
-          } else {
-              document.body.classList.remove('split-view-active');
-              if (document.body.classList.contains('player-open')) document.body.style.overflow = 'hidden';
-          }
-      };
-
-      window.addEventListener('resize', applySplitByWidth);
-      window.addEventListener('orientationchange', () => setTimeout(applySplitByWidth, 150));
-      // 🌟 兜底 1：matchMedia 变化（部分 WebView 只发它、不发 resize）
-      const mqSplit = window.matchMedia('(min-width: 768px)');
-      if (mqSplit.addEventListener) mqSplit.addEventListener('change', applySplitByWidth);
-      else if (mqSplit.addListener) mqSplit.addListener(applySplitByWidth);
-      // 🌟 兜底 2：观察根元素尺寸（安卓多窗口 / 分屏缩放的场景 resize 可能不触发）
+      // 🌟 事件源很多，但都只是"提醒"，判据永远在 syncLayout 内部统一取；
+      //    多事件源是为了兼容 WebView/多窗口只发某一种事件的情况，不存在多套实现。
+      window.addEventListener('resize', () => syncLayout('resize'));
+      window.addEventListener('orientationchange', () => setTimeout(() => syncLayout('orientationchange'), 150));
+      if (SPLIT_MQ.addEventListener) SPLIT_MQ.addEventListener('change', () => syncLayout('mq'));
+      else if (SPLIT_MQ.addListener) SPLIT_MQ.addListener(() => syncLayout('mq'));
+      if (window.visualViewport) window.visualViewport.addEventListener('resize', () => syncLayout('visualViewport'));
       if (window.ResizeObserver) {
-          try { new ResizeObserver(applySplitByWidth).observe(document.documentElement); } catch (e) {}
+          try { new ResizeObserver(() => syncLayout('ro')).observe(document.documentElement); } catch (e) {}
       }
     }
 
@@ -3728,7 +3811,8 @@
         let fpCurrentY = 0;
         let fpIsDragging = false;
         let fpIsInteractableElement = false;
-        const isSplitHomeNow = () => window.innerWidth >= 768 && document.body.classList.contains('split-view-active');
+        // 🌟 判据统一：分栏与否只看 class（它由唯一的 syncLayout 从 matchMedia 推导而来）
+        const isSplitHomeNow = () => document.body.classList.contains('split-view-active');
         const ambientBgEl = () => document.getElementById('fp-ambient-bg');
         const ambientActive = () => document.body.classList.contains('ambient-active');
 
@@ -3988,12 +4072,24 @@
             if (tbsLibrary) tbsLibrary.classList.add('expanded');
         }
 
+        // 🌟 聚焦搜索框时让搜索栏临时占满整行（隐藏歌单栏），失焦恢复。
+        //    ⚠️ 状态挂在工具栏自身（#toolbar-split.search-expand），**绝不挂 body**：
+        //       1.3.5.13 的"缩放失效"回归正是 "body class 变化 → MutationObserver → 搬运 DOM → 焦点/视口错乱"。
+        //       且只在紧凑档（<1100px）生效，宽屏不做无谓重排。
+        function setSearchFocusExpand(on) {
+            const bar = document.getElementById('toolbar-split');
+            if (!bar) return;
+            const compactTier = document.documentElement.clientWidth < 1100;
+            bar.classList.toggle('search-expand', !!on && compactTier);
+        }
+
         if (tbsLxInput) {
-            tbsLxInput.addEventListener('focus', () => { tbsExpandOnline(); setWideSearchMode('online'); });
+            tbsLxInput.addEventListener('focus', () => { tbsExpandOnline(); setWideSearchMode('online'); setSearchFocusExpand(true); });
             tbsLxInput.addEventListener('blur', (e) => {
                 // 焦点移到左栏内部（按钮/下拉）时不收起
                 if (e.relatedTarget && tbsOnline && tbsOnline.contains(e.relatedTarget)) return;
                 if (!tbsLxInput.value.trim()) tbsReset();
+                setSearchFocusExpand(false);
             });
             tbsLxInput.addEventListener('input', (e) => {
                 const lxInput = document.getElementById('lx-search-input');
@@ -4068,6 +4164,7 @@
             };
             tbsSearchInputEl.addEventListener('focus', () => {
                 if (!document.body.classList.contains('split-view-active')) return;
+                setSearchFocusExpand(true);
                 setWideSearchMode('local');
                 tbsExpandLibrary();
                 ensureLibrarySearchMode();
@@ -4083,6 +4180,7 @@
             });
             tbsSearchInputEl.addEventListener('blur', () => {
                 if (!tbsSearchInputEl.value.trim()) tbsReset();
+                setSearchFocusExpand(false);
             });
         }
 
@@ -4094,10 +4192,6 @@
         // 🌟 宽屏搜索来源：本地曲库 / 在线资源 合并为一个输入框。
         //    默认跟随当前歌单（在「在线资源」里默认在线，其它默认本地）；用户手动切换后记住选择。
         const WIDE_SEARCH_MODE_KEY = 'iwebplayer-s.wide_search_mode';
-        const WIDE_TOOLBAR_INLINE_MIN = 1440;
-        const WIDE_TOOLBAR_SEARCH_MIN = 160;
-        let tbsSplitHome = null; // 宽屏工具栏的原始位置（窄屏时还原）
-        let wideInlineBlockedAt = 0;
 
         function setWideSearchMode(mode, opts) {
             opts = opts || {};
@@ -4254,14 +4348,6 @@
             const dc = document.getElementById('device-container');
             const headerControls = document.querySelector('.header-controls');
             const deviceInner = document.getElementById('tbs-device-inner');
-            const tbsSplit = document.getElementById('toolbar-split');
-
-            const inlineRow = isSplit
-                && window.innerWidth >= WIDE_TOOLBAR_INLINE_MIN
-                && window.innerWidth !== wideInlineBlockedAt;
-            document.body.classList.toggle('wide-toolbar-inline', inlineRow);
-
-
             // 搜索框提示文字：宽屏走本地/在线开关，手机版恢复原样
             const si = document.getElementById('search-input');
             if (si) si.placeholder = isSplit ? '本地曲库搜索' : '请输入关键字...';
@@ -4285,30 +4371,9 @@
                 }
                 // 🌟 设备选择器 → 工具栏最右，不再单独占 header 一行
                 if (dc && deviceInner && dc.parentNode !== deviceInner) deviceInner.appendChild(dc);
-                // 🌟 整个工具栏搬进 header 行（即原来「本机/小爱音箱」那一行）。
-                //    这是唯一的目标位置：不论窗口多窄（只要还在分栏里）都不回退第二行，
-                //    宽度不足时由搜索框收窄 + 半宽屏紧凑 CSS 承担；#playlist-row 由 CSS 整体隐藏。
-                if (tbsSplit) {
-                    if (!tbsSplitHome) tbsSplitHome = { parent: tbsSplit.parentNode, next: tbsSplit.nextSibling };
-                    const headerEl = document.querySelector('.header');
-                    const headerLeft = document.querySelector('.header > .header-left-group');
-                    if (inlineRow && headerEl && tbsSplit.parentNode !== headerEl) {
-                        headerEl.insertBefore(tbsSplit, headerLeft ? headerLeft.nextSibling : null);
-                    } else if (!inlineRow && tbsSplitHome.parent && tbsSplit.parentNode !== tbsSplitHome.parent) {
-                        tbsSplitHome.parent.insertBefore(tbsSplit, tbsSplitHome.next || null);
-                    }
-                }
+                // 工具栏"这一行"的归属由布局模块 placeToolbar() 负责（header ↔ 原位置，幂等）；
+                // 这里只负责栏内控件怎么摆。
                 applyWideSearchMode();
-                if (inlineRow && tbsSplit) {
-                    const probe = document.getElementById(tbsOnline.classList.contains('mode-online') ? 'tbs-lx-input' : 'search-input');
-                    if (probe && probe.getBoundingClientRect().width < WIDE_TOOLBAR_SEARCH_MIN) {
-                        wideInlineBlockedAt = window.innerWidth;
-                        document.body.classList.remove('wide-toolbar-inline');
-                        if (tbsSplitHome && tbsSplit.parentNode !== tbsSplitHome.parent) {
-                            tbsSplitHome.parent.insertBefore(tbsSplit, tbsSplitHome.next || null);
-                        }
-                    }
-                }
             } else {
                 // 移回手机版工具栏
                 const mfRow = document.getElementById('mf-plugin-row');
@@ -4340,32 +4405,14 @@
                 // 🌟 设备选择器回 header 右侧；清除宽屏搜索模式类
                 if (dc && headerControls && dc.parentNode !== headerControls) headerControls.appendChild(dc);
                 if (tbsOnline) tbsOnline.classList.remove('mode-local', 'mode-online');
-                // 🌟 工具栏回 #playlist-row 原位置
-                if (tbsSplit && tbsSplitHome && tbsSplit.parentNode !== tbsSplitHome.parent) {
-                    try { tbsSplitHome.parent.insertBefore(tbsSplit, tbsSplitHome.next || null); }
-                    catch (e) { tbsSplitHome.parent.appendChild(tbsSplit); }
-                }
                 if (tbsOnline) tbsOnline.classList.remove('src-open');
             }
         }
 
-        // 初始状态
-        moveToolbarControls(document.body.classList.contains('split-view-active'));
-
-        // 监听 split-view-active 变化
-        const splitObserver = new MutationObserver(function() {
-            moveToolbarControls(document.body.classList.contains('split-view-active'));
-        });
-
-        splitObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-        let toolbarResizeTimer = null;
-        window.addEventListener('resize', () => {
-            clearTimeout(toolbarResizeTimer);
-            toolbarResizeTimer = setTimeout(() => {
-                wideInlineBlockedAt = 0;
-                moveToolbarControls(document.body.classList.contains('split-view-active'));
-            }, 150);
-        });
+        // 🌟 把"栏内控件搬运"注入布局模块；此后布局的唯一执行者是 syncLayout。
+        //    这里不再用 MutationObserver 观察 body class 来驱动布局（拿结果当输入 → 竞态）。
+        _moveToolbarControls = moveToolbarControls;
+        syncLayout('bindAllEvents');
 
         // 同步保存的关键词到搜索框（移动后 handle 由原 search-input 事件自动处理）
         // 无需额外逻辑
