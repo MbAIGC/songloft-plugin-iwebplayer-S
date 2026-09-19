@@ -58,7 +58,8 @@
 | 46 | `9d78350` | 修「个别歌曲顶栏/状态栏颜色不对」：跨域封面取色失败会沿用上一首的颜色；取色前先清空旧值 | 🐞 修复·外观 |
 | 47 | `86dc8a3` | 兜底（占位）封面不再参与取色 —— CORS 受限封面会回落到默认 SVG，导致顶栏取到"占位图"的深色 | 🐞 修复·外观 |
 | 48 | `6fd2388` | 手机沉浸态 Header 改为真正透明（采纳 GPT《暗色顶部透明分析》方向 A），从原理上消除顶部色带 | 🐞 修复·外观 |
-> 共 **48** 条改动，其中布局相关 **33** 条。
+| 49 | `0b0fdc3` | 修分栏下"所有歌曲"与"播放设备"按钮不显示：1.3.5.29 的签名早退使工具栏搬运一次都没执行 | 🐞 修复·布局 |
+> 共 **49** 条改动，其中布局相关 **34** 条。
 
 ---
 
@@ -344,7 +345,7 @@
 
 > `2026-09-19` ｜ `chore(debug): add long-press layout diagnostic badge (temporary)` ｜ 文件：`static/index.html`
 
-## 阶段 7 · 回归定位与布局重构（1.3.5.25 – 1.3.5.48）
+## 阶段 7 · 回归定位与布局重构（1.3.5.25 – 1.3.5.49）
 
 ### 1.3.5.25-Dev　0cd1dee　　🐞 修复·布局
 
@@ -765,3 +766,13 @@ body.ambient-active.player-open:not(.split-view-active) .header {
 **用户确认**：✅ **1.3.5.48 生效** —— 「终于修好了」（顶部色带问题就此闭环；1.3.5.43~47 的调色/取色修复均属治标，本条才是结构性解法）。
 
 > `2026-09-19` ｜ `fix(ui): make the mobile immersive header truly transparent (GPT direction A) - shows the ambient artwork, no seam by construction` ｜ 文件：`static/index.html`；`docs/GPT暗色顶部透明分析.md` 一并入库
+
+### ⑥ GPT《iWP-S-1.3.5.48 审阅结果》条目（已核实，先记录、暂不动）
+> 核实结论：**P0-1 已被 1.3.5.23 解决**（`body.split-view-active.player-open .header > #toolbar-split, … #playlist-row { display:none !important }` 已是完整收口）；**P2-2 的"JS 尾随空白"为 CRLF 误判**（实测 `static/*.js` 尾随空白行全为 0）；其余条目成立。
+- **⑥ 补 `fullscreenchange` 监听**（统一走 `syncLayout`）—— 全屏切换在个别平台不触发 resize；1 行改动。
+- **⑦ 审计工具加"状态矩阵断言"**：① `player-open` 时 `#toolbar-split` 必须被隐藏（各分栏带都要有对应规则）② 非分栏时 `.toolbar-split-only` 必须 `display:none` ③ 关键层在 `ambient-active.player-open` 下的取值成对 —— 把 GPT 的浏览器级测试 1–3 落成静态不变量。
+- **⑧ 降低沉浸态合成开销**：手机沉浸态现有 **2 层大面积 `backdrop-filter: blur(20px)`**（`.full-player` + `.player-bar`）→ 只保留一层；并把 `.fp-ambient-img` 的 `transition: all 0.8s`（全屏图）改为 `transition: opacity`（全库 `transition: all` 共 11 处）。
+- **⑨ Header 级联链整理**：上游 `body.ambient-active.player-open .header { background: var(--top-color) }` 在本仓库已无生效场景（手机沉浸态被我们的 transparent 覆盖、分栏被上游结界规则覆盖）→ 可考虑拆成"手机/分栏互斥"写法（当前保留以对齐上游）。
+- **⑩ 分栏规则去重**：768–959 与 ≥960 存在成对复制（审计工具只保证"成对"）→ 可提取共用选择器/CSS 变量，属维护重构。
+- **⑪ 浏览器级回归测试**：本环境**无 npm registry、无浏览器**（装不了 jsdom/Playwright）→ 以"审计工具 + 桩模拟 + 设备用例矩阵"替代；本次 1.3.5.49 的桩模拟即是范例（复现旧写法 / 验证修复）。
+- **⑫ 仓库卫生**：两张对比截图 `docs/Pic/IMG_20260919_1709*.png` 仍未跟踪（记录文档已引用它们，建议入库）；CRLF 文件在无 `cr-at-eol` 的工具下会被误报尾随空白（本项目统一用 `git -c core.whitespace=cr-at-eol diff --check`）。
