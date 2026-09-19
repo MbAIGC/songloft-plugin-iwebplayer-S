@@ -332,6 +332,17 @@
   body.split-view-active .header-left-group { flex: 0 0 50%; min-width: 0; }
   body.split-view-active .header > #toolbar-split { flex: 1 1 auto; min-width: 0; margin-left: 12px; }
   body.split-view-active:not(.player-open) #playlist-row { display: none !important; }
+
+  /* 🌟 右栏列表的内部滚动：与氛围是否开启无关，分栏下统一如此
+     （此前只有「氛围态」那条规则带 max-height/overflow-y，关掉氛围背景的用户会变成整页滚动，
+      列表顶部会滑到 sticky header 下面 —— 与开启氛围时的体验不一致）。 */
+  body.split-view-active .playlist,
+  body.split-view-active .playlist-grid {
+    max-height: calc(100vh - var(--split-list-top, 58px) - 12px) !important;
+    overflow-y: auto !important;
+    padding-bottom: 20px !important;
+    -webkit-overflow-scrolling: touch;
+  }
   /* 全屏时无论工具栏位于 header 还是 playlist-row 都不能显示。 */
   body.split-view-active.player-open .header > #toolbar-split,
   body.split-view-active.player-open #playlist-row { display: none !important; }
