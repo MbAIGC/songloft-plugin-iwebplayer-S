@@ -4577,6 +4577,13 @@
         // 🌟 把"栏内控件搬运"注入布局模块；此后布局的唯一执行者是 syncLayout。
         //    这里不再用 MutationObserver 观察 body class 来驱动布局（拿结果当输入 → 竞态）。
         _moveToolbarControls = moveToolbarControls;
+        // 🛑 关键：注入后必须作废布局签名记忆！
+        //    原因：initSplitView() 里的首次 syncLayout 发生在注入之前 → 那时搬运函数还是 null（控件未搬运），
+        //    但签名已经被记录下来（记的是"未搬运"状态）→ 如果这里不改签名，下一次 syncLayout 会判定
+        //    "状态没变"而早退，导致 moveToolbarControls **一次都不会执行** —— 后果是分栏下
+        //    #playlist-container（所有歌曲）与 #device-container（播放设备）留在被隐藏的
+        //    .toolbar-main-box / .header-controls 里 →「宽屏下这两个按钮不显示」（1.3.5.29 的回归）。
+        _lastLayoutSig = null;
         syncLayout('bindAllEvents');
 
         // 同步保存的关键词到搜索框（移动后 handle 由原 search-input 事件自动处理）
