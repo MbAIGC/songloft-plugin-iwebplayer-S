@@ -1897,6 +1897,28 @@
       margin-bottom: 8px;
     }
     body.split-view-active:not(.player-open) .progress-container { z-index: 1; top: -14px; height: 28px; }
+
+    /* 🌟 768–959 段的层叠顺序（必须与 ≥960 段一致，否则会出现"被盖住"的怪问题）：
+       这一整块原先只写在 ≥960 段里 →
+       ① header 只有全局 z-index:150，低于左栏 .full-player 的 190 → 左上角 logo / 设置菜单被播放器盖住；
+       ② 底栏 .player-bar 只有全局 170，同样低于 190 → 底栏的播放进度条被歌词区压住。
+       这里的 200 与 ≥960 段一致（底栏之上、header 260 之下）。 */
+    body.split-view-active .player-bar { z-index: 200 !important; }
+    body.ambient-active.split-view-active .full-player,
+    body.ambient-active.split-view-active .header,
+    body.ambient-active.split-view-active .playlist-row,
+    body.ambient-active.split-view-active .player-bar {
+      background: transparent !important;
+      backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+      border: none !important; box-shadow: none !important;
+    }
+    body.ambient-active.split-view-active .header { position: sticky !important; z-index: 260 !important; }
+    body.ambient-active.split-view-active .select-options { z-index: 300 !important; }
+    body.ambient-active.split-view-active .toolbar-wrapper,
+    body.ambient-active.split-view-active .toolbar-main-box { position: relative !important; z-index: 220 !important; }
+    body.ambient-active.split-view-active #online-toolbar-container,
+    body.ambient-active.split-view-active .search-input-box { position: relative !important; z-index: 210 !important; }
+    body.ambient-active.split-view-active #playlist-opts { top: 100% !important; margin-top: 6px !important; left: 0 !important; right: 0 !important; }
     body.split-view-active:not(.player-open) .lyric-line { font-size: 28px; min-height: 48px; padding: 10px 20px; }
     body.split-view-active:not(.player-open) .lyric-line.active { font-size: 34px; }
   }
