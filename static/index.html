@@ -339,9 +339,11 @@
   /* 🌟 半宽屏（iPad 分屏约 2/3 宽）下点搜索框时，把「所有歌曲」栏让出来给输入框，失焦自动恢复 */
   body.split-view-active.toolbar-search-focus .tbs-playlist,
   body.split-view-active.toolbar-search-focus .tbs-playlist + .tbs-divider { display: none !important; }
-  /* 搜索框保证一个最小可点宽度：被挤成 0 宽就点不到，也就没法触发上面的收起 */
-  body.split-view-active .tbs-online .tbs-input,
-  body.split-view-active .tbs-online #search-input { min-width: 80px; }
+  /* 🛑 这里曾经给搜索框设过 min-width: 80px —— 它让工具栏在窄分栏下的最小内容宽度
+     超过可用宽度（约 408~446px > 768 半栏 384px），导致整页横向溢出，
+     在 Pad 的 maximum-scale=1.0 视口下表现为"缩放失败"（用户二分定位：1.3.5.13 起）。
+     因此改回 `min-width: 0`（.tbs-input 基础样式即如此），由 flex 自行收缩；
+     输入框的可用宽度交给下面的"聚焦收起歌单栏"来腾。 */
   /* 🌟 半宽屏（仍在分栏内）紧凑规则：优先保证搜索框有可用宽度 */
   @media (max-width: 1099px) {
     body.split-view-active .tbs-playlist { min-width: 96px; max-width: 180px; }
