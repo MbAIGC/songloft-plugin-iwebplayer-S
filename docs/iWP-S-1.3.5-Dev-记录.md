@@ -46,7 +46,8 @@
 | 34 | `596b0c0` | 分栏下右栏列表一律内部滚动（不再只在开启氛围背景时才生效） | 🐞 修复·布局 |
 | 35 | `988223e` | 补齐 768–959px 段的层叠顺序（header / 底栏抬到左栏之上） | 🐞 修复·布局 |
 | 36 | `bc09131` | 新增断点覆盖审计工具（npm run audit:breakpoints），并用它抓到并修掉 #loading 缺 z-index | 🧪 工具·修复 |
-> 共 **36** 条改动，其中布局相关 **21** 条。
+| 37 | `b552452` | 落实低风险优化 1–6（观察器过滤 / 布局签名早退 / rAF 合并 / 查询缓存），并纳入 GPT 评估文件 | 🚀 性能·重构 |
+> 共 **37** 条改动，其中布局相关 **22** 条。
 
 ---
 
@@ -332,7 +333,7 @@
 
 > `2026-09-19` ｜ `chore(debug): add long-press layout diagnostic badge (temporary)` ｜ 文件：`static/index.html`
 
-## 阶段 7 · 回归定位与布局重构（1.3.5.25 – 1.3.5.36）
+## 阶段 7 · 回归定位与布局重构（1.3.5.25 – 1.3.5.37）
 
 ### 1.3.5.25-Dev　0cd1dee　　🐞 修复·布局
 
@@ -485,3 +486,25 @@
 - `package.json` 增加 `audit:breakpoints`；`AGENT.md` 增加**约定 13**（改 CSS 后先跑断点审计）。
 
 > `2026-09-19` ｜ `feat(tooling): add breakpoint coverage audit (npm run audit:breakpoints); fix #loading z-index gap in 768-959` ｜ 文件：`scripts/audit-breakpoints.mjs`、`static/index.html`、`package.json`、`AGENT.md`
+
+### 1.3.5.37-Dev　b552452　　🚀 性能·重构
+
+**概述**：落实低风险优化 1–6（观察器过滤 / 布局签名早退 / rAF 合并 / 查询缓存），并纳入 GPT 评估文件
+
+**用户需求**：感觉 1.3.5 里"闲杂判断很多"，担心影响性能；要求先与 GPT 的评估结论对比，再按其第 4 节 **1–6** 实施（第 7 项暂不做）。
+
+**改造思路**（六项全部**零行为变化**）：
+1. `bodyClassObserver` 加 `attributeFilter: ['class']` —— 回调本来就只处理 class，此前 `data-layout` / `style` 等任何属性写入都会白跑一遍；
+2. `dataset.layout` 仅在**变化时**写（它只服务诊断）；
+3. `ResizeObserver` 回调 **rAF 合并**（一帧最多同步一次；原 `_syncingLayout` 只防同步重入）；
+4. `syncLayout` 用**布局签名**早退：签名 = 模式 + `split-view-active` 实际状态 + 5 个关键控件的父节点 + `search-expand`；签名一致才早退，**自检发现问题即作废签名**，故自愈能力保留；
+5. `moveToolbarControls` 加控件引用缓存（`isConnected` 失效自动重查），**不做 isSplit 早退**（它还要同步搜索模式/placeholder 并兜底自愈）；
+6. `online.js` 滚动翻页：把 `scrollHeight` 等布局读取移出滚动回调，并 rAF 合并。
+
+**自测发现（重要）**：第 4 项初版签名**没有包含 `split-view-active` 本身** → 外部把 class 清掉时会被早退、**丢失自愈** ✗；桩测试场景⑤抓到后已把 class 实际状态纳入签名，最终 5/5 通过（状态未变早退 / 控件被挪走自愈 / 外部清 class 纠正 / 自检报错连续重试 / 首次同步正常）。
+
+**评估文件入库**：`docs/GPT－iWPS-S-1.3.5-优化方案的评估.md`（GPT 版评估 + 我的逐条核对）。双方结论 9 项中 6 项一致；GPT 纠正了我 3 处（`syncLayout` 早退不能只比 mode、`moveToolbarControls` 提早退不安全、**滚动监听其实早已是 passive**——我上次的"非 passive"是 grep 单行匹配导致的误报）。
+
+**未做**：第 7 项「卡片 `backdrop-filter` A/B」—— 双方都认为收益最大但需真机对比观感，单独做。
+
+> `2026-09-19` ｜ `perf(ui): implement low-risk layout/scroll optimizations 1-6 (observer filter, signature early-return, rAF coalescing, query cache); add GPT evaluation doc` ｜ 文件：`static/index.html`、`static/online.js`、`docs/GPT－iWPS-S-1.3.5-优化方案的评估.md`
