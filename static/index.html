@@ -1759,6 +1759,8 @@
   @media (min-width: 768px) and (max-width: 959px) {
     body.split-view-active:not(.player-open) {
       --player-height: 118px;
+      /* 右栏列表顶部偏移：工具栏在 header 行内，只需让开顶部导航 56px（+2px 余量） */
+      --split-list-top: 58px;
       width: 100% !important;
       margin: 0 !important;
       border: 0 !important;
@@ -1793,15 +1795,52 @@
       border-radius: 0 !important;
       z-index: 190 !important;
     }
-    /* 🛑 768–959px 这一段也必须把右栏列表抬到氛围遮罩之上：
-       氛围层 .fp-ambient-bg 是 z-index:135 的不透明全屏层，而"抬到 140"的规则原先只写在
-       @media (min-width: 960px) 里 → 在这一段里左栏(z-index:190)与顶栏(150/260)都在遮罩之上、
-       唯独右栏歌单没有 z-index，被遮罩盖住，表现为"只有顶部工具栏、歌单不见了"。 */
+    /* 🛑 768–959px 这一段必须与 ≥960 段保持一致，否则就会出现「只有某个宽度带才有的怪问题」。
+       之前缺了三样，已在此补齐：
+       ① 右栏列表没有 z-index → 被氛围遮罩（.fp-ambient-bg，z-index:135 的不透明层）盖住
+          → 表现为「左栏正常、顶栏工具栏在，但歌单不见了」；
+       ② 列表没有内部滚动（max-height / overflow-y）→ 变成整页滚动，列表顶部会滑到 sticky header 下面；
+       ③ 歌曲卡片与工具栏缺少氛围态「实体化保护壳」→ 直接透在模糊幕布上，观感与 ≥960 段不一致。 */
     body.ambient-active.split-view-active .playlist,
     body.ambient-active.split-view-active .playlist-grid {
       position: relative !important;
       z-index: 140 !important;
+      max-height: calc(100vh - var(--split-list-top, 58px) - 12px) !important;
+      overflow-y: auto !important;
+      padding-bottom: 20px !important;
+      -webkit-overflow-scrolling: touch;
     }
+    body.ambient-active.split-view-active .song-item,
+    body.ambient-active.split-view-active .pl-card-b,
+    body.ambient-active.split-view-active .toolbar-split-inner,
+    body.ambient-active.split-view-active .search-input-box,
+    body.ambient-active.split-view-active #device-val {
+      background-color: rgba(255, 255, 255, 0.85) !important;
+      backdrop-filter: blur(25px) !important; -webkit-backdrop-filter: blur(25px) !important;
+      border: 1px solid rgba(255, 255, 255, 1) !important;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08) !important; border-radius: 12px !important;
+    }
+    body.ambient-active.split-view-active .song-item { margin-bottom: 10px !important; }
+    :root:not([data-theme="light"]) body.ambient-active.split-view-active .song-item,
+    :root:not([data-theme="light"]) body.ambient-active.split-view-active .pl-card-b,
+    :root:not([data-theme="light"]) body.ambient-active.split-view-active .toolbar-split-inner,
+    :root:not([data-theme="light"]) body.ambient-active.split-view-active .search-input-box,
+    :root:not([data-theme="light"]) body.ambient-active.split-view-active #device-val {
+      background-color: rgba(31, 41, 55, 0.85) !important;
+      border: 1px solid rgba(255, 255, 255, 0.15) !important;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+    }
+    :root:not([data-theme="light"]) body.ambient-active.split-view-active .song-item.playing { background-color: rgba(31, 41, 55, 0.95) !important; }
+    :root[data-theme="dark"] body.ambient-active.split-view-active .song-item,
+    :root[data-theme="dark"] body.ambient-active.split-view-active .pl-card-b,
+    :root[data-theme="dark"] body.ambient-active.split-view-active .toolbar-split-inner,
+    :root[data-theme="dark"] body.ambient-active.split-view-active .search-input-box,
+    :root[data-theme="dark"] body.ambient-active.split-view-active #device-val {
+      background-color: rgba(31, 41, 55, 0.85) !important;
+      border: 1px solid rgba(255, 255, 255, 0.15) !important;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+    }
+    :root[data-theme="dark"] body.ambient-active.split-view-active .song-item.playing { background-color: rgba(31, 41, 55, 0.95) !important; }
     body.split-view-active:not(.player-open) .player-bar {
       height: calc(var(--player-height) + env(safe-area-inset-bottom));
       background: transparent !important;
