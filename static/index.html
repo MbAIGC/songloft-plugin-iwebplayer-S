@@ -201,7 +201,7 @@
 
   /* 三栏工具栏（全局默认隐藏，仅宽屏 split-view 模式下显示） */
   .toolbar-split-only { display: none; min-width: 0; }
-  /* 分栏模式下工具栏始终可见；仅在 wide-toolbar-inline 时并入 header。 */
+  /* 分栏模式下宽屏工具栏可见 —— 它结构上就在 header 内（见 HTML），不做任何搬移。 */
   body.split-view-active .toolbar-split-only { display: flex; }
   .toolbar-split-inner { display: flex; flex: 1; align-items: center; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; height: 40px; overflow: visible; min-width: 0; }
   .tbs { display: flex; align-items: center; transition: width 0.25s ease; overflow: hidden; height: 100%; min-width: 0; }
@@ -327,12 +327,11 @@
   .tbs-device #device-val { display: flex; align-items: center; height: 100%; line-height: normal; background-color: transparent; border: none; font-size: 13px; padding: 0 20px 0 8px; background-position: right 6px center; background-size: 12px; color: var(--text-main); }
   /* 设备选择器搬进工具栏后，header 右侧不再需要占位 */
   body.split-view-active .header-controls { display: none !important; }
-  /* 🌟 宽屏工具栏：足够宽时并入 header；半宽屏回到原来的独立工具栏行。
-     强制把所有控件塞进 header 会让搜索框只剩几十像素，并造成频繁重排和下拉菜单遮挡。 */
-  body.wide-toolbar-inline .header-left-group { flex: 0 0 50%; min-width: 0; }
-  body.wide-toolbar-inline .header > #toolbar-split { flex: 1 1 auto; min-width: 0; margin-left: 12px; }
-  body.wide-toolbar-inline:not(.player-open) #playlist-row { display: none !important; }
-  body.wide-toolbar-inline.split-view-active:not(.player-open) { --split-list-top: 58px; }
+  /* 🌟 宽屏工具栏**永远**在 header 那一行（结构上就放在 header 里，不做任何搬移）：
+     header 左半固定 50%，工具栏占右半栏、不越过中界线；#playlist-row 在分栏下整体隐藏。 */
+  body.split-view-active .header-left-group { flex: 0 0 50%; min-width: 0; }
+  body.split-view-active .header > #toolbar-split { flex: 1 1 auto; min-width: 0; margin-left: 12px; }
+  body.split-view-active:not(.player-open) #playlist-row { display: none !important; }
   /* 全屏时无论工具栏位于 header 还是 playlist-row 都不能显示。 */
   body.split-view-active.player-open .header > #toolbar-split,
   body.split-view-active.player-open #playlist-row { display: none !important; }
@@ -1675,10 +1674,8 @@
     /* Compact the split-home control strip so it leaves more vertical room for lyrics. */
     body.split-view-active:not(.player-open) {
       --player-height: 118px;
-      /* 宽屏右栏列表顶部偏移（两行模式的基准值）：顶部导航 56px + 宽屏工具栏行（约 59px）。
-         工具栏与 header 同行时（body.wide-toolbar-inline）由上方规则覆盖为 58px。
-         工具栏行高变化、或同行/两行策略调整时，这里与那条覆盖规则要同步改。 */
-      --split-list-top: 115px;
+      /* 宽屏右栏列表顶部偏移：工具栏永远在 header 行内，因此只需让开顶部导航 56px（+2px 余量）。 */
+      --split-list-top: 58px;
     }
     body.split-view-active:not(.player-open) .progress-container {
       top: -14px;
@@ -1953,6 +1950,64 @@
         <ul class="select-options" id="device-opts"></ul>
       </div>
     </div>
+
+    <!-- =============================================
+         宽屏模式三栏工具栏 (仅在 split-view 可见)
+         ============================================= -->
+    <div class="toolbar-split-only" id="toolbar-split">
+      <div class="toolbar-split-inner">
+        <!-- 左栏：在线资源搜索 -->
+        <div class="tbs tbs-online" id="tbs-online">
+          <div class="tbs-inner">
+            <!-- 🌟 搜索来源开关：本地曲库 / 在线资源 共用一个输入框 -->
+            <div class="tbs-src-toggle" id="tbs-src-toggle" role="group" aria-label="搜索来源">
+              <button type="button" class="tbs-src-btn" id="tbs-src-local" data-src="local">本地</button>
+              <button type="button" class="tbs-src-btn" id="tbs-src-online" data-src="online">在线</button>
+            </div>
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" class="tbs-icon"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" class="tbs-input" id="tbs-lx-input" placeholder="在线资源搜索" autocomplete="off">
+            <button class="tbs-clear" id="tbs-lx-clear" title="清除">
+              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <div class="tbs-lx-actions" id="tbs-lx-actions">
+              <button class="tbs-lx-btn" id="tbs-lx-search-btn" title="搜索歌曲"><span class="lbl-long">搜歌</span><span class="lbl-short">歌</span></button>
+              <div class="tbs-divider-v"></div>
+              <button class="tbs-lx-btn" id="tbs-lx-playlist-btn" title="搜索歌单"><span class="lbl-long">搜单</span><span class="lbl-short">单</span></button>
+              <div class="tbs-divider-v"></div>
+              <!-- 🌟 音源/平台选择改为浮层按需展开，不再常驻占宽 -->
+              <button class="tbs-lx-btn" id="tbs-engine-btn" title="选择音源 / 平台"><span class="lbl-long">音源 ▾</span><span class="lbl-short">源 ▾</span></button>
+            </div>
+            <!-- 🌟 音源浮层：引擎与平台/服务器并排成芯片（二级交互），下面是 WebDAV 搜索 -->
+            <div class="tbs-src-popover" id="tbs-src-popover">
+              <div class="tbs-src-group" id="tbs-src-group-engine"></div>
+              <div class="tbs-src-sep"></div>
+              <div class="tbs-src-wd">
+                <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none" class="tbs-icon"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" id="tbs-wd-input" placeholder="在当前网盘中极速检索..." autocomplete="off">
+                <button class="tbs-clear" id="tbs-wd-clear" title="清除">
+                  <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="tbs-divider"></div>
+        <!-- 中栏：曲库搜索（#search-inline-wrap 由 JS 移入） -->
+        <div class="tbs tbs-library" id="tbs-library">
+          <div class="tbs-inner">
+          </div>
+        </div>
+        <div class="tbs-divider"></div>
+        <!-- 右栏：所有歌曲（#playlist-container 和 #menu-dropzone-row1 由 JS 移入） -->
+        <div class="tbs tbs-playlist" id="tbs-playlist">
+        </div>
+        <div class="tbs-divider"></div>
+        <!-- 🌟 设备选择（#device-container 由 JS 移入；窄屏自动回 header 右侧） -->
+        <div class="tbs tbs-device" id="tbs-device">
+          <div class="tbs-inner" id="tbs-device-inner"></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="playlist-row" id="playlist-row">
@@ -2022,64 +2077,6 @@
           </div>
         </div>
 
-      </div>
-    </div>
-
-    <!-- =============================================
-         宽屏模式三栏工具栏 (仅在 split-view 可见)
-         ============================================= -->
-    <div class="toolbar-split-only" id="toolbar-split">
-      <div class="toolbar-split-inner">
-        <!-- 左栏：在线资源搜索 -->
-        <div class="tbs tbs-online" id="tbs-online">
-          <div class="tbs-inner">
-            <!-- 🌟 搜索来源开关：本地曲库 / 在线资源 共用一个输入框 -->
-            <div class="tbs-src-toggle" id="tbs-src-toggle" role="group" aria-label="搜索来源">
-              <button type="button" class="tbs-src-btn" id="tbs-src-local" data-src="local">本地</button>
-              <button type="button" class="tbs-src-btn" id="tbs-src-online" data-src="online">在线</button>
-            </div>
-            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" class="tbs-icon"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-            <input type="text" class="tbs-input" id="tbs-lx-input" placeholder="在线资源搜索" autocomplete="off">
-            <button class="tbs-clear" id="tbs-lx-clear" title="清除">
-              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-            </button>
-            <div class="tbs-lx-actions" id="tbs-lx-actions">
-              <button class="tbs-lx-btn" id="tbs-lx-search-btn" title="搜索歌曲"><span class="lbl-long">搜歌</span><span class="lbl-short">歌</span></button>
-              <div class="tbs-divider-v"></div>
-              <button class="tbs-lx-btn" id="tbs-lx-playlist-btn" title="搜索歌单"><span class="lbl-long">搜单</span><span class="lbl-short">单</span></button>
-              <div class="tbs-divider-v"></div>
-              <!-- 🌟 音源/平台选择改为浮层按需展开，不再常驻占宽 -->
-              <button class="tbs-lx-btn" id="tbs-engine-btn" title="选择音源 / 平台"><span class="lbl-long">音源 ▾</span><span class="lbl-short">源 ▾</span></button>
-            </div>
-            <!-- 🌟 音源浮层：引擎与平台/服务器并排成芯片（二级交互），下面是 WebDAV 搜索 -->
-            <div class="tbs-src-popover" id="tbs-src-popover">
-              <div class="tbs-src-group" id="tbs-src-group-engine"></div>
-              <div class="tbs-src-sep"></div>
-              <div class="tbs-src-wd">
-                <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none" class="tbs-icon"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                <input type="text" id="tbs-wd-input" placeholder="在当前网盘中极速检索..." autocomplete="off">
-                <button class="tbs-clear" id="tbs-wd-clear" title="清除">
-                  <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="tbs-divider"></div>
-        <!-- 中栏：曲库搜索（#search-inline-wrap 由 JS 移入） -->
-        <div class="tbs tbs-library" id="tbs-library">
-          <div class="tbs-inner">
-          </div>
-        </div>
-        <div class="tbs-divider"></div>
-        <!-- 右栏：所有歌曲（#playlist-container 和 #menu-dropzone-row1 由 JS 移入） -->
-        <div class="tbs tbs-playlist" id="tbs-playlist">
-        </div>
-        <div class="tbs-divider"></div>
-        <!-- 🌟 设备选择（#device-container 由 JS 移入；窄屏自动回 header 右侧） -->
-        <div class="tbs tbs-device" id="tbs-device">
-          <div class="tbs-inner" id="tbs-device-inner"></div>
-        </div>
       </div>
     </div>
 
@@ -3063,34 +3060,15 @@
      *   · 绝不用 MutationObserver 观察 body class 再决定布局（那是"拿结果当输入"，会竞态）
      * ========================================== */
     const SPLIT_MQ = window.matchMedia('(min-width: 768px)');
-    const WIDE_INLINE_MIN = 1440;      // 工具栏并入 header 行的宽度下限（两行策略）
     let _moveToolbarControls = null;   // 由 bindAllEvents 注入：栏内控件搬运
-    let _toolbarHome = null;           // #toolbar-split 的原始父节点/后继（还原用）
     let _syncingLayout = false;        // 重入保护
 
-    // 当前应有的布局模式：narrow（手机端）| split-rows（分栏·工具栏回第二行）| split-inline（分栏·工具栏并入 header）
+    // 当前应有的布局模式：'split'（分栏，工具栏在 header 行）| 'narrow'（手机端）
+    //   工具栏的位置是**结构性**的（HTML 里就在 header 内），所以这里不再有"搬移"这回事。
     function currentLayoutMode() {
         const split = SPLIT_MQ.matches
             && localStorage.getItem('iwebplayer-s.split_mode') !== 'false';
-        if (!split) return 'narrow';
-        return document.documentElement.clientWidth >= WIDE_INLINE_MIN ? 'split-inline' : 'split-rows';
-    }
-
-    // 工具栏这一行的归属：只在 header ↔ 原位置两处之间搬，幂等
-    function placeToolbar(mode) {
-        const el = document.getElementById('toolbar-split');
-        if (!el) return;
-        if (!_toolbarHome) _toolbarHome = { parent: el.parentNode, next: el.nextSibling };
-        const header = document.querySelector('.header');
-        const headerLeft = document.querySelector('.header > .header-left-group');
-        if (mode === 'split-inline') {
-            if (header && el.parentNode !== header) {
-                header.insertBefore(el, headerLeft ? headerLeft.nextSibling : null);
-            }
-        } else if (_toolbarHome && _toolbarHome.parent && el.parentNode !== _toolbarHome.parent) {
-            try { _toolbarHome.parent.insertBefore(el, _toolbarHome.next || null); }
-            catch (e) { _toolbarHome.parent.appendChild(el); }
-        }
+        return split ? 'split' : 'narrow';
     }
 
     // 布局自检（P4）：只在真的不一致时才提示；平时零观察者、零定时器、零噪音
@@ -3099,15 +3077,10 @@
         const problems = [];
         const wantSplit = mode !== 'narrow';
         if (document.body.classList.contains('split-view-active') !== wantSplit) problems.push('class≠判据');
+        // 工具栏的位置是结构性的：任何时候都必须待在 .header 内
         const el = document.getElementById('toolbar-split');
         const header = document.querySelector('.header');
-        if (el && wantSplit) {
-            const inHeader = header && el.parentNode === header;
-            if (inHeader !== (mode === 'split-inline')) problems.push('工具栏归属错');
-        }
-        if (el && !wantSplit && _toolbarHome && _toolbarHome.parent && el.parentNode !== _toolbarHome.parent) {
-            problems.push('工具栏未还原');
-        }
+        if (el && (!header || el.parentNode !== header)) problems.push('工具栏不在 header 内');
         if (problems.length === 0) {
             if (_layoutWarnBadge) { _layoutWarnBadge.remove(); _layoutWarnBadge = null; }
             return;
@@ -3136,9 +3109,7 @@
                 if (wantSplit) document.body.style.overflow = '';
                 else if (document.body.classList.contains('player-open')) document.body.style.overflow = 'hidden';
             }
-            document.body.classList.toggle('wide-toolbar-inline', mode === 'split-inline');
             document.body.dataset.layout = mode;
-            placeToolbar(mode);
             // 焦点态（搜索栏临时占满整行）不跨模式保留，避免"搬完还带着旧状态"
             const bar = document.getElementById('toolbar-split');
             if (bar) bar.classList.remove('search-expand');
@@ -4371,7 +4342,7 @@
                 }
                 // 🌟 设备选择器 → 工具栏最右，不再单独占 header 一行
                 if (dc && deviceInner && dc.parentNode !== deviceInner) deviceInner.appendChild(dc);
-                // 工具栏"这一行"的归属由布局模块 placeToolbar() 负责（header ↔ 原位置，幂等）；
+                // 宽屏工具栏结构上就在 header 内（不做任何搬移），这里只负责栏内控件怎么摆。
                 // 这里只负责栏内控件怎么摆。
                 applyWideSearchMode();
             } else {
