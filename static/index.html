@@ -1051,6 +1051,23 @@
     border: none !important; box-shadow: none !important;
     transition: none !important; /* 🌟 彻底干掉动画，0秒瞬间同步 iOS 状态栏 */
   }
+  /* 🌟 手机沉浸态 Header 改为**真正透明**（采纳 GPT《暗色顶部透明分析》方向 A）：
+     ★ 结构性问题：Header 用 `var(--top-color)`（顶部 5px 取色实色），而它下面的画报层/播放器区
+       用的是「封面图 opacity 0.28 + 白色 overlay 0.35 + 半透明底 + blur」这套合成 →
+       两者不是同一个结果，只要封面顶部色与整体色调不一致，顶部就会出现一条独立底色带
+       （暗色下尤其明显，且表现为"个别歌曲"）。
+     ★ 透明化后，Header 与它正下方那一条显示的是**同一层内容**（full-player / 画报层），
+       于是**从原理上不再可能产生接缝**，也不必再去调任何色值。
+     ★ 文字/图标对比度仍由 `ambient-top-dark-bg` / `ambient-top-light-bg` 负责（判据本来就是
+       "封面顶部亮暗"，与透明 Header 之下透出的内容一致）；取色失败时颜色为 transparent，同样自洽。
+     ★ 仅作用于**手机沉浸态**；分栏（≥768 分栏带）下的 Header 早就由上游结界规则设为 transparent，
+       不受影响。状态栏 `meta theme-color` 仍按原逻辑（封面主色 / 主题色兜底）。 */
+  body.ambient-active.player-open:not(.split-view-active) .header {
+    background: transparent !important;
+    backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+    border: none !important; box-shadow: none !important;
+  }
+
   /* 🌟 深色模式下「手机沉浸（歌词）页」保持与浅色一致的"跟随封面"观感（方案 ②，用户选定）：
      上游暗色规则会给 .full-player / .player-bar 套 rgba(17,24,39,0.25)、把画报层压暗、并把 #device-val
      改成深色，而顶栏底色仍是封面主色 `var(--top-color)` → 同页出现三种色调（实测 98 / 169 / 220），
