@@ -43,7 +43,8 @@
 
 | 32 | `5cacb8e` | 修 768–959px 分栏带里「右栏歌单被氛围遮罩盖住」 | 🐞 修复·布局 |
 | 33 | `66d5a99` | 补齐 768–959px 分栏带缺失的显示规则（列表内部滚动、氛围保护壳、偏移变量） | 🐞 修复·布局 |
-> 共 **33** 条改动，其中布局相关 **18** 条。
+| 34 | `596b0c0` | 分栏下右栏列表一律内部滚动（不再只在开启氛围背景时才生效） | 🐞 修复·布局 |
+> 共 **34** 条改动，其中布局相关 **19** 条。
 
 ---
 
@@ -329,7 +330,7 @@
 
 > `2026-09-19` ｜ `chore(debug): add long-press layout diagnostic badge (temporary)` ｜ 文件：`static/index.html`
 
-## 阶段 7 · 回归定位与布局重构（1.3.5.25 – 1.3.5.33）
+## 阶段 7 · 回归定位与布局重构（1.3.5.25 – 1.3.5.34）
 
 ### 1.3.5.25-Dev　0cd1dee　　🐞 修复·布局
 
@@ -448,3 +449,13 @@
 **改造思路**：建立「关注点 × 断点」覆盖矩阵（脚本只扫 CSS、并按大括号深度判定每条规则所属的 `@media` 段），发现 **768–959px** 段缺三样（与 1.3.5.32 同源）：① 右栏列表没有内部滚动（`max-height`/`overflow-y`）→ 变成整页滚动、列表顶部会滑到 sticky header 下；② 缺 `--split-list-top` 定义；③ 歌曲卡片与工具栏缺氛围态「实体化保护壳」（0.85 白底 + 25px 模糊 + 暗色变体）→ 直接透在模糊幕布上。已按 ≥960 段的写法在 768–959 段补齐，并复跑矩阵确认 6/6 关注点两端一致。
 
 > `2026-09-19` ｜ `fix(ui): complete the 768-959 split band (list scrolling, ambient protection shell, offset var)` ｜ 文件：`static/index.html`
+
+### 1.3.5.34-Dev　596b0c0　　🐞 修复·布局
+
+**概述**：分栏下右栏列表一律内部滚动（不再只在开启氛围背景时才生效）
+
+**用户需求**：系统复核 1.3.5 的显示逻辑，找出遗漏或未测试到的问题。
+
+**改造思路**：复核中发现「右栏列表内部滚动（`max-height` / `overflow-y`）」这条规则**只写在氛围态选择器里** → 用户若关掉氛围背景（偏好设置），分栏时会退化成整页滚动、列表顶部滑到 sticky header 下面。改为**按分栏统一生效**（`body.split-view-active .playlist / .playlist-grid`），与氛围开关无关。
+
+> `2026-09-19` ｜ `fix(ui): give the right-column list internal scrolling in split mode regardless of ambient` ｜ 文件：`static/index.html`
