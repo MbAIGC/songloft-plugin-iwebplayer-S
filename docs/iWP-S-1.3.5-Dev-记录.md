@@ -55,7 +55,8 @@
 | 43 | `c32cc8f` | 暗色下给沉浸页顶栏叠深色遮罩（第 1 版，无条件；后被 1.3.5.44 改为条件压暗） | 🐞 修复·外观 |
 | 44 | `65bc0ec` | 暗色沉浸页顶栏改为"仅当封面顶部为浅色时压暗"（复用上游 ambient-top-light-bg）；并把"以上游为对照基准"写成约定 | 🐞 修复·外观 |
 | 45 | `079aaeb` | 深色模式下手机沉浸（歌词）页改为与浅色一致（全页跟随封面取色），删除此前加的顶栏遮罩 | 🐞 修复·外观 |
-> 共 **45** 条改动，其中布局相关 **30** 条。
+| 46 | `9d78350` | 修「个别歌曲顶栏/状态栏颜色不对」：跨域封面取色失败会沿用上一首的颜色；取色前先清空旧值 | 🐞 修复·外观 |
+> 共 **46** 条改动，其中布局相关 **31** 条。
 
 ---
 
@@ -341,7 +342,7 @@
 
 > `2026-09-19` ｜ `chore(debug): add long-press layout diagnostic badge (temporary)` ｜ 文件：`static/index.html`
 
-## 阶段 7 · 回归定位与布局重构（1.3.5.25 – 1.3.5.45）
+## 阶段 7 · 回归定位与布局重构（1.3.5.25 – 1.3.5.46）
 
 ### 1.3.5.25-Dev　0cd1dee　　🐞 修复·布局
 
@@ -692,3 +693,24 @@
 - 结果：深色下该页与浅色**完全一致**（统一由封面取色）；分栏带与 App 其它界面不受影响。代码注释已标注"**有意与上游暗色沉浸规则不同的一处，跟进上游时保留本块即可**"。
 
 > `2026-09-19` ｜ `fix(ui): keep the mobile immersive page cover-driven in dark mode (restore light-mode values, drop the header overlay)` ｜ 文件：`static/index.html`
+
+### 1.3.5.46-Dev　9d78350　　🐞 修复·外观
+
+**概述**：修「个别歌曲顶栏/状态栏颜色不对」：跨域封面取色失败会沿用上一首的颜色；取色前先清空旧值
+
+**用户需求**：实测发现方案 ② 之后**仍有个别歌曲**有问题，要求排查。
+
+**根因（逐曲差异就在这里）**：取色链路为 `#fp-cover` 的 `load` → canvas `drawImage` → `ctx.getImageData` 提取上/下 5px 主色。问题有两点：
+1. 封面图**未设置 `crossOrigin`** → **跨域封面会污染 canvas** → `getImageData` 抛 `SecurityError`；
+2. 该异常被 catch 后**只 `console.warn`，不清旧值**，而 `--top-color` / `--bottom-color` / `ambient-top-dark-bg|light-bg` **只在成功路径写入、从不清除**。
+→ 于是这类歌曲会**沿用上一首的取色结果**（顶栏底色与 `meta theme-color` 都带着上一首的颜色）→ 正是"个别歌曲还是会有问题"。
+
+**修法**：
+1. 取色**之前**先清空上一首结果：`--top-color` / `--bottom-color` 置 `transparent`、移除 `ambient-top-*` 类、`meta theme-color` 回落为当前主题色（`#111827` / `#f3f4f6`）；
+   —— `transparent` 的副作用正好是好的：沉浸页顶栏变透明 → **直接透出背景画报**，天然无缝，比任何固定兜底色都协调；
+2. `hasTopColor` 判据把 `transparent` 视为"未取到色"，让状态栏色回落为主题色。
+（取色成功时照旧覆盖为封面主色，行为不变。）
+
+**后续可选（更彻底）**：把封面改成"经应用自身 `fetch`（带 token）取回 → blob URL"再加载 —— blob 属同源，canvas 不被污染，**所有歌曲都能取到色**；当前实现是"失败时优雅兜底"。需要时再做。
+
+> `2026-09-19` ｜ `fix(ui): clear stale cover colour before extraction (cross-origin covers kept the previous song's --top-color)` ｜ 文件：`static/index.html`
