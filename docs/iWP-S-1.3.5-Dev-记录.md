@@ -762,4 +762,6 @@ body.ambient-active.player-open:not(.split-view-active) .header {
 
 **采纳 GPT 的"不建议继续尝试"**：不再调 `#111827` / `rgba(17,24,39,0.25|0.35|0.6)` / `--bg-color` / `meta theme-color` / 再加 Header 暗色遮罩 —— 这些只能改变色带的颜色或明暗，解决不了"合成路径不一致"的结构问题。
 
+**用户确认**：✅ **1.3.5.48 生效** —— 「终于修好了」（顶部色带问题就此闭环；1.3.5.43~47 的调色/取色修复均属治标，本条才是结构性解法）。
+
 > `2026-09-19` ｜ `fix(ui): make the mobile immersive header truly transparent (GPT direction A) - shows the ambient artwork, no seam by construction` ｜ 文件：`static/index.html`；`docs/GPT暗色顶部透明分析.md` 一并入库
