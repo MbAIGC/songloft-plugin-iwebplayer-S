@@ -508,3 +508,29 @@
 **未做**：第 7 项「卡片 `backdrop-filter` A/B」—— 双方都认为收益最大但需真机对比观感，单独做。
 
 > `2026-09-19` ｜ `perf(ui): implement low-risk layout/scroll optimizations 1-6 (observer filter, signature early-return, rAF coalescing, query cache); add GPT evaluation doc` ｜ 文件：`static/index.html`、`static/online.js`、`docs/GPT－iWPS-S-1.3.5-优化方案的评估.md`
+
+---
+
+## 待优化 / 待办登记（已登记，暂不实施）
+
+> 登记用途：先记录、不实施；实施时按格式新增上方条目。
+
+### ① 氛围卡片 `backdrop-filter` A/B（性能，收益最大）
+- **内容**：把 `.song-item` / `.pl-card-b` 上的 `backdrop-filter: blur(25px)` 改为半透明纯色底（背景已被 `.fp-ambient-bg` 模糊过，观感接近）。
+- **收益**：去掉"每张卡片实时重算背景模糊"，是滚动/切换时合成开销的大头（GPT 评估与我的复核都排第一）。
+- **前置**：需真机 A/B 对比观感（临时关掉模糊出一版构建）。
+- **状态**：暂不动（2026-09-19 登记）。
+
+### ② 把分栏相关元素补齐登记进审计工具
+- **内容**：`scripts/audit-breakpoints.mjs` 的 `CONCERNS` / `Z_TARGETS` 补入 `.up-arrow`、`.drawer-handle`、`.mini-cover` 等"仅手机版手势/沉浸元素"。
+- **缘起**：bug「半宽屏显示手机版上下歌词箭头」正是因为这两条隐藏规则只写在 ≥960 段，而工具清单里没有它们 → 漏检（见下方 1.2 分析）。
+- **状态**：登记待办。
+
+### ③ `layoutSelfCheck` 异常红条的展示策略
+- **内容**：把常驻红条改为"持续不一致 >2 秒才出现、10 秒后自动隐藏 + 同时 `console.warn`"。
+- **缘起**：GPT 评估指出用户设备上常驻红条体验差；但当前无控制台时它是唯一可见信号，需权衡。
+- **状态**：登记待办。
+
+### ④ `player.js` 中 `isSplitHome` 的重复判断清理
+- **内容**：`document.body.classList.contains('split-view-active')` 被重复写了两行（统一判据时留下的），逻辑等价，仅清理。
+- **状态**：登记待办（可与其他改动一起做）。
