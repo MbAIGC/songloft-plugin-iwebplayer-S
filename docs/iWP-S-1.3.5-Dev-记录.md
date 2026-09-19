@@ -56,7 +56,8 @@
 | 44 | `65bc0ec` | 暗色沉浸页顶栏改为"仅当封面顶部为浅色时压暗"（复用上游 ambient-top-light-bg）；并把"以上游为对照基准"写成约定 | 🐞 修复·外观 |
 | 45 | `079aaeb` | 深色模式下手机沉浸（歌词）页改为与浅色一致（全页跟随封面取色），删除此前加的顶栏遮罩 | 🐞 修复·外观 |
 | 46 | `9d78350` | 修「个别歌曲顶栏/状态栏颜色不对」：跨域封面取色失败会沿用上一首的颜色；取色前先清空旧值 | 🐞 修复·外观 |
-> 共 **46** 条改动，其中布局相关 **31** 条。
+| 47 | `86dc8a3` | 兜底（占位）封面不再参与取色 —— CORS 受限封面会回落到默认 SVG，导致顶栏取到"占位图"的深色 | 🐞 修复·外观 |
+> 共 **47** 条改动，其中布局相关 **32** 条。
 
 ---
 
@@ -342,7 +343,7 @@
 
 > `2026-09-19` ｜ `chore(debug): add long-press layout diagnostic badge (temporary)` ｜ 文件：`static/index.html`
 
-## 阶段 7 · 回归定位与布局重构（1.3.5.25 – 1.3.5.46）
+## 阶段 7 · 回归定位与布局重构（1.3.5.25 – 1.3.5.47）
 
 ### 1.3.5.25-Dev　0cd1dee　　🐞 修复·布局
 
@@ -714,3 +715,21 @@
 **后续可选（更彻底）**：把封面改成"经应用自身 `fetch`（带 token）取回 → blob URL"再加载 —— blob 属同源，canvas 不被污染，**所有歌曲都能取到色**；当前实现是"失败时优雅兜底"。需要时再做。
 
 > `2026-09-19` ｜ `fix(ui): clear stale cover colour before extraction (cross-origin covers kept the previous song's --top-color)` ｜ 文件：`static/index.html`
+
+### 1.3.5.47-Dev　86dc8a3　　🐞 修复·外观
+
+**概述**：兜底（占位）封面不再参与取色 —— CORS 受限封面会回落到默认 SVG，导致顶栏取到"占位图"的深色
+
+**用户需求**：1.3.5.46 之后问题依旧，并提示"沉浸播放会渲染一些规格的 cover 图片"，要求按这个思路排查。
+
+**纠正与真因（1.3.5.46 的判断有误）**：`#fp-cover` **本来就带 `crossorigin="anonymous"`**（`index.html:2280`，与上游一致；我此前用大小写敏感的 `crossOrigin` grep 漏掉，误判为"未设置"）。真正的机制是：
+1. `#fp-cover` 带 `crossorigin` → 跨域封面走 **CORS 请求**；封面服务器不支持 CORS 时，图片**加载失败** → `handleCoverError` 把 `src` 换成 `window.defaultCover`（`data:image/svg+xml` 占位图）；
+2. 而**页面背景用的是 `#fp-ambient-img`**（**没有** crossorigin）→ **同一 URL 却能正常加载真实封面**；
+3. 取色监听的偏偏是 `#fp-cover` → 于是取到的是**占位图的颜色**（深色），与真实画报必然不一致 → 正是"个别歌曲还是会有问题"。
+（且跨域图片读像素必然被浏览器拦截，**无法**从 ambient 图取色，所以唯一正确做法是"识别出兜底图就不取色"。）
+
+**修法**：在取色处理器开头加守卫 —— 若当前图是兜底/占位图（`data:image/svg+xml`，或等于 `window.defaultCover`）则**直接返回，不取色**；配合 1.3.5.46 已经把颜色先清成 `transparent`，此时顶栏就是透明的、透出真实画报，天然无缝。
+
+**待观察**：本项修的是"封面服务器不支持 CORS"这一类；若仍有歌曲异常，需要区分：顶栏是**偏暗**（占位色/其它路径）还是**偏亮**（浅色封面取色被压暗），以及是否只在**在线资源**出现（源站不同）—— 据此可继续收敛。
+
+> `2026-09-19` ｜ `fix(ui): never sample the placeholder cover for ambient colours (CORS-blocked covers fell back to the default SVG)` ｜ 文件：`static/index.html`
