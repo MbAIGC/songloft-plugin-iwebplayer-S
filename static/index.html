@@ -1051,6 +1051,17 @@
     border: none !important; box-shadow: none !important;
     transition: none !important; /* 🌟 彻底干掉动画，0秒瞬间同步 iOS 状态栏 */
   }
+  /* 🐞 暗色下顶栏"看起来不透明"：上游暗色只压暗了画报背景（封面图 opacity 0.48 + 遮罩）与底部控制区
+     （rgba(17,24,39,0.25)），**唯独没压暗顶栏** → 顶栏是满亮度的封面主色，压在已被压暗的背景上，
+     就显得是一条不透明的亮条（暗色下尤其刺眼）。
+     修法：保留封面主色的**色相**，在其上叠一层深色遮罩，使其与压暗后的背景一致 —— 即恢复"看起来透明"。
+     （只作用于手机沉浸页；分栏下顶栏本就是 transparent，由上游结界规则负责。）
+     想更暗/更亮只调这一条的 alpha 即可。 */
+  :root:not([data-theme="light"]) body.ambient-active.player-open:not(.split-view-active) .header {
+    background:
+      linear-gradient(rgba(17, 24, 39, 0.6), rgba(17, 24, 39, 0.6)),
+      var(--top-color, var(--bg-color)) !important;
+  }
   body.ambient-active.player-open .full-player,
   body.ambient-active.player-open .player-bar {
     background: rgba(255, 255, 255, 0.08) !important;
