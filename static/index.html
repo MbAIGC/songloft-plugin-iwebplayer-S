@@ -1051,13 +1051,15 @@
     border: none !important; box-shadow: none !important;
     transition: none !important; /* 🌟 彻底干掉动画，0秒瞬间同步 iOS 状态栏 */
   }
-  /* 🐞 暗色下顶栏"看起来不透明"：上游暗色只压暗了画报背景（封面图 opacity 0.48 + 遮罩）与底部控制区
-     （rgba(17,24,39,0.25)），**唯独没压暗顶栏** → 顶栏是满亮度的封面主色，压在已被压暗的背景上，
-     就显得是一条不透明的亮条（暗色下尤其刺眼）。
-     修法：保留封面主色的**色相**，在其上叠一层深色遮罩，使其与压暗后的背景一致 —— 即恢复"看起来透明"。
-     （只作用于手机沉浸页；分栏下顶栏本就是 transparent，由上游结界规则负责。）
-     想更暗/更亮只调这一条的 alpha 即可。 */
-  :root:not([data-theme="light"]) body.ambient-active.player-open:not(.split-view-active) .header {
+  /* 🐞 暗色下沉浸页顶栏"看着不透明"：
+     ★ 与上游 v1.3.5 逐条核对过 —— 上游的顶栏底色是 `var(--top-color)`（封面主色，实色），
+       而暗色块只压暗了画报层与底部控制区、**没有压暗顶栏** → 当封面顶部是**浅色**时，
+       顶栏就是一条满亮度的亮条压在已压暗的背景上，显得不透明、割裂。这是上游自身的缺口。
+     ★ 这里沿用上游的判断方式（上游已有 `ambient-top-light-bg` = 封面顶部为浅色），
+       只在"封面顶部浅色"时才给顶栏叠一层深色遮罩 —— 保留封面色相、与背景同步压暗，
+       因此看上去仍是"跟随封面"的透明观感。深色封面不受影响（不动上游行为）。
+       想更暗/更亮只调 alpha。 */
+  :root:not([data-theme="light"]) body.ambient-active.player-open:not(.split-view-active).ambient-top-light-bg .header {
     background:
       linear-gradient(rgba(17, 24, 39, 0.6), rgba(17, 24, 39, 0.6)),
       var(--top-color, var(--bg-color)) !important;
