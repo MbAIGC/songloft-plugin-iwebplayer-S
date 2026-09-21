@@ -1997,7 +1997,12 @@
        半宽屏只有 261–326px（宽屏 326–440+），整组变矮，但仍按 justify-content:flex-start 贴顶排列
        → 视觉上偏上；宽屏因封面更大、填满高度，所以看不出问题。
        修法：只在这一段把左栏主列**垂直居中**（宽屏 ≥960 完全不受影响）。 */
-    body.split-view-active.player-open .desktop-player-main { justify-content: center; }
+    body.split-view-active.player-open .desktop-player-main {
+      align-self: stretch !important;                        /* 占满左栏高度 → flex 才有剩余空间可分配 */
+      justify-content: center !important;                    /* 垂直居中 */
+      padding-top: var(--player-height, 118px) !important;   /* 抵消底部播放条占位：列底比屏幕底高 130px，
+                                                                居中后整组会比屏幕中心偏上约 50–60px，这里补回来 */
+    }
 
     /* 🌟 768–959 段的层叠顺序（必须与 ≥960 段一致，否则会出现"被盖住"的怪问题）：
        这一整块原先只写在 ≥960 段里 →
