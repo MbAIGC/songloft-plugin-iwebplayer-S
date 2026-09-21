@@ -1997,11 +1997,19 @@
        半宽屏只有 261–326px（宽屏 326–440+），整组变矮，但仍按 justify-content:flex-start 贴顶排列
        → 视觉上偏上；宽屏因封面更大、填满高度，所以看不出问题。
        修法：只在这一段把左栏主列**垂直居中**（宽屏 ≥960 完全不受影响）。 */
+    /* 🐞 关键：沉浸态左栏必须有**确定高度**，否则高度塌成内容高 →
+       align-items: stretch 撑不出高度、justify-content 也没有剩余空间可分配 → 内容整体贴顶、
+       下方留一大片空白（截图现象）。≥960 由 body.split-view-active .full-player 的
+       height: calc(100vh - …) 承担，768–959 缺这条等价规则，这里补上。 */
+    body.split-view-active.player-open .full-player {
+      top: 0 !important;
+      bottom: auto !important;
+      height: calc(100vh - var(--player-height, 118px)) !important;
+    }
     body.split-view-active.player-open .desktop-player-main {
       align-self: stretch !important;                        /* 占满左栏高度 → flex 才有剩余空间可分配 */
       justify-content: center !important;                    /* 垂直居中 */
-      padding-top: var(--player-height, 118px) !important;   /* 抵消底部播放条占位：列底比屏幕底高 130px，
-                                                                居中后整组会比屏幕中心偏上约 50–60px，这里补回来 */
+      padding-top: var(--player-height, 118px) !important;   /* 抵消底部播放条占位，把整组推到屏幕视觉中心 */
     }
 
     /* 🌟 768–959 段的层叠顺序（必须与 ≥960 段一致，否则会出现"被盖住"的怪问题）：
