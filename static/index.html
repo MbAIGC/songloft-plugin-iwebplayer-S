@@ -3317,22 +3317,27 @@
         try {
           const isApp = document.documentElement.classList.contains('iwp-app');
           const inBand = window.matchMedia('(min-width: 768px) and (max-width: 1199px)').matches;
-          // 读出**实际生效**的位移像素（CSS px）—— 直接验证单位换算，不用再靠截图推算 ✓
-          let shift = 0;
+          // 显示"将要生效"的位移量（CSS px）：即使当前不在沉浸播放页也能看到数值 ✓
+          const intended = Math.round(Math.min(140, Math.max(24, window.innerHeight * 0.08)));
+          // 若此刻正在沉浸播放页，再读出**实际**生效值（两者应一致）
+          let actual = null;
           const main = document.querySelector('.desktop-player-main');
           if (main) {
             const tf = getComputedStyle(main).transform;
             if (tf && tf !== 'none') {
-              const m = tf.match(/matrix\(([^)]+)\)/);
-              if (m) { const parts = m[1].split(','); shift = Math.round(parseFloat(parts[5]) || 0); }
+              const mm = tf.match(/matrix\(([^)]+)\)/);
+              if (mm) { const parts = mm[1].split(','); actual = Math.round(parseFloat(parts[5]) || 0); }
             }
           }
           el.textContent = APP_VERSION +
             '｜' + window.innerWidth + '×' + window.innerHeight +
             '｜屏' + (window.screen ? screen.height : '?') +
+            '｜DPR' + (window.devicePixelRatio || 1).toFixed(2) +
             '｜' + (isApp ? 'App' : '网页') +
+            '｜' + (document.body.classList.contains('split-view-active') ? '分栏' : '非分栏') +
+            '｜' + (document.body.classList.contains('player-open') ? '沉浸页' : '非沉浸页') +
             '｜位移' + ((isApp && inBand) ? 'ON' : 'OFF') +
-            (shift ? '(' + shift + 'px)' : '');
+            '(' + intended + 'px' + (actual !== null && actual !== intended ? ' → 实际' + actual + 'px' : '') + ')';
         } catch (e) {}
       };
       window.__iwpDiag = update;
