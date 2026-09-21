@@ -387,11 +387,11 @@
      header 左半固定 50%，工具栏占右半栏、不越过中界线；#playlist-row 在分栏下整体隐藏。 */
   body.split-view-active .header-left-group { flex: 0 0 50%; min-width: 0; }
 
-  /* 🌟 首页（分栏）封面下移约 10%（用户选定方案 ①：只移封面，歌词位置不动）。
+  /* 🌟 首页（分栏）封面下移约 8%（用户选定方案 ①：只移封面，歌词位置不动；10% 反馈偏多，改 8%）。
      用 transform 做**视觉位移**，不参与布局流 → 歌词行数完全不变（不会减少可见歌词）。
      ⚠️ 位移必须加在"封面容器"上：封面自身有 cover-breath 的 scale 动画，直接加会被动画覆盖。
      仅作用于**分栏首页**（:not(.player-open)）→ 沉浸页与手机档不受影响。 */
-  body.split-view-active:not(.player-open) .fp-cover-wrapper { transform: translateY(10%); }
+  body.split-view-active:not(.player-open) .fp-cover-wrapper { transform: translateY(8%); }
   body.split-view-active .header > #toolbar-split { flex: 1 1 auto; min-width: 0; margin-left: 12px; }
   body.split-view-active:not(.player-open) #playlist-row { display: none !important; }
 
@@ -2027,6 +2027,9 @@
       padding-top: calc(var(--vh100) * 0.05) !important;      /* B：改为按视口高度 5% 的比例补偿
                                                                 （原先写死 118px，在不同视口高度下比例会漂移） */
     }
+    /* 🌟 半宽屏沉浸播放页：封面+歌曲信息整体再下移 8%（与首页观感一致）。
+       用 transform 视觉位移 → 只影响本列，**歌词列完全不动**；`.` 百分比以本列自身高度为基准。 */
+    body.split-view-active.player-open .desktop-player-main { transform: translateY(8%); }
 
     /* 🌟 768–959 段的层叠顺序（必须与 ≥960 段一致，否则会出现"被盖住"的怪问题）：
        这一整块原先只写在 ≥960 段里 →
