@@ -21,8 +21,10 @@
 | — | `2b0b22f` | 回退 Android「每次启动加缓存破除查询串」（真因是视口单位，不是 WebView 缓存；**仅 APK**） | ♻️ 回退 |
 | 9 | `c76a4b2` | 分栏首页封面**下移 10%**（方案 ①，仅视觉位移，歌词行数不变） | 🎨 外观·布局 |
 | 10 | `843cb11` | 首页封面位移 10% → **8%**；并给**半宽屏沉浸播放页**补上同样的 8% 下移 | 🎨 外观·布局 |
+| 11 | `f1f27c3` | 半宽屏沉浸页位移改为**视口基准**（1.5% ≈36px，替代不可预测的 8%） | 🎨 外观·布局 |
+| 12 | `c6b16f3` | 两处位移改为**仅 App 生效**（`window.Android` → `html.iwp-app`），网页端恢复原样 | 🐞 修复·外观 |
 
-> 共 **10** 条改动（另有 2 条仅影响 APK、不产生插件构建号）。
+> 共 **12** 条改动（另有 2 条仅影响 APK、不产生插件构建号）。
 
 ---
 
@@ -268,6 +270,39 @@ body.split-view-active:not(.player-open) .fp-cover-wrapper { transform: translat
 **说明**：若宽屏（≥960）沉浸页也需要同样的下移，去掉那条媒体查询即可（说一声我加）。
 
 > `2026-09-21` ｜ `feat(ui): cover nudge 8 percent on split-home; add the same nudge to the half-width immersive column` ｜ 文件：`static/index.html`
+
+### 1.3.6.11-Dev　f1f27c3　　🎨 外观·布局
+
+**概述**：半宽屏沉浸页的位移由「8%（元素基准）」改为「1.5% 视口高度」（≈36px）—— 解决"8% 看着少"
+
+**用户需求**：「半宽屏沉浸播放页：8% 少了。参照网页版 你计算下吧」。
+
+**分析**：`translateY(%)` 的百分比基准是**元素自身高度** ✗ —— 首页那条基准是"封面容器"（≈300px → ≈24px，用户认可 ✓），
+而沉浸页那条基准是"那一列的渲染高度"（不可控 ✗）→ 实际只移动了 ~20px，所以"偏上"没解决 ✓。
+**校准**：10%（≈30px）偏多、沉浸页旧值（≈20px）偏少 → 取 **≈36px = 1.5% 视口高度** ✓。
+
+**改造思路**：`body.split-view-active.player-open .desktop-player-main { transform: translateY(calc(var(--vh100) * 0.015)); }`
+→ 改为**视口基准**：跨设备可预测、等比缩放；按 0.5% 步进即可微调（1.0/1.5/2.0% = ≈24/36/48px @2400）。
+
+> `2026-09-21` ｜ `fix(ui): make the half-width immersive cover offset viewport-based (1.5% = ~36px) instead of element-relative` ｜ 文件：`static/index.html`
+
+### 1.3.6.12-Dev　c6b16f3　　🐞 修复·外观
+
+**概述**：两处"封面/内容位移"改为**仅 App 生效**，网页端恢复原样
+
+**用户需求**：「首页你调完，影响网页端的效果。网页端本来是刚刚好的」→ 微调**不得影响网页端**。
+
+**改造思路**：
+- **识别 App**：APK 已通过 `webView.addJavascriptInterface(new Bridge(), "Android")` 注入 `window.Android`（网页端没有 ✓）
+  → 在 `<body>` 后的**引导脚本**里（**首帧之前** ✓）执行
+  `if (window.Android) document.documentElement.classList.add('iwp-app');`
+  → **无闪动、不改 URL**（不重新引入缓存问题 ✓）。
+- **两条位移规则加 `html.iwp-app` 前缀**：
+  - 首页：`html.iwp-app body.split-view-active:not(.player-open) .fp-cover-wrapper { transform: translateY(8%); }`
+  - 半宽屏沉浸：`html.iwp-app body.split-view-active.player-open .desktop-player-main { transform: translateY(calc(var(--vh100) * 0.015)); }`
+- 结果：**网页端完全恢复原样** ✓（用户确认"刚刚好"）；**App 内保留微调** ✓；手机档与沉浸页其它行为不变 ✓。
+
+> `2026-09-21` ｜ `fix(ui): scope the cover nudges to the app (detect window.Android) so the web layout stays untouched` ｜ 文件：`static/index.html`
 
 ## 待优化 / 待办登记（自 1.3.5 结转）
 
