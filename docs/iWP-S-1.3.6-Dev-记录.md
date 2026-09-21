@@ -20,8 +20,9 @@
 | 8 | `ed9b83c` | 统一视口高度口径 `--vh100`（dvh + vh 回落），并把补偿改为按视口比例（A+B） | 🐞 修复·布局 |
 | — | `2b0b22f` | 回退 Android「每次启动加缓存破除查询串」（真因是视口单位，不是 WebView 缓存；**仅 APK**） | ♻️ 回退 |
 | 9 | `c76a4b2` | 分栏首页封面**下移 10%**（方案 ①，仅视觉位移，歌词行数不变） | 🎨 外观·布局 |
+| 10 | `843cb11` | 首页封面位移 10% → **8%**；并给**半宽屏沉浸播放页**补上同样的 8% 下移 | 🎨 外观·布局 |
 
-> 共 **9** 条改动（另有 2 条仅影响 APK、不产生插件构建号）。
+> 共 **10** 条改动（另有 2 条仅影响 APK、不产生插件构建号）。
 
 ---
 
@@ -246,6 +247,27 @@ body.split-view-active:not(.player-open) .fp-cover-wrapper { transform: translat
 **说明**：首页状态下歌曲信息（`.desktop-track-meta`）本身是 `display: none`（只在沉浸态显示），所以下移封面不会与信息产生空隙 ✓。
 
 > `2026-09-21` ｜ `feat(ui): nudge the split-home cover down 10 percent visually (option 1, lyrics unaffected)` ｜ 文件：`static/index.html`
+
+### 1.3.6.10-Dev　843cb11　　🎨 外观·布局
+
+**概述**：首页封面位移改为 8%；并给半宽屏沉浸播放页补上同样的 8% 下移
+
+**用户需求**：「半宽屏的沉浸播放页为什么没调？刚才 10% 感觉多了，8% 应该就可以」。
+
+**改造思路**：
+1. **首页（分栏，两段）**：`body.split-view-active:not(.player-open) .fp-cover-wrapper { transform: translateY(8%) }`（10% → 8%）；
+2. **半宽屏沉浸播放页**：此前只做了「居中 + 确定高度 + 比例补偿」（1.3.6.05~08），**没有这个封面下移** ✗，本次补上：
+```css
+@media (min-width: 768px) and (max-width: 959px) {
+  body.split-view-active.player-open .desktop-player-main { transform: translateY(8%); }
+}
+```
+   —— 用 **transform 视觉位移**：只影响「封面 + 歌曲信息」这一列，**歌词列完全不动** ✓，也不改变任何布局尺寸 ✓。
+   断点已脚本复核 = `(min-width:768px) and (max-width:959px)` ✓ → **宽屏 ≥960 的沉浸页未动** ✓。
+
+**说明**：若宽屏（≥960）沉浸页也需要同样的下移，去掉那条媒体查询即可（说一声我加）。
+
+> `2026-09-21` ｜ `feat(ui): cover nudge 8 percent on split-home; add the same nudge to the half-width immersive column` ｜ 文件：`static/index.html`
 
 ## 待优化 / 待办登记（自 1.3.5 结转）
 
