@@ -18,8 +18,10 @@
 | 7 | `625cc25` | 半宽屏沉浸页内容整体贴顶 → 给左栏补上「确定高度」（仅 768–959） | 🐞 修复·布局 |
 | — | `76a06aa` | APK 界面陈旧 → 插件 URL 加「每进程一次」的缓存破除查询串（**仅 APK，未产生插件构建号**） | 🐞 修复·构建 |
 | 8 | `ed9b83c` | 统一视口高度口径 `--vh100`（dvh + vh 回落），并把补偿改为按视口比例（A+B） | 🐞 修复·布局 |
+| — | `2b0b22f` | 回退 Android「每次启动加缓存破除查询串」（真因是视口单位，不是 WebView 缓存；**仅 APK**） | ♻️ 回退 |
+| 9 | `c76a4b2` | 分栏首页封面**下移 10%**（方案 ①，仅视觉位移，歌词行数不变） | 🎨 外观·布局 |
 
-> 共 **8** 条改动（另有 1 条仅影响 APK、不产生插件构建号）。
+> 共 **9** 条改动（另有 2 条仅影响 APK、不产生插件构建号）。
 
 ---
 
@@ -216,6 +218,35 @@ app 的全屏 WebView 里 `vh` = 真实可视高度 → 同一套 CSS 在两个�
 
 > `2026-09-21` ｜ `fix(ui): unify viewport height via --vh100 (dvh with vh fallback) and make the immersive offset proportional` ｜ 文件：`static/index.html`
 
+### （仅 APK，无插件构建号）2b0b22f　　♻️ 回退
+
+**概述**：回退 1.3.6.08 引入的「每次启动给插件 URL 加缓存破除查询串」
+
+**用户需求**：「刚才的 apk 变动 有必要恢复」（判断其无必要）。
+
+**理由**：该改动基于**错误结论** ✗ —— 当时以为 APK 界面陈旧是 WebView 缓存所致，后续证明真因是 **app 与浏览器的"视口高度口径"不同**（`vh` 在浏览器取大视口）✓。既然缓存并非原因，就没有必要在每次启动时强制重新抓取主文档，回退可保持加载路径简单、并与上游/宿主行为一致 ✓。
+（APK 侧已随之重建 ✓。）
+
+> `2026-09-21` ｜ `revert(android): drop the per-launch cache-busting query (the real cause was viewport units, not WebView caching)` ｜ 文件：`android/app/src/main/java/com/songloft/iwebplayer/MainActivity.java`
+
+### 1.3.6.09-Dev　c76a4b2　　🎨 外观·布局
+
+**概述**：分栏首页封面下移约 10%（用户选定方案 ①：只移封面，歌词不动）
+
+**用户需求**：「先试试 1」（即方案 ①：只把封面下移）。
+
+**改造思路**：用 **transform 视觉位移**，不参与布局流 → **歌词行数完全不变** ✓：
+```css
+body.split-view-active:not(.player-open) .fp-cover-wrapper { transform: translateY(10%); }
+```
+- 位移加在**封面容器**上（`.fp-cover-wrapper`）：封面自身有 `cover-breath` 的 `scale` 动画，直接加会被动画覆盖 ✓；
+- `translateY(10%)` 的百分比以**元素自身高度**为基准 → 位移随封面大小自适应 ✓；
+- 仅作用于**分栏首页**（`:not(.player-open)`）→ 沉浸页与手机档不受影响 ✓。
+
+**说明**：首页状态下歌曲信息（`.desktop-track-meta`）本身是 `display: none`（只在沉浸态显示），所以下移封面不会与信息产生空隙 ✓。
+
+> `2026-09-21` ｜ `feat(ui): nudge the split-home cover down 10 percent visually (option 1, lyrics unaffected)` ｜ 文件：`static/index.html`
+
 ## 待优化 / 待办登记（自 1.3.5 结转）
 
 ### ① 氛围卡片 `backdrop-filter` A/B（性能，收益最大）
@@ -231,7 +262,7 @@ app 的全屏 WebView 里 `vh` = 真实可视高度 → 同一套 CSS 在两个�
   ① **只把封面下移**（歌词位置不动）：封面更居中，但可能与歌词上缘重叠；
   ② **整个左栏内容下移**：位置更低，但**可见歌词行数减少**（与目标相反）；
   ③ **把封面改小一点**（歌词区更高）：**能显示更多歌词** ✓（推测最贴近用户真实目标）。
-- **状态**：待用户选定后实施（需注意只动分栏首页，不影响沉浸页与手机档）。
+- **状态**：✅ **已按方案 ① 实施**（1.3.6.09：封面容器 `translateY(10%)`，仅视觉位移、歌词行数不变）；若观感仍需微调（如改为 15% 或连同歌曲信息一起移），一行即可调整。
 ### ⑬ 上游 v1.3.6 —— **A、B、C1、C3 已跟进（见 1.3.6.01 / .03 / .04）；C2 暂缓**
 **C = 三个功能**：
 1. **跳转源歌单开关**（`#setting-jump-source`）：搜索到歌曲点播放时，自动把视图切到"这首歌所在的歌单"，便于看上下文（可开关、本地记忆）；
