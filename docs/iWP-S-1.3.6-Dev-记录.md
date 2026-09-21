@@ -15,8 +15,9 @@
 | 4 | `54b6ece` | 跟进上游 v1.3.6-C3：我的歌单过滤 + 漏斗入口（仅非分栏） | ⚙️ 功能·跟进上游 |
 | 5 | `7640b5f` | 半宽屏沉浸页封面/歌曲信息偏上 → 左栏主列垂直居中（仅 768–959） | 🐞 修复·布局 |
 | 6 | `01b9674` | 半宽屏沉浸页「仍偏上」 → 居中时补上底部播放条占位的抵消（仅 768–959） | 🐞 修复·布局 |
+| 7 | `625cc25` | 半宽屏沉浸页内容整体贴顶 → 给左栏补上「确定高度」（仅 768–959） | 🐞 修复·布局 |
 
-> 共 **6** 条改动。
+> 共 **7** 条改动。
 
 ---
 
@@ -133,6 +134,33 @@ body.split-view-active.player-open .desktop-player-main {
 **可调**：想更往下 → 加大该 padding（如 `calc(var(--player-height) + 40px)`）；想更往上 → 减小 ✓。
 
 > `2026-09-21` ｜ `fix(ui): compensate the bottom player-bar inset when centering the immersive cover column (768-959)` ｜ 文件：`static/index.html`
+
+### 1.3.6.07-Dev　625cc25　　🐞 修复·布局
+
+**概述**：半宽屏沉浸页内容整体贴顶（1.3.6.05/06 的居中为何无效）—— 根因是左栏高度塌成内容高，补上确定高度
+
+**用户需求**：1.3.6.06 之后「还是会比较偏上」，并提供实测截图。
+
+**截图像素分析 + 规则推导**：截图 2358×2400（近正方 = 分屏窗口），可见「歌曲信息 / 封面 / 歌词」全部集中在**上部约 60%**，下方一大片空白 —— 这不是「居中没生效」，而是**左栏压根没有可分配的高度**：
+- 沉浸态左栏 `.full-player` 在 **≥960** 有确定高度（`height: calc(100vh - var(--player-height) - 56px - env(...))` ✓）；
+- **768–959 段没有等价规则** ✗ → 该段只有 `top: 0; bottom: 130px; height: auto !important` 那套（min-768）→ 实测高度塌成**内容高度** →
+  于是 `align-items: stretch` 撑不出高度、`justify-content: center` **没有剩余空间可分配** → 一切贴顶。
+  （这正好解释了 1.3.6.05/06 两次加"居中"都没效果 ✓。）
+
+**修法**（仍**只作用于 768–959**）：
+```css
+body.split-view-active.player-open .full-player {
+  top: 0 !important;
+  bottom: auto !important;
+  height: calc(100vh - var(--player-height, 118px)) !important;   /* 底部正好抵住播放条 */
+}
+/* 其余保留：align-self: stretch + justify-content: center + padding-top 抵消底部占位 */
+```
+宽屏（≥960）与手机档不受影响 ✓（新规则断点经脚本复核 = `(min-width:768px) and (max-width:959px)` ✓）。
+
+**可调**：位置想更下就加大那条 `padding-top`，想更上就减小 ✓。
+
+> `2026-09-21` ｜ `fix(ui): give the immersive full-player a definite height in the 768-959 band (content hugged the top)` ｜ 文件：`static/index.html`
 
 ## 待优化 / 待办登记（自 1.3.5 结转）
 
