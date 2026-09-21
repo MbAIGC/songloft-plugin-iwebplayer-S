@@ -14,8 +14,9 @@
 | 3 | `8a2086d` | 跟进上游 v1.3.6-C1：智能跳转源歌单（仅非分栏） | ⚙️ 功能·跟进上游 |
 | 4 | `54b6ece` | 跟进上游 v1.3.6-C3：我的歌单过滤 + 漏斗入口（仅非分栏） | ⚙️ 功能·跟进上游 |
 | 5 | `7640b5f` | 半宽屏沉浸页封面/歌曲信息偏上 → 左栏主列垂直居中（仅 768–959） | 🐞 修复·布局 |
+| 6 | `01b9674` | 半宽屏沉浸页「仍偏上」 → 居中时补上底部播放条占位的抵消（仅 768–959） | 🐞 修复·布局 |
 
-> 共 **5** 条改动。
+> 共 **6** 条改动。
 
 ---
 
@@ -110,6 +111,28 @@
 **备注**：若想要的是"只往下挪一点"而非居中，把 `center` 换成 `flex-start` + 一个 `padding-top` 即可（一行改动）。
 
 > `2026-09-21` ｜ `fix(ui): vertically center the immersive player column in the 768-959 band (cover/info sat too high)` ｜ 文件：`static/index.html`
+
+### 1.3.6.06-Dev　01b9674　　🐞 修复·布局
+
+**概述**：半宽屏沉浸页封面/歌曲信息「仍偏上」 —— 1.3.6.05 只居中、未抵消底部播放条占位，本次补上
+
+**用户需求**：1.3.6.05 之后「还是会比较偏上」。
+
+**补充分析（为什么 1.3.6.05 不够）**：左栏 `.full-player` 的盒子是 `top: 0; bottom: 130px; padding: 56px … 28px` →
+它的**内容盒中心比屏幕中心高约 50–60px** ✗（底部要让出播放条 130px）→ 单做 `justify-content: center` 后整组仍偏上 ✓；
+另外若父容器没把该列拉伸到满高，`justify-content` 也没有剩余空间可分配（因此显式 `align-self: stretch` 兜底）。
+
+**修法**（仍**只作用于 768–959**，宽屏/手机档不受影响）：
+```css
+body.split-view-active.player-open .desktop-player-main {
+  align-self: stretch !important;                        /* 占满左栏高度 → 才有剩余空间可分配 */
+  justify-content: center !important;                    /* 垂直居中 */
+  padding-top: var(--player-height, 118px) !important;   /* 抵消底部播放条占位，把整组推到屏幕视觉中心 */
+}
+```
+**可调**：想更往下 → 加大该 padding（如 `calc(var(--player-height) + 40px)`）；想更往上 → 减小 ✓。
+
+> `2026-09-21` ｜ `fix(ui): compensate the bottom player-bar inset when centering the immersive cover column (768-959)` ｜ 文件：`static/index.html`
 
 ## 待优化 / 待办登记（自 1.3.5 结转）
 
