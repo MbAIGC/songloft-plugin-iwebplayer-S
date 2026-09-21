@@ -399,8 +399,12 @@
         而其"宽屏"约 1179px ✓ —— 取 1119 作为上界可覆盖半宽屏、同时避开宽屏。
         （版本菜单里已临时附带"视口尺寸/是否识别为 App"，下次可按实测数字精确收窄 ✓）
      ⚠️ 仅 App：网页端由 `html.iwp-app` 隔离，完全不受影响 ✓。 */
-  @media (min-width: 768px) and (max-width: 1119px) {
-    html.iwp-app body.split-view-active.player-open .desktop-player-main { transform: translateY(calc(var(--vh100) * 0.08)); }
+  @media (min-width: 768px) and (max-width: 1199px) {
+    html.iwp-app body.split-view-active.player-open .desktop-player-main {
+      /* 8% 视口高度 ≈ 96 CSS px（CSS px，不是截图物理像素 ✗ —— 见 GPT 分析第七节）；
+         clamp 下限 24px / 上限 140px：矮屏不过度下移，高屏也不会顶到底部播放条（transform 不参与布局）。 */
+      transform: translateY(clamp(24px, calc(var(--vh100) * 0.08), 140px));
+    }
   }
   body.split-view-active:not(.player-open) #playlist-row { display: none !important; }
 
@@ -3312,12 +3316,23 @@
       const update = function () {
         try {
           const isApp = document.documentElement.classList.contains('iwp-app');
-          const inBand = window.matchMedia('(min-width: 768px) and (max-width: 1119px)').matches;
+          const inBand = window.matchMedia('(min-width: 768px) and (max-width: 1199px)').matches;
+          // 读出**实际生效**的位移像素（CSS px）—— 直接验证单位换算，不用再靠截图推算 ✓
+          let shift = 0;
+          const main = document.querySelector('.desktop-player-main');
+          if (main) {
+            const tf = getComputedStyle(main).transform;
+            if (tf && tf !== 'none') {
+              const m = tf.match(/matrix\(([^)]+)\)/);
+              if (m) { const parts = m[1].split(','); shift = Math.round(parseFloat(parts[5]) || 0); }
+            }
+          }
           el.textContent = APP_VERSION +
             '｜' + window.innerWidth + '×' + window.innerHeight +
             '｜屏' + (window.screen ? screen.height : '?') +
             '｜' + (isApp ? 'App' : '网页') +
-            '｜位移' + ((isApp && inBand) ? 'ON' : 'OFF');
+            '｜位移' + ((isApp && inBand) ? 'ON' : 'OFF') +
+            (shift ? '(' + shift + 'px)' : '');
         } catch (e) {}
       };
       window.__iwpDiag = update;
