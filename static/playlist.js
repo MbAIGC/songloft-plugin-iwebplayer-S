@@ -845,12 +845,18 @@
                 grid.innerHTML = matchText ? `<div style="grid-column: 1 / -1; font-size: 13px; font-weight: bold; color: var(--text-sub); margin-bottom: -4px; padding-left: 4px;">${matchText}</div>` : '';
             }
 
+            // 🌟 跟进上游 v1.3.6-C3：先取基础歌单列表，再按"过滤歌单"关键词筛选（限非分栏）
+            let baseMetas = [...(window.playlistMeta || [])]
+                .filter(pl => pl.name !== '所有电台' && pl.name !== '电台收藏');
+            if (!document.body.classList.contains('split-view-active')
+                && window.currentPlaylist === '我的歌单' && window._gridFilterKeyword) {
+                const kw = window._gridFilterKeyword.toLowerCase();
+                baseMetas = baseMetas.filter(pl => pl.name.toLowerCase().includes(kw));
+            }
             const metas = isWebDavGrid ? (window.webdavPlaylistMeta || []) :
                           isWebDavSearchGrid ? window.matchedWebDavPlaylists :
                           (isSearchGrid ? window.matchedLocalPlaylists :
-                          [...(window.playlistMeta || [])]
-                              .filter(pl => pl.name !== '所有电台' && pl.name !== '电台收藏')
-                              .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN')));
+                          baseMetas.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN')));
 
             window.playlistObserver = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {

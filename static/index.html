@@ -168,9 +168,26 @@
   body.player-open #nav-search-btn,
   body.player-open #nav-online-btn { display: none !important; }
 
-  /* 🌟 跟进上游 v1.3.6-C1：'跳转源歌单'开关。⚠️ 它在 #menu-dropzone-row1 里，而该容器在分栏下
-     会被搬进 .tbs-playlist 窄列 → 分栏下一律隐藏，保证宽屏/半宽屏布局与内容完全不变（用户要求）。 */
-  body.split-view-active #jump-source-wrap { display: none !important; }
+  /* 🌟 跟进上游 v1.3.6-C1/C3：'跳转源歌单'开关、'过滤当前列表'漏斗、'过滤歌单'输入框。
+     ⚠️ 它们分别位于 #menu-dropzone-row1（分栏下被搬进 .tbs-playlist 窄列）与 #playlist-row（分栏下隐藏）
+     → 分栏下一律隐藏，保证宽屏/半宽屏的布局与内容完全不变（用户硬性要求）。 */
+  body.split-view-active #jump-source-wrap,
+  body.split-view-active #filter-action-wrap,
+  body.split-view-active #grid-filter-wrap { display: none !important; }
+
+  /* 🌟 跟进上游 v1.3.6-C3：局部过滤框 UI（仅手机端可见；分栏下由上面规则隐藏） */
+  .filter-inline-wrap {
+      display: none; flex: 1; align-items: center; background: transparent;
+      border: 1px solid transparent; border-radius: 8px; height: 32px; box-sizing: border-box;
+      min-width: 0; animation: slideInLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative; margin-left: 0; transition: box-shadow 0.3s ease, border-color 0.3s ease;
+  }
+  .filter-inline-wrap.glow { box-shadow: 0 0 12px rgba(236, 72, 153, 0.5); border-color: var(--primary); }
+  .filter-inline-wrap input {
+      flex: 1; border: none; background: transparent; padding: 0 8px; font-size: 14px;
+      color: var(--text-main); outline: none; min-width: 0; height: 100%;
+  }
+  @keyframes slideInLeft { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
 
   /* 这两项已由头部图标承担 → 从歌单下拉中移除；但**分栏保留**，避免宽屏丢失功能路径 */
   body:not(.split-view-active) #playlist-opts .select-option[data-key="曲库搜索"],
@@ -2191,6 +2208,13 @@
           <div class="select-value" id="playlist-val">加载中</div>
           <ul class="select-options" id="playlist-opts"></ul>
         </div>
+        <div class="filter-inline-wrap" id="grid-filter-wrap">
+            <div class="divider-v mx-2"></div>
+            <input type="text" id="grid-filter-input" placeholder="过滤歌单" autocomplete="off">
+            <button class="search-icon-btn show" id="grid-filter-clear" style="margin-right: 4px; display: flex;">
+                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
 
         <div class="search-inline-wrap" id="search-inline-wrap">
           <div class="divider-v mx-4"></div>
@@ -2231,6 +2255,15 @@
         </div>
 
         <div id="menu-dropzone-row1" class="flex-y-center h-full">
+            <div id="filter-action-wrap" style="display: none; align-items: center; height: 100%;">
+              <div class="song-more-btn" id="setting-filter-list" title="过滤当前列表" style="margin-right: 4px; display: flex; justify-content: center; align-items: center;">
+                <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                </svg>
+              </div>
+              <div class="divider-v mx-2"></div>
+            </div>
+
             <div id="jump-source-wrap" style="display: none; align-items: center; height: 100%;">
               <div class="song-more-btn" id="setting-jump-source" title="开启/关闭：播放时自动跳转至源歌单" style="margin-right: 4px; display: flex; justify-content: center; align-items: center; transition: color 0.2s;">
                 <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="18" x2="20" y2="18"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="6" x2="12" y2="6"></line><polyline points="16 2 22 2 22 8"></polyline><line x1="15" y1="9" x2="22" y2="2"></line></svg>
@@ -4645,6 +4678,39 @@
             };
             if (onlineBtn) onlineBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleByKey('在线资源', '_preOnlinePlaylist'); });
             if (searchBtn) searchBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleByKey('曲库搜索', '_preSearchPlaylist'); });
+        })();
+
+        // 🌟 跟进上游 v1.3.6-C3：'过滤歌单'（我的歌单海报墙）—— 关键词持久记忆 + 清空
+        (function initGridFilter() {
+            const wrap = document.getElementById('grid-filter-wrap');
+            const input = document.getElementById('grid-filter-input');
+            const clear = document.getElementById('grid-filter-clear');
+            if (!wrap || !input || !clear) return;
+            window._gridFilterKeyword = localStorage.getItem('iwebplayer.grid_filter') || '';
+            if (window._gridFilterKeyword) { input.value = window._gridFilterKeyword; clear.classList.add('show'); }
+            input.addEventListener('input', (e) => {
+                window._gridFilterKeyword = e.target.value.trim();
+                if (window._gridFilterKeyword) { localStorage.setItem('iwebplayer.grid_filter', window._gridFilterKeyword); clear.classList.add('show'); }
+                else { localStorage.removeItem('iwebplayer.grid_filter'); clear.classList.remove('show'); }
+                if (window.renderPlaylist) window.renderPlaylist();
+            });
+            clear.addEventListener('click', (e) => {
+                e.stopPropagation(); e.preventDefault();
+                input.value = ''; window._gridFilterKeyword = '';
+                localStorage.removeItem('iwebplayer.grid_filter');
+                clear.classList.remove('show'); wrap.classList.remove('glow'); wrap.style.display = 'none';
+                if (window.renderPlaylist) window.renderPlaylist();
+            });
+            // 漏斗按钮：在「我的歌单」里点它 = 打开/收起这个过滤框（其它歌单不处理）
+            const funnel = document.getElementById('setting-filter-list');
+            if (funnel) funnel.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const menuOpts = document.getElementById('global-menu-1-opts');
+                if (menuOpts) menuOpts.classList.remove('show');
+                if (window.currentPlaylist !== '我的歌单') return;
+                if (wrap.style.display === 'none' || wrap.style.display === '') { wrap.style.display = 'flex'; input.focus(); }
+                else { clear.click(); }
+            });
         })();
 
         // 🌟 跟进上游 v1.3.6-C1：智能跳转源歌单 开关（默认关闭，状态记在本地）

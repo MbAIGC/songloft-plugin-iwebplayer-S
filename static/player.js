@@ -324,6 +324,28 @@
     };
 
     window.updateSearchUI = function(playlistName) {
+        // 🌟 跟进上游 v1.3.6-C1/C3：过滤与跳转源控件只服务手机端；分栏下一律不介入（宽屏布局/内容不变）
+        if (!document.body.classList.contains('split-view-active')) {
+            setTimeout(() => {
+                const funnelWrap = document.getElementById('filter-action-wrap');
+                if (funnelWrap) funnelWrap.style.display = (playlistName === '我的歌单') ? 'flex' : 'none';
+                const jumpWrap = document.getElementById('jump-source-wrap');
+                if (jumpWrap) jumpWrap.style.display = (playlistName === '曲库搜索') ? 'flex' : 'none';
+                const gridWrap = document.getElementById('grid-filter-wrap');
+                if (gridWrap) {
+                    if (playlistName !== '我的歌单') { gridWrap.style.display = 'none'; }
+                    else if (window._gridFilterKeyword) {
+                        gridWrap.style.display = 'flex';
+                        const gi = document.getElementById('grid-filter-input');
+                        if (gi) gi.value = window._gridFilterKeyword;
+                        document.getElementById('grid-filter-clear')?.classList.add('show');
+                        gridWrap.classList.add('glow');
+                        if (window._gridGlowTimer) clearTimeout(window._gridGlowTimer);
+                        window._gridGlowTimer = setTimeout(() => gridWrap.classList.remove('glow'), 800);
+                    }
+                }
+            }, 50);
+        }
         // 🌟 跟进上游 v1.3.6-B：头部快捷图标（在线资源 / 曲库搜索）的高亮状态
         const navOnlineBtnEl = document.getElementById('nav-online-btn');
         if (navOnlineBtnEl) navOnlineBtnEl.classList.toggle('active', playlistName === '在线资源');
