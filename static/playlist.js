@@ -1121,16 +1121,19 @@
 
             if (window.currentPlaylist === '曲库搜索') {
                 let foundPl = '';
+                let realPlName = '';   // 🌟 跟进上游 v1.3.6-C1：记住"真实后台歌单名"（缓存歌曲可能被中文化）
                 const skipPls = ['全部', '所有歌曲', '最近新增', '曲库搜索', '收藏', '下载', '所有电台'];
                 for (const [plName, plSongs] of Object.entries(window.allPlaylists)) {
                     if (skipPls.includes(plName)) continue;
                     if (plSongs.some(item => item.id === rawItem.id)) {
+                        realPlName = plName;   // 🌟 C1：真实名字
                         foundPl = plName === 'cache_songs' ? '缓存歌曲' : plName;
                         break;
                     }
                 }
                 // ✅ 2. 补上之前漏掉的赋值，让曲库搜索里的来源歌单名字正常显示
                 if (foundPl) {
+                    li.dataset.sourcePl = realPlName;   // 🌟 C1：把源歌单名埋在 li 上，供播放时跳转
                     sourceTagHtml = `<div class="song-playlist-tag">${window.escapeHtml(foundPl)}</div>`;
                 }
             }
@@ -1232,6 +1235,19 @@
 
                 if (window.deadSongIndexes[window.currentPlaylist]) {
                     window.deadSongIndexes[window.currentPlaylist] = window.deadSongIndexes[window.currentPlaylist].filter(i => i !== index);
+                }
+                // 🌟 跟进上游 v1.3.6-C1：曲库搜索 + 开启"智能跳转源歌单"时，先静默切到源歌单再播放。
+                //    ⚠️ 仅**非分栏**生效：分栏右栏的列表/内容完全不受影响（用户硬性要求）。
+                if (!document.body.classList.contains('split-view-active')
+                    && window.currentPlaylist === '曲库搜索' && window.isJumpSourceEnabled && li.dataset.sourcePl) {
+                    const targetPl = li.dataset.sourcePl;
+                    const targetSongName = window.getSongNameObj(rawItem);
+                    if (window.switchPlaylistSilently) window.switchPlaylistSilently(targetPl);
+                    const newIndex = window.songList.findIndex(item => window.getSongNameObj(item) === targetSongName);
+                    if (newIndex !== -1) {
+                        if (window.playSong) window.playSong(newIndex);
+                        return;
+                    }
                 }
                 if(window.playSong) window.playSong(index);
             });
