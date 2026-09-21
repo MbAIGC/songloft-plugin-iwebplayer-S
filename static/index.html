@@ -386,6 +386,12 @@
   /* 🌟 宽屏工具栏**永远**在 header 那一行（结构上就放在 header 里，不做任何搬移）：
      header 左半固定 50%，工具栏占右半栏、不越过中界线；#playlist-row 在分栏下整体隐藏。 */
   body.split-view-active .header-left-group { flex: 0 0 50%; min-width: 0; }
+
+  /* 🌟 首页（分栏）封面下移约 10%（用户选定方案 ①：只移封面，歌词位置不动）。
+     用 transform 做**视觉位移**，不参与布局流 → 歌词行数完全不变（不会减少可见歌词）。
+     ⚠️ 位移必须加在"封面容器"上：封面自身有 cover-breath 的 scale 动画，直接加会被动画覆盖。
+     仅作用于**分栏首页**（:not(.player-open)）→ 沉浸页与手机档不受影响。 */
+  body.split-view-active:not(.player-open) .fp-cover-wrapper { transform: translateY(10%); }
   body.split-view-active .header > #toolbar-split { flex: 1 1 auto; min-width: 0; margin-left: 12px; }
   body.split-view-active:not(.player-open) #playlist-row { display: none !important; }
 
