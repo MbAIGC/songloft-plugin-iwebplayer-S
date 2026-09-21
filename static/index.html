@@ -2035,7 +2035,6 @@
        ⇒ 取 **8% 视口 = 192px**（按视口基准，跨设备等比；需微调时改这个数字即可：4/6/8/10% = 96/144/192/240px @2400）。
        仍用 transform 视觉位移：只影响本列，**歌词列完全不动**、不改变任何布局尺寸。
        ⚠️ 仅 App 生效（`html.iwp-app`）：网页端本来就是刚好的，不能被这条位移影响。 */
-    html.iwp-app body.split-view-active.player-open .desktop-player-main { transform: translateY(calc(var(--vh100) * 0.08)); }
 
     /* 🌟 768–959 段的层叠顺序（必须与 ≥960 段一致，否则会出现"被盖住"的怪问题）：
        这一整块原先只写在 ≥960 段里 →
@@ -2068,6 +2067,11 @@
     body.split-view-active:not(.player-open) .lyric-line { font-size: 28px; min-height: 48px; padding: 10px 20px; }
     body.split-view-active:not(.player-open) .lyric-line.active { font-size: 34px; }
   }
+
+  /* 🌟 沉浸播放页（分栏，含 ≥960 与 768–959 两档）：封面+信息下移 8% 视口高度（仅 App）。
+     ⚠️ 原先把这条写在 768–959 的媒体查询里 → 实测设备（CSS 宽≈1179，属 ≥960）**根本没匹配到** ✗，
+        这正是"改了没变化"的原因。故移除断点限制，两档一致。 */
+  html.iwp-app body.split-view-active.player-open .desktop-player-main { transform: translateY(calc(var(--vh100) * 0.08)); }
 
   /* ==========================================
      🛑 登录失效 / 加载失败兜底页
@@ -2113,19 +2117,26 @@
       } catch (e) {}
       try {
         // 🌟 识别「App（APK）」并打标记 iwp-app（首帧前）→ 让"仅 App 生效"的观感微调不影响网页端。
-        //    判据三重，任一成立即视为 App：
-        //      ① APK 通过 addJavascriptInterface 注入的 window.Android；
-        //      ② WebView 的 UA 特征 "; wv)"（**普通 Chrome / Edge 浏览器没有**，所以网页端不受影响）；
-        //      ③ 自定义 UA 里带 iWebPlayer-S-APK（如将来需要）。
-        var _ua = (navigator.userAgent || '');
-        if (window.Android || /;\s*wv\)/.test(_ua) || /iWebPlayer-S-APK/i.test(_ua)) {
-          document.documentElement.classList.add('iwp-app');
-        }
+        //    判据（任一成立即视为 App；**全部为纯前端可实现，无需改 APK**）：
+        //      ① APK 注入的 window.Android（JS 桥）；
+        //      ② WebView 的 UA 特征 "; wv)" —— 普通 Chrome / Edge **没有**；
+        //      ③ 自定义 UA 里带 iWebPlayer-S-APK（备用）；
+        //      ④ 视口高度 ≈ 屏幕高度：App 是满屏 WebView（无浏览器 UI）；普通浏览器会少掉地址栏/状态栏。
+        window.__iwpIsApp = function () {
+          try {
+            if (window.Android) return true;
+            var ua = navigator.userAgent || '';
+            if (/;\s*wv\)/.test(ua) || /iWebPlayer-S-APK/i.test(ua)) return true;
+            if (window.screen && screen.height && window.innerHeight >= screen.height * 0.94) return true;
+          } catch (e) {}
+          return false;
+        };
+        if (window.__iwpIsApp()) document.documentElement.classList.add('iwp-app');
       } catch (e) {}
-      // 补检：个别机型上 JS 桥在首帧之后才可用，DOMContentLoaded 时再确认一次（幂等）
+      // 补检：个别机型上 JS 桥/视口尺寸在首帧之后才稳定，DOMContentLoaded 时再确认一次（幂等）
       try {
         document.addEventListener('DOMContentLoaded', function () {
-          try { if (window.Android) document.documentElement.classList.add('iwp-app'); } catch (e) {}
+          try { if (window.__iwpIsApp && window.__iwpIsApp()) document.documentElement.classList.add('iwp-app'); } catch (e) {}
         });
       } catch (e) {}
       try {
