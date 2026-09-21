@@ -3306,46 +3306,7 @@
     const configBackdrop = document.getElementById('config-modal-backdrop');
     const configCloudHint = document.getElementById('config-cloud-hint');
 
-    // 🔍【临时诊断】版本号后附带：视口尺寸 / 屏高 / 是否识别为 App / **位移是否命中**。
-    //    ⚠️ 必须**实时刷新**（resize / 旋转 / 每次点击时重算）—— 否则只会显示首次打开时的尺寸 ✗。
-    //    "位移 ON/OFF" = App 判据命中 **且** 宽度落在 768–1119 → 决定沉浸页那条下移是否生效。
-    //    定位完成后删掉这一段，恢复为只显示 APP_VERSION。
-    (function initViewportDiagnostics() {
-      const el = document.getElementById('setting-version-label');
-      if (!el) return;
-      const update = function () {
-        try {
-          const isApp = document.documentElement.classList.contains('iwp-app');
-          const inBand = window.matchMedia('(min-width: 768px) and (max-width: 1199px)').matches;
-          // 显示"将要生效"的位移量（CSS px）：即使当前不在沉浸播放页也能看到数值 ✓
-          const intended = Math.round(Math.min(140, Math.max(24, window.innerHeight * 0.08)));
-          // 若此刻正在沉浸播放页，再读出**实际**生效值（两者应一致）
-          let actual = null;
-          const main = document.querySelector('.desktop-player-main');
-          if (main) {
-            const tf = getComputedStyle(main).transform;
-            if (tf && tf !== 'none') {
-              const mm = tf.match(/matrix\(([^)]+)\)/);
-              if (mm) { const parts = mm[1].split(','); actual = Math.round(parseFloat(parts[5]) || 0); }
-            }
-          }
-          el.textContent = APP_VERSION +
-            '｜' + window.innerWidth + '×' + window.innerHeight +
-            '｜屏' + (window.screen ? screen.height : '?') +
-            '｜DPR' + (window.devicePixelRatio || 1).toFixed(2) +
-            '｜' + (isApp ? 'App' : '网页') +
-            '｜' + (document.body.classList.contains('split-view-active') ? '分栏' : '非分栏') +
-            '｜' + (document.body.classList.contains('player-open') ? '沉浸页' : '非沉浸页') +
-            '｜位移' + ((isApp && inBand) ? 'ON' : 'OFF') +
-            '(' + intended + 'px' + (actual !== null && actual !== intended ? ' → 实际' + actual + 'px' : '') + ')';
-        } catch (e) {}
-      };
-      window.__iwpDiag = update;
-      update();
-      window.addEventListener('resize', update);
-      window.addEventListener('orientationchange', update);
-      document.addEventListener('click', update, true);   // 每次点开菜单都刷新 → 切换模式后再打开即可读到最新值 ✓
-    })();
+    document.getElementById('setting-version-label').textContent = APP_VERSION;
     document.getElementById('about-version-label').textContent = APP_VERSION;
 
     /* ==========================================
