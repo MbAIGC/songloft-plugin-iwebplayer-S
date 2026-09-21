@@ -62,6 +62,9 @@ public class MainActivity extends AppCompatActivity {
     private static final String KEY_REFRESH = "refresh_token";
     private static final String KEY_EXPIRES = "token_expires_at";
     private static final String PLUGIN_PATH = "api/v1/jsplugin/iwebplayer-s/static/index.html";
+
+    /** 进程启动时间：作为破除 WebView 缓存的查询串（同进程内稳定，重开 App 变化） */
+    private static final long processStartMs = System.currentTimeMillis();
     private static final String SETTINGS_URL = "file:///android_asset/settings.html";
     private static final long TOKEN_CHECK_INTERVAL_MS = 3000L;
     private static final int REQ_NOTIFICATION = 1001;
@@ -422,15 +425,19 @@ public class MainActivity extends AppCompatActivity {
 
     private void openPlayer(String server) {
         String base = server.endsWith("/") ? server : server + "/";
+        // 🐞 破除 WebView 缓存：查询串取「本次进程启动时间」，同一进程内固定、每次重开 App 变化
+        //    → 主文档 URL 每次启动都不同，WebView 必定重新抓取（子资源仍按内容哈希 ?v= 缓存，不受影响）。
+        //    背景：APK 与浏览器访问同一宿主插件，但实测 APK 界面陈旧；此改动从根上排除 WebView 缓存因素。
+        final String cacheKey = Long.toString(processStartMs);
         final long expiresAt = prefs.getLong(KEY_EXPIRES, 0);
         if (expiresAt > 0 && System.currentTimeMillis() > expiresAt - 5 * 60 * 1000) {
             // 令牌临近过期时后台刷新，避免阻塞 UI 线程
             new Thread(() -> {
                 tryRefreshToken();
-                runOnUiThread(() -> webView.loadUrl(base + PLUGIN_PATH));
+                runOnUiThread(() -> webView.loadUrl(base + PLUGIN_PATH + "?v=" + cacheKey));
             }).start();
         } else {
-            webView.loadUrl(base + PLUGIN_PATH);
+            webView.loadUrl(base + PLUGIN_PATH + "?v=" + cacheKey);
         }
     }
 
