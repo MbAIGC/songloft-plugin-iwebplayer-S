@@ -27,8 +27,9 @@
 | 14 | `ed3f4ea` | 修 App 标记未生效（改三重判据 + DOMContentLoaded 补检），两条位移在 App 内恢复生效 | 🐞 修复·外观 |
 | 15 | `30faf82` | 沉浸页位移临时移出媒体查询（排查用）+ App 判据增补（纯前端四重） | 🐞 修复·外观 |
 | 16 | `56fb562` | 沉浸页位移**改回仅 768–959**（半宽屏下移正好；宽屏不得跟着下移）| 🐞 修复·外观 |
+| 17 | `96760a6` | 加**临时诊断**（版本菜单显示视口/屏高/是否 App）；位移范围放宽为 **768–1119** | 🔍 诊断 |
 
-> 共 **16** 条改动（另有 2 条仅影响 APK、不产生插件构建号）。
+> 共 **17** 条改动（另有 2 条仅影响 APK、不产生插件构建号）。
 
 ---
 
@@ -386,6 +387,26 @@ html.iwp-app body.split-view-active.player-open .desktop-player-main { transform
 首页封面位移仍为**全局**（两档一致，8% ≈ 24px，此前你认可 ✓）—— 若**宽屏首页**也不想要这个微调，说一声我给它加同样的断点限制 ✓。
 
 > `2026-09-21` ｜ `fix(ui): scope the immersive nudge to the 768-959 band again (wide band must stay untouched)` ｜ 文件：`static/index.html`
+
+### 1.3.6.17-Dev　96760a6　　🔍 诊断 + 🐞 修复·外观
+
+**概述**：加临时诊断（版本菜单显示 视口/屏高/是否识别为 App）；并把沉浸页位移范围放宽到 768–1119
+
+**用户需求**：「半宽屏依旧没解决」（1.3.6.16 把断点收回 768–959 后，半宽屏又失效 ✗）
+→ 说明实测的"半宽屏"**并不落在 768–959** 区间 ✗，而其"宽屏"约 1179px ✓；缺少可靠宽度数据，无法精确定位。
+
+**改造思路**：
+1. **临时诊断**（定位完成后删除 ✓）：`☰ → 版本` 标签改为
+   `APP_VERSION｜视口 W×H｜屏高 <screen.height>｜App/网页`
+   —— 一次即可拿到"宽度属于哪一档 / 是否被识别为 App / 视口与屏高之比"三项关键数据 ✓。
+2. **位移范围放宽**：原 `(min-width:768px) and (max-width:959px)` → **独立媒体查询 `(min-width:768px) and (max-width:1119px)`**
+   —— 覆盖"半宽屏"、同时避开约 1179px 的"宽屏" ✓；且仍要求 `html.iwp-app`（网页端万无一失 ✓）。
+
+**校验**：CSS 括号平衡 ✓、`npm test` ✓、`audit:breakpoints --strict` **PASS** ✓、新规则断点脚本复核 = `(min-width:768px) and (max-width:1119px)` ✓。
+
+**下一步**：把两个模式下 `☰ → 版本` 的文本发来 → 按真实宽度精确收窄区间，并删除诊断代码 ✓。
+
+> `2026-09-21` ｜ `diag(ui): show viewport/screen/app-flag in the version label; widen the immersive nudge band to 768-1119` ｜ 文件：`static/index.html`
 
 ## 待优化 / 待办登记（自 1.3.5 结转）
 
