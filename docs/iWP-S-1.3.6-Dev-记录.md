@@ -25,9 +25,10 @@
 | 12 | `c6b16f3` | 两处位移改为**仅 App 生效**（`window.Android` → `html.iwp-app`），网页端恢复原样 | 🐞 修复·外观 |
 | 13 | `1dd2a31` | 修正沉浸页位移计算：改为 **8% 视口（192px）**（上一版 1.5%=36px 是反向错修） | 🐞 修复·外观 |
 | 14 | `ed3f4ea` | 修 App 标记未生效（改三重判据 + DOMContentLoaded 补检），两条位移在 App 内恢复生效 | 🐞 修复·外观 |
-| 15 | `—` | 沉浸页位移**移出 768–959 媒体查询**（你的设备 CSS 宽≈1179 属 ≥960，原先根本没匹配到）+ App 判据增补 | 🐞 修复·外观 |
+| 15 | `30faf82` | 沉浸页位移临时移出媒体查询（排查用）+ App 判据增补（纯前端四重） | 🐞 修复·外观 |
+| 16 | `56fb562` | 沉浸页位移**改回仅 768–959**（半宽屏下移正好；宽屏不得跟着下移）| 🐞 修复·外观 |
 
-> 共 **15** 条改动（另有 2 条仅影响 APK、不产生插件构建号）。
+> 共 **16** 条改动（另有 2 条仅影响 APK、不产生插件构建号）。
 
 ---
 
@@ -368,6 +369,23 @@ html.iwp-app body.split-view-active.player-open .desktop-player-main { transform
 **关于"是否只能注入"**：不是 ✓。上述四重判据都不需要改 APK；**只有当四重全部在你的设备上失效时**，才需要退回 APK 侧注入（那是确定性方案，但需重装 APK ✓）。
 
 > `2026-09-21` ｜ `fix(ui): immersive cover nudge applies to both split bands (was 768-959 only) + pure-frontend app signals` ｜ 文件：`static/index.html`
+
+### 1.3.6.16-Dev　56fb562　　🐞 修复·外观
+
+**概述**：沉浸页位移改回「仅 768–959（半宽屏）」—— 宽屏模式不应跟着下移
+
+**用户需求**：「半宽屏下移了，差不多算正好。但是宽屏模式也下移了 就很不好了」。
+
+**原因**：1.3.6.15 为了排查"改了没变化"，把这条规则从 768–959 媒体查询里**移到了全局** ✗ → 宽屏（≥960）也跟着下移 ✗（排查手段的副作用）。
+
+**修法**：把规则放回 `@media (min-width: 768px) and (max-width: 959px)` 内（"仅 App"与四重识别全部保留 ✓）：
+```css
+html.iwp-app body.split-view-active.player-open .desktop-player-main { transform: translateY(calc(var(--vh100) * 0.08)); }
+```
+**复核（脚本判定）**：沉浸页位移断点 = **`(min-width:768px) and (max-width:959px)`** ✓（只有半宽屏 ✓）；
+首页封面位移仍为**全局**（两档一致，8% ≈ 24px，此前你认可 ✓）—— 若**宽屏首页**也不想要这个微调，说一声我给它加同样的断点限制 ✓。
+
+> `2026-09-21` ｜ `fix(ui): scope the immersive nudge to the 768-959 band again (wide band must stay untouched)` ｜ 文件：`static/index.html`
 
 ## 待优化 / 待办登记（自 1.3.5 结转）
 
