@@ -62,6 +62,11 @@
      1. 全局变量、基础重置与明暗主题
      ========================================== */
   :root {
+    /* 🌟 A：统一"视口高度"口径。
+       浏览器里 100vh 取的是**大视口**（工具栏收起时的高度），并不等于当前可见高度；
+       而 app 的全屏 WebView 里 100vh = 真实可视高度 → 同一套布局在两者表现不同，浏览器验证会失真。
+       这里用 dvh（动态视口 = 当前可见高度），旧 WebView 不支持时自动回落 100vh。 */
+    --vh100: 100vh;
     --bg-color: #f3f4f6;
     --card-bg: #ffffff;
     --text-main: #1f2937;
@@ -389,7 +394,7 @@
       列表顶部会滑到 sticky header 下面 —— 与开启氛围时的体验不一致）。 */
   body.split-view-active .playlist,
   body.split-view-active .playlist-grid {
-    max-height: calc(100vh - var(--split-list-top, 58px) - 12px) !important;
+    max-height: calc(var(--vh100) - var(--split-list-top, 58px) - 12px) !important;
     overflow-y: auto !important;
     padding-bottom: 20px !important;
     -webkit-overflow-scrolling: touch;
@@ -1003,11 +1008,15 @@
   /* ==========================================
      12. 桌面端宽屏适配与双栏无缝切分 (Media Queries)
      ========================================== */
+  @supports (height: 100dvh) {
+    :root { --vh100: 100dvh; }   /* 支持的浏览器/WebView：用动态视口，浏览器与 app 口径一致 */
+  }
+
   @media (min-width: 600px) {
     html { background-color: #e5e7eb; overflow-y: scroll; scrollbar-gutter: stable; }
     @media (prefers-color-scheme: dark) { html:not([data-theme="light"]) { background-color: #050505; } }
     html[data-theme="dark"] { background-color: #050505; }
-    body { width: 480px !important; margin: 0 auto !important; min-height: 100vh; box-shadow: 0 0 60px rgba(0,0,0,0.15); border-left: 1px solid var(--border); border-right: 1px solid var(--border); overflow-x: visible; }
+    body { width: 480px !important; margin: 0 auto !important; min-height: var(--vh100); box-shadow: 0 0 60px rgba(0,0,0,0.15); border-left: 1px solid var(--border); border-right: 1px solid var(--border); overflow-x: visible; }
     .player-bar, .full-player { width: 480px !important; left: 50% !important; margin-left: -240px !important; }
     .about-modal-backdrop { left: 50%; width: 480px; margin-left: -240px; }
     #fp-lyrics-wrapper { cursor: grab; }
@@ -1038,7 +1047,7 @@
     /* 🛑 宽屏氛围遮罩 (.fp-ambient-bg) 是 z-index:135 的不透明全屏层，右栏只有 .playlist/.playlist-grid 被抬到了 140。
        #loading 承载「正在加载 / 登录失效」提示，必须同样抬到遮罩之上（仍低于 header 的 150/260），否则整块看不见。 */
     body.split-view-active #loading { position: relative !important; z-index: 145 !important; }
-    body.split-view-active .full-player { display: flex !important; transform: none !important; width: 50% !important; left: 0 !important; margin-left: 0 !important; top: 56px !important; height: calc(100vh - var(--player-height) - 56px - env(safe-area-inset-bottom)) !important; border-radius: 0 !important; border-top: none !important; box-shadow: none !important; border-right: 1px solid var(--border) !important; padding-top: 24px !important; z-index: 190 !important; }
+    body.split-view-active .full-player { display: flex !important; transform: none !important; width: 50% !important; left: 0 !important; margin-left: 0 !important; top: 56px !important; height: calc(var(--vh100) - var(--player-height) - 56px - env(safe-area-inset-bottom)) !important; border-radius: 0 !important; border-top: none !important; box-shadow: none !important; border-right: 1px solid var(--border) !important; padding-top: 24px !important; z-index: 190 !important; }
     body.split-view-active .player-bar { width: 50% !important; left: 0 !important; margin-left: 0 !important; box-shadow: none !important; border-top: 1px solid var(--border) !important; border-right: 1px solid var(--border) !important; z-index: 200 !important; padding-right: 28px !important; }
     body.split-view-active .drawer-handle { display: none !important; }
     body.split-view-active .up-arrow { visibility: hidden !important; pointer-events: none !important; }
@@ -1205,7 +1214,7 @@
       /* 🛑 宽屏下 .player-bar 只占左半栏 (width:50%; left:0)，右栏下方并没有播放条，
          因此不能再扣 --player-height，否则列表底部会悬空约一个播放条的高度、最后一张卡片被容器底边截断。
          这里只扣「顶部导航 + 宽屏工具栏」高度和一点底部内缩，列表才能真正贴到底。 */
-      max-height: calc(100vh - var(--split-list-top, 58px) - 12px) !important; overflow-y: auto !important;
+      max-height: calc(var(--vh100) - var(--split-list-top, 58px) - 12px) !important; overflow-y: auto !important;
       padding-bottom: 20px !important; -webkit-overflow-scrolling: touch;
     }
     /* 🔐 修复：ambient 分栏列表恢复可见细滚动条（全局已隐藏原生滚动条，此处单独恢复）
@@ -1640,7 +1649,7 @@
       width: min(100%, 34vw, 440px);
       height: auto;
       max-width: 100%;
-      max-height: min(48vh, 440px);
+      max-height: min(calc(var(--vh100) * 0.48), 440px);
       aspect-ratio: 1;
       /* Keep the wide immersive player cover aligned with the home player-cover treatment. */
       border-radius: 20px !important;
@@ -1653,8 +1662,8 @@
       max-width: none;
       margin: 0;
       align-self: center;
-      height: min(58vh, 580px);
-      max-height: min(58vh, 580px);
+      height: min(calc(var(--vh100) * 0.58), 580px);
+      max-height: min(calc(var(--vh100) * 0.58), 580px);
       min-height: 320px;
       min-width: 0;
       display: block;
@@ -1731,8 +1740,8 @@
     }
     body.split-view-active.player-open .desktop-player-main { flex: 0 1 32%; width: 32%; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: clamp(8px, 2vh, 24px); overflow: hidden; }
     body.split-view-active.player-open .fp-cover-wrapper { width: 100%; padding: 0; flex: 0 1 auto; }
-    body.split-view-active.player-open .fp-lyrics-wrapper { flex: 1 1 0; width: auto; min-width: 0; max-width: none; height: min(58vh, 580px); margin: 0; align-self: center; }
-    body.split-view-active.player-open .fp-cover { width: min(100%, 34vw, 440px); height: auto; max-width: 100%; max-height: min(48vh, 440px); }
+    body.split-view-active.player-open .fp-lyrics-wrapper { flex: 1 1 0; width: auto; min-width: 0; max-width: none; height: min(calc(var(--vh100) * 0.58), 580px); margin: 0; align-self: center; }
+    body.split-view-active.player-open .fp-cover { width: min(100%, 34vw, 440px); height: auto; max-width: 100%; max-height: min(calc(var(--vh100) * 0.48), 440px); }
   }
 
   /* Keep the original split-home composition, but scale both columns with the viewport. */
@@ -1769,7 +1778,7 @@
     }
     body.split-view-active:not(.player-open) .full-player {
       top: 56px !important;
-      height: calc(100vh - var(--player-height) - 56px - env(safe-area-inset-bottom)) !important;
+      height: calc(var(--vh100) - var(--player-height) - 56px - env(safe-area-inset-bottom)) !important;
     }
     body.split-view-active:not(.player-open) #fp-ambient-bg {
       width: 100% !important;
@@ -1896,7 +1905,7 @@
       display: flex !important;
       transform: none !important;
       top: 56px !important;
-      height: calc(100vh - var(--player-height) - 56px - env(safe-area-inset-bottom)) !important;
+      height: calc(var(--vh100) - var(--player-height) - 56px - env(safe-area-inset-bottom)) !important;
       border-radius: 0 !important;
       z-index: 190 !important;
     }
@@ -1910,7 +1919,7 @@
     body.ambient-active.split-view-active .playlist-grid {
       position: relative !important;
       z-index: 140 !important;
-      max-height: calc(100vh - var(--split-list-top, 58px) - 12px) !important;
+      max-height: calc(var(--vh100) - var(--split-list-top, 58px) - 12px) !important;
       overflow-y: auto !important;
       padding-bottom: 20px !important;
       -webkit-overflow-scrolling: touch;
@@ -2004,12 +2013,13 @@
     body.split-view-active.player-open .full-player {
       top: 0 !important;
       bottom: auto !important;
-      height: calc(100vh - var(--player-height, 118px)) !important;
+      height: calc(var(--vh100) - var(--player-height, 118px)) !important;
     }
     body.split-view-active.player-open .desktop-player-main {
       align-self: stretch !important;                        /* 占满左栏高度 → flex 才有剩余空间可分配 */
       justify-content: center !important;                    /* 垂直居中 */
-      padding-top: var(--player-height, 118px) !important;   /* 抵消底部播放条占位，把整组推到屏幕视觉中心 */
+      padding-top: calc(var(--vh100) * 0.05) !important;      /* B：改为按视口高度 5% 的比例补偿
+                                                                （原先写死 118px，在不同视口高度下比例会漂移） */
     }
 
     /* 🌟 768–959 段的层叠顺序（必须与 ≥960 段一致，否则会出现"被盖住"的怪问题）：
