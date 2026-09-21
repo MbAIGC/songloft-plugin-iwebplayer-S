@@ -387,11 +387,11 @@
      header 左半固定 50%，工具栏占右半栏、不越过中界线；#playlist-row 在分栏下整体隐藏。 */
   body.split-view-active .header-left-group { flex: 0 0 50%; min-width: 0; }
 
-  /* 🌟 首页（分栏）封面下移约 8%（用户选定方案 ①：只移封面，歌词位置不动；10% 反馈偏多，改 8%）。
+  /* 🌟 首页（分栏）封面下移约 8%（方案 ①：只移封面，歌词位置不动）—— **仅 App 生效**（网页端保持原样，用户确认网页端本来刚好）。
      用 transform 做**视觉位移**，不参与布局流 → 歌词行数完全不变（不会减少可见歌词）。
      ⚠️ 位移必须加在"封面容器"上：封面自身有 cover-breath 的 scale 动画，直接加会被动画覆盖。
      仅作用于**分栏首页**（:not(.player-open)）→ 沉浸页与手机档不受影响。 */
-  body.split-view-active:not(.player-open) .fp-cover-wrapper { transform: translateY(8%); }
+  html.iwp-app body.split-view-active:not(.player-open) .fp-cover-wrapper { transform: translateY(8%); }
   body.split-view-active .header > #toolbar-split { flex: 1 1 auto; min-width: 0; margin-left: 12px; }
   body.split-view-active:not(.player-open) #playlist-row { display: none !important; }
 
@@ -2032,8 +2032,9 @@
           观感"偏上"没解决。现改为**视口基准**：1.5% × 视口高度，在 2400px 高的平板上 ≈ **36px**（可预测、跨设备等比）。
        基准校准：首页 `translateY(8%)`（基准=封面容器 ≈300px → ≈24px）你认可；10%（≈30px）偏多、沉浸页旧值（≈20px）偏少
        → 取中间略偏下 ≈36px（1.5% 视口）。想微调按 0.5% 步进即可（1.0%/1.5%/2.0% = ≈24/36/48px）。
-       仍用 transform 视觉位移：只影响本列，**歌词列完全不动**、不改变任何布局尺寸。 */
-    body.split-view-active.player-open .desktop-player-main { transform: translateY(calc(var(--vh100) * 0.015)); }
+       仍用 transform 视觉位移：只影响本列，**歌词列完全不动**、不改变任何布局尺寸。
+       ⚠️ 仅 App 生效（`html.iwp-app`）：网页端本来就是刚好的，不能被这条位移影响。 */
+    html.iwp-app body.split-view-active.player-open .desktop-player-main { transform: translateY(calc(var(--vh100) * 0.015)); }
 
     /* 🌟 768–959 段的层叠顺序（必须与 ≥960 段一致，否则会出现"被盖住"的怪问题）：
        这一整块原先只写在 ≥960 段里 →
@@ -2108,6 +2109,11 @@
         if (window.matchMedia('(min-width: 768px)').matches && localStorage.getItem('iwebplayer-s.split_mode') !== 'false') {
           document.body.classList.add('split-view-active');
         }
+      } catch (e) {}
+      try {
+        // 🌟 识别「App（APK）」：APK 通过 addJavascriptInterface 注入了 window.Android，网页端没有。
+        //    首帧前打标记 → 可以让"仅 App 生效"的观感微调（如封面下移）不影响网页端。
+        if (window.Android) document.documentElement.classList.add('iwp-app');
       } catch (e) {}
       try {
         // 主题：与 applyThemeMode() 同判断（light / dark / system + 系统偏好）
