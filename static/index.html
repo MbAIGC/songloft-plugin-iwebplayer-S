@@ -2021,6 +2021,11 @@
       bottom: auto !important;
       height: calc(var(--vh100) - var(--player-height, 118px)) !important;
     }
+    /* 🌟 半宽屏（768–959）沉浸播放页：封面 + 歌曲信息整体下移 8% 视口高度（≈192px @2400），仅 App 生效。
+       ⚠️ **只在半宽屏**：宽屏（≥960）观感本来就是好的，一旦跟着下移就"很不好"（用户实测反馈 ✓）。
+       ⚠️ 仅 App：网页端由 `html.iwp-app` 隔离，完全不受影响。 */
+    html.iwp-app body.split-view-active.player-open .desktop-player-main { transform: translateY(calc(var(--vh100) * 0.08)); }
+
     body.split-view-active.player-open .desktop-player-main {
       align-self: stretch !important;                        /* 占满左栏高度 → flex 才有剩余空间可分配 */
       justify-content: center !important;                    /* 垂直居中 */
@@ -2068,10 +2073,6 @@
     body.split-view-active:not(.player-open) .lyric-line.active { font-size: 34px; }
   }
 
-  /* 🌟 沉浸播放页（分栏，含 ≥960 与 768–959 两档）：封面+信息下移 8% 视口高度（仅 App）。
-     ⚠️ 原先把这条写在 768–959 的媒体查询里 → 实测设备（CSS 宽≈1179，属 ≥960）**根本没匹配到** ✗，
-        这正是"改了没变化"的原因。故移除断点限制，两档一致。 */
-  html.iwp-app body.split-view-active.player-open .desktop-player-main { transform: translateY(calc(var(--vh100) * 0.08)); }
 
   /* ==========================================
      🛑 登录失效 / 加载失败兜底页
