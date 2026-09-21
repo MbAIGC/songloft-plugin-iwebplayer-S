@@ -13,8 +13,9 @@
 | 2 | `d59acaf` | 同步所有版本号引用到 1.3.6-dev（修 APK 版本一致性门禁） | 🚀 构建 |
 | 3 | `8a2086d` | 跟进上游 v1.3.6-C1：智能跳转源歌单（仅非分栏） | ⚙️ 功能·跟进上游 |
 | 4 | `54b6ece` | 跟进上游 v1.3.6-C3：我的歌单过滤 + 漏斗入口（仅非分栏） | ⚙️ 功能·跟进上游 |
+| 5 | `7640b5f` | 半宽屏沉浸页封面/歌曲信息偏上 → 左栏主列垂直居中（仅 768–959） | 🐞 修复·布局 |
 
-> 共 **4** 条改动。
+> 共 **5** 条改动。
 
 ---
 
@@ -83,6 +84,32 @@
 **过程中的自纠**：C3 的漏斗 markup 我从上游"启发式截取"时**过度截取**，把上游的 `#global-menu-1-container` 整块重复插入（产生重复 id + 打乱嵌套）✗。通过 id 唯一性检查 + div 平衡检查发现并精确删除（296/296 平衡 ✓）。教训：从上游提取 markup 片段要用**边界明确的锚点**（跳到下一个已知元素），不要用启发式条件。
 
 > `2026-09-21` ｜ `feat(ui): follow upstream v1.3.6-C3 (my-playlists grid filter + funnel entry), non-split only; fix duplicated menu block` ｜ 文件：`static/index.html`、`static/player.js`、`static/playlist.js`
+
+### 1.3.6.05-Dev　7640b5f　　🐞 修复·布局
+
+**概述**：半宽屏（768–959）沉浸播放页的封面与歌曲信息"偏上" —— 把左栏主列垂直居中（仅该段生效）
+
+**用户需求**：半宽屏下，歌词播放界面的 cover 和歌曲信息位置偏上了一些。
+
+**排查（结论：不是"缺规则"）**：先用**大括号深度**精确判定断点 —— 沉浸态左栏那整套规则
+（`body.split-view-active.player-open` 的 `.desktop-player-main` / `.fp-cover-wrapper` / `.fp-lyrics-wrapper` / `.fp-cover`）
+其实都在 `@media (min-width: 768px)` 内、**两段共用** ✓，所以不属于"≥960 有、768–959 缺"那一类。
+真因是**视口相对尺寸 + 顶部对齐**：
+- `.fp-cover { width: min(100%, 34vw, 440px); max-height: min(48vh, 440px) }` → 半宽屏只有 **261–326px**（宽屏 326–440+），整组变矮；
+- `.desktop-player-main { justify-content: flex-start; padding-top: clamp(8px, 2vh, 24px) }` → 仍贴着顶部排列；
+→ 矮了一截的内容仍顶在最上面，视觉上就是"偏上"；宽屏因封面更大、基本填满高度，所以看不出问题（与用户"宽屏正常"一致）。
+
+**修法**：只加一条、只作用于 **768–959**：
+```css
+@media (min-width: 768px) and (max-width: 959px) {
+  body.split-view-active.player-open .desktop-player-main { justify-content: center; }
+}
+```
+宽屏（≥960）与手机档完全不受影响 ✓（新规则的断点已用脚本复核 = `(min-width:768px) and (max-width:959px)` ✓）。
+
+**备注**：若想要的是"只往下挪一点"而非居中，把 `center` 换成 `flex-start` + 一个 `padding-top` 即可（一行改动）。
+
+> `2026-09-21` ｜ `fix(ui): vertically center the immersive player column in the 768-959 band (cover/info sat too high)` ｜ 文件：`static/index.html`
 
 ## 待优化 / 待办登记（自 1.3.5 结转）
 
