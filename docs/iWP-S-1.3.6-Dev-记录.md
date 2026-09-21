@@ -16,8 +16,9 @@
 | 5 | `7640b5f` | 半宽屏沉浸页封面/歌曲信息偏上 → 左栏主列垂直居中（仅 768–959） | 🐞 修复·布局 |
 | 6 | `01b9674` | 半宽屏沉浸页「仍偏上」 → 居中时补上底部播放条占位的抵消（仅 768–959） | 🐞 修复·布局 |
 | 7 | `625cc25` | 半宽屏沉浸页内容整体贴顶 → 给左栏补上「确定高度」（仅 768–959） | 🐞 修复·布局 |
+| 8 | `76a06aa` | APK 界面陈旧 → 插件 URL 加「每进程一次」的缓存破除查询串（Android 侧） | 🐞 修复·构建 |
 
-> 共 **7** 条改动。
+> 共 **8** 条改动。
 
 ---
 
@@ -161,6 +162,34 @@ body.split-view-active.player-open .full-player {
 **可调**：位置想更下就加大那条 `padding-top`，想更上就减小 ✓。
 
 > `2026-09-21` ｜ `fix(ui): give the immersive full-player a definite height in the 768-959 band (content hugged the top)` ｜ 文件：`static/index.html`
+
+### 1.3.6.08-Dev　76a06aa　　🐞 修复·构建（Android）
+
+**概述**：APK 里界面陈旧 —— 给插件 URL 加「每进程一次」的缓存破除查询串；并完整查清 APK 的加载链路
+
+**用户需求**：浏览器里已是新界面，但 APK 里感觉没变化（重装 APK 亦然）；且「之前没更新版本时，APK 每次重开都显示新界面」。
+
+**排查结论（三条链逐一查证）**：
+1. **APK 不打包插件** ✓：`android/app/src/main/assets/` 只有 `settings.html`；`MainActivity` 是**实时加载**
+   `base + "api/v1/jsplugin/iwebplayer-s/static/index.html"`（宿主上的插件）→ APK 与浏览器读的是**同一份宿主插件**；
+2. **manifest / 更新链健康** ✓：仓库 `manifest.json` = `1.3.6.07-dev`，`download_url` 指向**确实存在**的资产
+   `releases/download/dev-1.3.6/iwebplayer-s-v1.3.6.07-dev.jsplugin.zip`；CI 每次「提交并推送 manifest.json」均成功（无被拒记录）；
+3. **WebView 缓存**：虽已 `setCacheMode(LOAD_NO_CACHE)`，但被标 `immutable` 的子资源在部分 WebView 版本上仍可能被复用 ✗
+   → 这是唯一无法远程排除的变量。
+
+**修法（只动 Android 侧，任何布局都不受影响）**：给插件 URL 加查询串 `?v=<进程启动时间>`（同进程内稳定、重开 App 变化）→
+主文档每次启动都是新 URL，WebView 必定重新抓取；子资源仍按内容哈希 `?v=` 缓存，性能不受影响。
+```java
+private static final long processStartMs = System.currentTimeMillis();      // 同进程稳定
+...  webView.loadUrl(base + PLUGIN_PATH + "?v=" + cacheKey);                // 两处加载点
+```
+**产物**：APK 自动重建成功（`android/**` 触发 ✓）→ `iWebPlayer-S-v1.3.6-dev.apk`（2026-09-21 15:09 更新 ✓）。
+
+**下一步诊断（若重装新 APK 后仍旧）**：在 APK 内 `☰ → 版本` 查看版本号 ——
+- 若显示 **`1.3.6.07-dev` 及以上** → HTML 已是新的，问题属 WebView 渲染差异（我会改写成兼容写法）；
+- 若显示**更旧** → APK 所连服务器上的插件确为旧版（升级该服务器上的插件即可）。
+
+> `2026-09-21` ｜ `fix(android): cache-bust the plugin URL per app process so the WebView always fetches the latest plugin` ｜ 文件：`android/app/src/main/java/com/songloft/iwebplayer/MainActivity.java`
 
 ## 待优化 / 待办登记（自 1.3.5 结转）
 
