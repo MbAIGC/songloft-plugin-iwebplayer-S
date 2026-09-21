@@ -146,6 +146,31 @@
   .title-sub { font-size: 11px; color: var(--text-sub); line-height: 1.2; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
 
   .header-controls { display: flex; gap: 8px; flex: 1; align-items: center; justify-content: flex-end; min-width: 0; }
+
+  /* 🌟 跟进上游 v1.3.6-B：头部快捷图标（在线资源 / 曲库搜索）
+     ⚠️ 与上游的差异（用户确认的取舍）：这两个图标只服务**手机端**；宽屏（分栏）下它们位于
+     .header-controls（分栏下 display:none）→ 天然不显示，由工具栏的「本地/在线」来源开关承担 ——
+     更简约、少一步操作。 */
+  .header-icon-btn {
+    display: flex; justify-content: center; align-items: center; width: 32px; height: 32px;
+    border-radius: 50%; color: var(--text-sub); cursor: pointer; transition: all 0.2s; flex-shrink: 0;
+  }
+  .header-icon-btn:active { background: var(--border); color: var(--text-main); }
+  .header-icon-btn.active { color: var(--primary); background: transparent; }
+
+  /* 头部抗挤压策略（上游 v1.3.6 同款）：左侧文字不被挤、右侧设备框可收缩 */
+  .header-left-group { flex-shrink: 0; max-width: 55%; }
+  /* ⚠️ 上游是 #device-container{...}；但我们的设备选择器在分栏下会被搬进工具栏 #tbs-device，
+     照搬会把它顶到 min-width:75px、挤坏最窄分栏 → 这里限定为非分栏。 */
+  body:not(.split-view-active) #device-container { flex-shrink: 1; min-width: 75px; max-width: 140px; }
+
+  /* 手机端沉浸播放时隐藏这两个快捷图标（上游 v1.3.6 同款） */
+  body.player-open #nav-search-btn,
+  body.player-open #nav-online-btn { display: none !important; }
+
+  /* 这两项已由头部图标承担 → 从歌单下拉中移除；但**分栏保留**，避免宽屏丢失功能路径 */
+  body:not(.split-view-active) #playlist-opts .select-option[data-key="曲库搜索"],
+  body:not(.split-view-active) #playlist-opts .select-option[data-key="在线资源"] { display: none !important; }
   .settings-btn {
     display: flex; justify-content: center; align-items: center; width: 28px; height: 28px;
     border-radius: 50%; color: var(--text-sub); cursor: pointer; transition: background 0.2s, color 0.2s; margin-right: -4px;
@@ -2087,6 +2112,9 @@
     </div>
 
     <div class="header-controls">
+      <!-- 🌟 跟进上游 v1.3.6-B：在线资源 / 曲库搜索 快捷图标（图标由 JS 注入；分栏下随本容器隐藏） -->
+      <div class="header-icon-btn" id="nav-online-btn" title="在线资源"></div>
+      <div class="header-icon-btn" id="nav-search-btn" title="曲库搜索"></div>
       <div class="custom-select" id="device-container">
         <div class="select-value" id="device-val">本机</div>
         <ul class="select-options" id="device-opts"></ul>
@@ -4585,6 +4613,29 @@
         //    .toolbar-main-box / .header-controls 里 →「宽屏下这两个按钮不显示」（1.3.5.29 的回归）。
         _lastLayoutSig = null;
         syncLayout('bindAllEvents');
+
+        // 🌟 跟进上游 v1.3.6-B：头部快捷图标（在线资源 / 曲库搜索）
+        //    手机端：点一次进入、再点一次原路返回（记录来源歌单）；分栏下这两个图标不可见，
+        //    由工具栏的「本地/在线」来源开关承担（更简约、少一步操作）。
+        (function initHeaderNavIcons() {
+            const onlineBtn = document.getElementById('nav-online-btn');
+            const searchBtn = document.getElementById('nav-search-btn');
+            const at18 = (svg) => svg.replace('width="15"', 'width="18"').replace('height="15"', 'height="18"');
+            if (onlineBtn && window.SVG_ICONS && window.SVG_ICONS.online) onlineBtn.innerHTML = at18(window.SVG_ICONS.online);
+            if (searchBtn && window.SVG_ICONS && window.SVG_ICONS.search) searchBtn.innerHTML = at18(window.SVG_ICONS.search);
+            const toggleByKey = (key, memo) => {
+                if (window.currentPlaylist === key) {
+                    const opt = document.querySelector(`#playlist-opts .select-option[data-key="${window[memo] || '我的歌单'}"]`);
+                    if (opt) opt.click();
+                } else {
+                    window[memo] = window.currentPlaylist;
+                    const opt = document.querySelector(`#playlist-opts .select-option[data-key="${key}"]`);
+                    if (opt) opt.click();
+                }
+            };
+            if (onlineBtn) onlineBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleByKey('在线资源', '_preOnlinePlaylist'); });
+            if (searchBtn) searchBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleByKey('曲库搜索', '_preSearchPlaylist'); });
+        })();
 
         // 同步保存的关键词到搜索框（移动后 handle 由原 search-input 事件自动处理）
         // 无需额外逻辑

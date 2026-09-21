@@ -324,6 +324,11 @@
     };
 
     window.updateSearchUI = function(playlistName) {
+        // 🌟 跟进上游 v1.3.6-B：头部快捷图标（在线资源 / 曲库搜索）的高亮状态
+        const navOnlineBtnEl = document.getElementById('nav-online-btn');
+        if (navOnlineBtnEl) navOnlineBtnEl.classList.toggle('active', playlistName === '在线资源');
+        const navSearchBtnEl = document.getElementById('nav-search-btn');
+        if (navSearchBtnEl) navSearchBtnEl.classList.toggle('active', playlistName === '曲库搜索');
         const searchWrap = $('search-inline-wrap');
         const mfPluginRow = $('mf-plugin-row');
         const onlineToolbar = $('online-toolbar-container');
