@@ -28,8 +28,9 @@
 | 15 | `30faf82` | 沉浸页位移临时移出媒体查询（排查用）+ App 判据增补（纯前端四重） | 🐞 修复·外观 |
 | 16 | `56fb562` | 沉浸页位移**改回仅 768–959**（半宽屏下移正好；宽屏不得跟着下移）| 🐞 修复·外观 |
 | 17 | `96760a6` | 加**临时诊断**（版本菜单显示视口/屏高/是否 App）；位移范围放宽为 **768–1119** | 🔍 诊断 |
+| 18 | `3574c46` | 诊断改为**实时刷新**（resize/旋转/点击重算）并显示「位移 ON/OFF」 | 🔍 诊断 |
 
-> 共 **17** 条改动（另有 2 条仅影响 APK、不产生插件构建号）。
+> 共 **18** 条改动（另有 2 条仅影响 APK、不产生插件构建号）。
 
 ---
 
@@ -407,6 +408,23 @@ html.iwp-app body.split-view-active.player-open .desktop-player-main { transform
 **下一步**：把两个模式下 `☰ → 版本` 的文本发来 → 按真实宽度精确收窄区间，并删除诊断代码 ✓。
 
 > `2026-09-21` ｜ `diag(ui): show viewport/screen/app-flag in the version label; widen the immersive nudge band to 768-1119` ｜ 文件：`static/index.html`
+
+### 1.3.6.18-Dev　3574c46　　🔍 诊断
+
+**概述**：诊断标签改为**实时刷新**，并直接显示「位移 ON/OFF」
+
+**用户需求**：「你加入的识别 并不会动态更新，也就是它只会显示我初次打开的分辨率」→ 正确 ✓（我把它写成了只设置一次 ✗）。
+
+**改造思路**：抽出 `update()` 并绑定到 **`resize` / `orientationchange` / 全局 `click`（捕获阶段）** → 切换模式后再点开菜单即可读到**当前**数值 ✓。标签内容：
+
+```
+APP_VERSION｜视口 W×H｜屏高 <screen.height>｜App/网页｜位移 ON/OFF
+```
+
+其中 **`位移 ON/OFF` = App 判据命中 且 宽度落在 768–1119** ✓ —— 这正是"沉浸页那条下移是否生效"的最终条件，一眼可判 ✓。
+另外把 `update()` 挂到 `window.__iwpDiag` 便于手动触发/排查 ✓。
+
+> `2026-09-21` ｜ `diag(ui): make the viewport diagnostic live (resize/rotate/click) and show whether the nudge is ON` ｜ 文件：`static/index.html`
 
 ## 待优化 / 待办登记（自 1.3.5 结转）
 
