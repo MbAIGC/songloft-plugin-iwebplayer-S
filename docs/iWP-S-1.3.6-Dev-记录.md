@@ -24,8 +24,9 @@
 | 11 | `f1f27c3` | 半宽屏沉浸页位移改为**视口基准**（1.5% ≈36px，替代不可预测的 8%） | 🎨 外观·布局 |
 | 12 | `c6b16f3` | 两处位移改为**仅 App 生效**（`window.Android` → `html.iwp-app`），网页端恢复原样 | 🐞 修复·外观 |
 | 13 | `1dd2a31` | 修正沉浸页位移计算：改为 **8% 视口（192px）**（上一版 1.5%=36px 是反向错修） | 🐞 修复·外观 |
+| 14 | `ed3f4ea` | 修 App 标记未生效（改三重判据 + DOMContentLoaded 补检），两条位移在 App 内恢复生效 | 🐞 修复·外观 |
 
-> 共 **13** 条改动（另有 2 条仅影响 APK、不产生插件构建号）。
+> 共 **14** 条改动（另有 2 条仅影响 APK、不产生插件构建号）。
 
 ---
 
@@ -327,6 +328,27 @@ html.iwp-app body.split-view-active.player-open .desktop-player-main { transform
 微调档位（@H=2400）：`4% / 6% / 8% / 10%` 视口 = **96 / 144 / 192 / 240px** ✓。
 
 > `2026-09-21` ｜ `fix(ui): correct the immersive offset to 8% of viewport (192px) - previous 1.5% was a 5x reduction from the 8% baseline` ｜ 文件：`static/index.html`
+
+### 1.3.6.14-Dev　ed3f4ea　　🐞 修复·外观
+
+**概述**：修 1.3.6.12 的标记回归 —— App 标识没打上，导致"仅 App 生效"的两条位移在 App 里也失效（实测无变化）
+
+**用户需求**：「app，半宽屏沉浸页。实测无变化」。
+
+**根因**：1.3.6.12 把 `window.Android` 作为**唯一**的 App 判据，而 **JS 桥在首帧脚本执行时未必可用** ✗
+→ `html.iwp-app` 没被加上 → 两条位移（首页 + 沉浸页）在 App 内**全都不生效** ✗（连此前的 ~42px 也没有了 → "无变化" ✓）。
+
+**修法（判据三重 + 补检，均保持"网页端不受影响"）**：
+1. `window.Android`（APK 通过 `addJavascriptInterface` 注入）；
+2. **WebView UA 特征 `; wv)`** —— 普通 Chrome / Edge **没有**这个特征 ✓ → 网页端不会被误判 ✓；
+3. 自定义 UA `iWebPlayer-S-APK`（备用，将来可用）；
+外加 `DOMContentLoaded` 时**再补检一次**（幂等，覆盖"桥晚于首帧才可用"的机型 ✓）。
+提交时附判定自测：WebView UA → **App** ✓；Chrome-Android → 非 App ✓；桌面 Chrome → 非 App ✓。
+
+**若仍无变化**（说明该机型 WebView 连 `; wv)` 也没有）：将在 **APK 侧**做确定性保证 —— `onPageFinished` 时注入
+`document.documentElement.classList.add('iwp-app')`（需重装 APK ✓）。
+
+> `2026-09-21` ｜ `fix(ui): robust app detection for the scoped nudges (bridge + wv UA + DOMContentLoaded recheck)` ｜ 文件：`static/index.html`
 
 ## 待优化 / 待办登记（自 1.3.5 结转）
 
