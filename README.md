@@ -4,7 +4,7 @@
 
 ### 为什么又有了dev分支呢？因为是全Vibe－coding，经常改着改着就变样了。而且还局部调整了原来继承过来的上游代码，为了避免混乱才创建了Dev。
 
-![Plugin](https://img.shields.io/badge/plugin-v1.3.5-ec4899)
+![Plugin](https://img.shields.io/badge/plugin-v1.3.6-ec4899)
 ![Android APK](https://img.shields.io/badge/apk-v0.0.1+-8b5cf6)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 
@@ -50,7 +50,7 @@ iWebPlayer-S 保留原版的播放、歌单、歌词、封面刮削、倍速、�
 
 ### 1. 安装插件（SongLoft 服务器）
 
-1. 从 [Releases](https://github.com/MbAIGC/songloft-plugin-iwebplayer-S/releases) 下载 `iwebplayer-s-v1.3.5.jsplugin.zip`；
+1. 从 [Releases](https://github.com/MbAIGC/songloft-plugin-iwebplayer-S/releases) 下载 `iwebplayer-s-v1.3.6.jsplugin.zip`；
 2. 在 SongLoft 后台 **JS 插件** 页面上传该 zip 安装——**直接上传，无需解压**；
 3. 安装后浏览器访问 `/api/v1/jsplugin/iwebplayer-s/static/index.html` 即可使用。
 
@@ -77,7 +77,7 @@ npm run build
 推送到 `main`（改动 `android/**` 或 workflow）即自动构建并发布，同一 Release 同时产出：
 
 - `iWebPlayer-S-vX.Y.Z.apk` — 固定签名，可覆盖安装
-- `iwebplayer-s-v1.3.5.jsplugin.zip` — 可直接安装到 SongLoft
+- `iwebplayer-s-v1.3.6.jsplugin.zip` — 可直接安装到 SongLoft
 
 也可在 Actions 页面手动触发，并支持手动指定版本号。
 

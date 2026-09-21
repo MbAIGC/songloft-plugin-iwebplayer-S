@@ -19,7 +19,7 @@ iWebPlayer-S 是 SongLoft 平台的播放器插件，基于 iWebPlayer 适配宽
 > [`docs/DEV_PLUGIN_AUTO_UPDATE_DESIGN.md`](docs/DEV_PLUGIN_AUTO_UPDATE_DESIGN.md)（文末「最终原则」共 10 条）。
 > **不要"优化"、不要"修 bug"、不要顺手重排**这套规则；提升版本号只在两种情况下进行：
 > ① 用户明确指示；② **跟进上游版本时按默认规范自动同步**（见下表，无需再单独确认）。
-> （已发生：2026-09-12 按用户要求 `1.1.7-dev` → `1.3.2-dev`；2026-09-18 跟进上游 v1.3.5 → `1.3.5-dev`）。
+> （已发生：2026-09-12 按用户要求 `1.1.7-dev` → `1.3.2-dev`；2026-09-18 跟进上游 v1.3.5 → `1.3.5-dev`；2026-09-21 跟进上游 v1.3.6 → `1.3.6-dev`）。
 
 | 规则 | 说明 |
 | --- | --- |
@@ -27,21 +27,21 @@ iWebPlayer-S 是 SongLoft 平台的播放器插件，基于 iWebPlayer 适配宽
 | 构建版本由 CI 自动递增 | `X.Y.Z-dev` → `X.Y.Z.NN-dev`；序号从该 tag 下已有 zip 文件名解析最大值 +1 |
 | 构建时临时改 Runner 内的 `plugin.json` | 构建完成后恢复为 base，**构建版本不提交回仓库** |
 | `manifest.json` 完全由 CI 维护 | 保存「当前实际发布版本 + 动态 download_url」；**禁止手工编辑**，它不在触发路径内以避免循环 |
-| dev tag = `dev-<base 去掉 -dev>` | `1.3.5-dev` → `dev-1.3.5`；**同一基础版本共用一个 tag**，每次构建只追加 zip，不删历史资产 |
+| dev tag = `dev-<base 去掉 -dev>` | `1.3.6-dev` → `dev-1.3.6`；**同一基础版本共用一个 tag**，每次构建只追加 zip，不删历史资产 |
 | Release 标题 = tag（裸格式） | 两个 dev 工作流都写成 `dev-1.3.5`，不出现 `iWebPlayer-S dev v...` 这类标题 |
-| **跟进上游时必须同步提升版本号** | **默认规范**：每次跟进上游（如上游发布 v1.3.5）就把 base 版本改为「上游版本 + `-dev`」（`1.3.5-dev`），并同步 `README.md` badge/文件名、`DEV_RELEASE_NOTES.md` 标题与条目、本页版本表；这是跟进的固定动作，不需要再单独确认 |
+| **跟进上游时必须同步提升版本号** | **默认规范**：每次跟进上游（如上游发布 v1.3.6）就把 base 版本改为「上游版本 + `-dev`」（`1.3.6-dev`），并同步 `README.md` badge/文件名、`DEV_RELEASE_NOTES.md` 标题与条目、本页版本表；这是跟进的固定动作，不需要再单独确认 |
 | 正式版 `Latest` 只属于 main | dev 一律 `--prerelease`，绝不抢 Latest |
 
 ### 当前版本
 
 | 位置 | 版本 | 说明 |
 | --- | --- | --- |
-| `plugin.json` | `1.3.5-dev` | 插件**基础版本**，SongLoft 读取；CI 构建时临时改为 `1.3.5.NN-dev` |
-| `package.json` | `1.3.5-dev` | npm 包版本，应与 plugin.json 一致 |
-| `package-lock.json` | `1.3.5-dev` | 锁文件，运行 `npm install --package-lock-only` 同步 |
+| `plugin.json` | `1.3.6-dev` | 插件**基础版本**，SongLoft 读取；CI 构建时临时改为 `1.3.6.NN-dev` |
+| `package.json` | `1.3.6-dev` | npm 包版本，应与 plugin.json 一致（**APK 工作流有门禁会校验两者一致**）|
+| `package-lock.json` | `1.3.6-dev` | 锁文件；无 registry 时直接改顶层与 `packages[""]` **共 2 处** version |
 | `static/index.html` | 占位符 `__APP_VERSION__` | **不要手写版本号**：构建期由 `scripts/inject-version-hashes.mjs` 注入实际构建版本 |
-| `README.md` badge | `v1.3.5` | Shields.io 徽章 |
-| `DEV_RELEASE_NOTES.md` | `dev v1.3.5` | 预发布说明标题，CI 直接读作 release notes |
+| `README.md` badge | `v1.3.6` | Shields.io 徽章 |
+| `DEV_RELEASE_NOTES.md` | `dev v1.3.6` | 预发布说明标题，CI 直接读作 release notes |
 | `manifest.json` | `1.3.5.NN-dev`（示例） | CI 自动生成的最新构建版本 + 下载地址，**勿手改** |
 
 ### 版本号格式
@@ -134,7 +134,7 @@ iWebPlayer-S 是 SongLoft 平台的播放器插件，基于 iWebPlayer 适配宽
    `git diff --stat` 确认没有全文改动。
 8. **上游同步策略**：上游 [`songloft-org/songloft-plugin-iwebplayer`](https://github.com/songloft-org/songloft-plugin-iwebplayer)
    只能**手工按功能移植**，不要 merge / cherry-pick（本项目已大幅分叉，`index.html`、`player.js`、`src/main.ts` 等冲突面很大）。
-   **跟进时按默认规范同步提升 base 版本号**（上游 v1.3.5 → `1.3.5-dev`），并同步 README / DEV_RELEASE_NOTES / 本页版本表。
+   **跟进时按默认规范同步提升 base 版本号**（上游 v1.3.6 → `1.3.6-dev`），并同步 README / DEV_RELEASE_NOTES / 本页版本表。
    已有评估与实施记录见 `docs/IWP-1.1.7上游优化与本地跟进评估.md`、`docs/IWP-1.1.8-1.3.2上游跟进评估.md`、`docs/IWP-1.3.3-1.3.5上游跟进记录.md`。
 11. **文档约定（永久）**：同一大版本（如 `1.3.5`）内的**所有改动都写入 `docs/iWP-S-<大版本>-Dev-记录.md`**，不再按主题另开新文档。
     **版面固定为**：① 顶部约定说明（blockquote）→ ② `## 速查索引` 表格（构建 / 提交 / 概述 / 类型）→ ③ 按阶段分组（`## 阶段 N · …`）的条目。
