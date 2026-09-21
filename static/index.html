@@ -511,7 +511,6 @@
   .search-text-divider { width: 1px; height: 14px; background: var(--border); margin: 0 4px; }
 
   #lx-search-main-btns, .menu-dropzone-col { display: flex; align-items: center; height: 100%; }
-  #mf-search-playlist-btn { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
   #detail-back-btn { padding: 0 20px; color: var(--primary) !important; font-weight: bold !important; }
   .btn-return { width: auto; height: 30px; margin: 0 4px; padding: 0 10px; border-radius: 6px; font-size: 14px; font-weight: bold; color: var(--primary) !important; }
   #back-to-grid-wrap { display: none; height: 100%; flex: 0 0 auto; padding-right: 4px; }
@@ -1169,9 +1168,6 @@
     background: rgba(255, 255, 255, 0.08) !important;
     backdrop-filter: blur(20px) !important; -webkit-backdrop-filter: blur(20px) !important;
     border: none !important; box-shadow: none !important;
-  }
-  body.ambient-active.player-open .full-player {
-    top: 0 !important; padding-top: 56px !important;
   }
   body.ambient-active .fp-cover {
     border: 1px solid rgba(255, 255, 255, 0.15) !important;
@@ -2020,11 +2016,12 @@
     }
     body.split-view-active:not(.player-open) .progress-container { z-index: 1; top: -14px; height: 28px; }
 
-    /* 🐞 半宽屏（768–959）沉浸播放页：封面 + 歌曲信息"偏上"。
-       原因（非缺规则，两段共用 min-width:768 那套）：封面用 34vw 视口相对宽度 →
-       半宽屏只有 261–326px（宽屏 326–440+），整组变矮，但仍按 justify-content:flex-start 贴顶排列
-       → 视觉上偏上；宽屏因封面更大、填满高度，所以看不出问题。
-       修法：只在这一段把左栏主列**垂直居中**（宽屏 ≥960 完全不受影响）。 */
+    /* 768–959 段沉浸页的左栏必须**显式给高度 + 居中**：≥960 段由
+       `body.split-view-active .full-player { height: calc(var(--vh100) - …) }` 承担，
+       这一段缺等价规则时高度会塌成内容高 → `align-items: stretch` 撑不出高度、
+       `justify-content` 也没有剩余空间可分配 → 内容整体贴顶、下方大片留白。
+       ⚠️ 本段只服务"窗口宽度真的落在 768–959"的情况；实测用户的"半宽屏"是 **1063px（属 ≥960）**，
+          其位置微调见文件上方 `html.iwp-app … translateY(clamp(...))`（区间 768–1199）。 */
     /* 🐞 关键：沉浸态左栏必须有**确定高度**，否则高度塌成内容高 →
        align-items: stretch 撑不出高度、justify-content 也没有剩余空间可分配 → 内容整体贴顶、
        下方留一大片空白（截图现象）。≥960 由 body.split-view-active .full-player 的
@@ -2040,14 +2037,9 @@
       padding-top: calc(var(--vh100) * 0.05) !important;      /* B：改为按视口高度 5% 的比例补偿
                                                                 （原先写死 118px，在不同视口高度下比例会漂移） */
     }
-    /* 🌟 半宽屏沉浸播放页：封面+歌曲信息整体下移。
-       ⚠️ 之前写 `translateY(8%)` —— 百分比基准是**元素自身高度**（这一列的渲染高度不可控）→ 实际只移动了 ~20px，
-          观感"偏上"没解决。现改为**视口基准**：1.5% × 视口高度，在 2400px 高的平板上 ≈ **36px**（可预测、跨设备等比）。
-       数值依据（修正版）：该列**并未被 stretch 撑满**，实际高度≈内容高（≈520px）→ 旧写法 `8%` 只等于 ≈42px ✗（这就是"看着少了"的原因）。
-       目标是匹配网页版：app 视口 2400 vs 浏览器可视 2080，差 320px；内容相对位置约 50–60% → 需要补偿 0.5~0.6×320 ≈ 160–192px
-       ⇒ 取 **8% 视口 = 192px**（按视口基准，跨设备等比；需微调时改这个数字即可：4/6/8/10% = 96/144/192/240px @2400）。
-       仍用 transform 视觉位移：只影响本列，**歌词列完全不动**、不改变任何布局尺寸。
-       ⚠️ 仅 App 生效（`html.iwp-app`）：网页端本来就是刚好的，不能被这条位移影响。 */
+    /* 说明：该段原先还写着一条"封面下移"规则（含 1.5%/36px 等已作废的单位推算 ✗）。
+       它已移到文件上方独立的媒体查询里（`@media (min-width:768px) and (max-width:1199px)`
+       + `html.iwp-app` + `translateY(clamp(24px, 8% 视口, 140px))`），那里有最新的正确注释。 */
 
     /* 🌟 768–959 段的层叠顺序（必须与 ≥960 段一致，否则会出现"被盖住"的怪问题）：
        这一整块原先只写在 ≥960 段里 →
