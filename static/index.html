@@ -2112,9 +2112,21 @@
         }
       } catch (e) {}
       try {
-        // 🌟 识别「App（APK）」：APK 通过 addJavascriptInterface 注入了 window.Android，网页端没有。
-        //    首帧前打标记 → 可以让"仅 App 生效"的观感微调（如封面下移）不影响网页端。
-        if (window.Android) document.documentElement.classList.add('iwp-app');
+        // 🌟 识别「App（APK）」并打标记 iwp-app（首帧前）→ 让"仅 App 生效"的观感微调不影响网页端。
+        //    判据三重，任一成立即视为 App：
+        //      ① APK 通过 addJavascriptInterface 注入的 window.Android；
+        //      ② WebView 的 UA 特征 "; wv)"（**普通 Chrome / Edge 浏览器没有**，所以网页端不受影响）；
+        //      ③ 自定义 UA 里带 iWebPlayer-S-APK（如将来需要）。
+        var _ua = (navigator.userAgent || '');
+        if (window.Android || /;\s*wv\)/.test(_ua) || /iWebPlayer-S-APK/i.test(_ua)) {
+          document.documentElement.classList.add('iwp-app');
+        }
+      } catch (e) {}
+      // 补检：个别机型上 JS 桥在首帧之后才可用，DOMContentLoaded 时再确认一次（幂等）
+      try {
+        document.addEventListener('DOMContentLoaded', function () {
+          try { if (window.Android) document.documentElement.classList.add('iwp-app'); } catch (e) {}
+        });
       } catch (e) {}
       try {
         // 主题：与 applyThemeMode() 同判断（light / dark / system + 系统偏好）
