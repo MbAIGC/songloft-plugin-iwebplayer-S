@@ -1588,7 +1588,11 @@
                                 if (!res.ok) continue;
                                 const cleanedSongs = await res.json();
 
-                                if (pl.name !== 'music') syncReconstructed[pl.name] = cleanedSongs;
+                                // 🌟 跟进上游 v1.3.7：物理文件夹歌单（auto_created）即使名为 music 也要重建
+                                const isPhysicalFolder = pl.labels && pl.labels.includes("auto_created");
+                                if (pl.name !== 'music' || isPhysicalFolder) {
+                                    syncReconstructed[pl.name] = cleanedSongs;
+                                }
 
                                 const isBuiltIn = pl.labels && pl.labels.includes("built_in");
                                 if (!isBuiltIn) {

@@ -292,11 +292,13 @@ router.get('/musiclist', async (req) => {
           if (warnings.length) bulkWarnings.push(...warnings);
           const cleanedSongs = plSongs.map(cleanSong);
 
-          if (pl.name !== 'music') {
+          const isAutoCreated = pl.labels && pl.labels.includes("auto_created");
+          // 🌟 跟进上游 v1.3.7：物理文件夹歌单（auto_created）即使名字就叫 music 也要收录，
+          //    不能因为与内置 music 歌单同名而被丢掉（上游同批 playlist.js 同步修）
+          if (pl.name !== 'music' || isAutoCreated) {
               structure[`${pl.name}`] = cleanedSongs.map((s: any) => s.id);
           }
 
-          const isAutoCreated = pl.labels && pl.labels.includes("auto_created");
           if (!isAutoCreated) customNames.push(pl.name);
 
           const isBuiltIn = pl.labels && pl.labels.includes("built_in");
