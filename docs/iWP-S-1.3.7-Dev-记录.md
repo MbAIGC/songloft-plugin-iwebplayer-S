@@ -75,4 +75,4 @@
 >
 > 验证：3 个内联 `<script>` 块 `vm.Script` 解析 ✅｜VM 实测 6 条路径 ✅（空字段提示 / 401 错误文案 / 成功时请求 URL+body+写入 `songloft-auth`+reload / App `onAuthFailed` 优先 / 旧包仅 `changeServer` / 无桥回退 `/`）｜登录 URL 解析 6 种入口形态 ✅｜`npx tsc --noEmit` ✅｜`npm test` ✅（50）｜`npm run build` ✅（zip 710.5 KB）｜`npm run audit:breakpoints -- --strict` ✅｜`git -c core.whitespace=cr-at-eol diff --check` ✅
 >
-> 待真机/浏览器确认：① App 内 401 →「重新登录」应进** App 自己的**登录页，登录后自动回播放器；② 浏览器直接打开 `…/jsplugin/iwebplayer-s/?theme=light` → 卡片内登录 → 回到**同一 URL**（`?theme=light` 仍在）。
+> ✅ **真机/浏览器实测通过（2026-10-06，用户确认「修复成功」）**：① App 内 401 →「重新登录」进 **App 自己的**登录页，登录后自动回播放器（无需重装 APK，`1.3.7.02-dev` 插件更新即生效）；② 浏览器直接打开 `…/jsplugin/iwebplayer-s/?theme=light` → 卡片内登录 → 回到**同一 URL**（`?theme=light` 仍在）。两条均符合预期。
