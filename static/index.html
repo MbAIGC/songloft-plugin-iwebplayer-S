@@ -3173,6 +3173,64 @@
     };
 
     /* ==========================================
+     * 401 重新登录：App 走原生；网页「就地登录」
+     * ==========================================
+     * 旧实现是 401 卡片上的 `window.location.href='/'`，两个环境都会「登录完回不来」：
+     *   · App：把 WebView 导航到主程序根路径（未登录→主程序自己的登录页）；登录成功后
+     *     原生看门狗并不一定会把它送回插件页（其 wasLoggedOut 判据只覆盖"完全没有 token"
+     *     的从未登录态，token 过期被拒时不成立），只有杀进程重开才恢复；
+     *   · 网页（如直接访问 …/jsplugin/iwebplayer-s/?theme=light）：直接丢掉当前地址，
+     *     登录成功后被留在主程序界面，得手动再敲一遍 URL。
+     * 现在：App 交给原生（先静默 refresh，失败才回本地登录页，成功后原生 openPlayer() 回本页）；
+     * 网页用宿主自己的同源登录接口就地登录，token 仍按既有约定写 localStorage['songloft-auth']，
+     * 然后 reload —— 当前 URL 连同 ?theme=… 等参数原样保留。
+     */
+    window.__iwpReloginApp = function() {
+        try {
+            if (window.Android && typeof window.Android.onAuthFailed === 'function') { window.Android.onAuthFailed(); return; }
+            if (window.Android && typeof window.Android.changeServer === 'function') { window.Android.changeServer(); return; }
+        } catch (e) {}
+        window.location.href = '/';
+    };
+
+    window.__iwpRelogin = async function() {
+        const uEl = document.getElementById('relogin-user');
+        const pEl = document.getElementById('relogin-pass');
+        const msg = document.getElementById('relogin-msg');
+        const username = ((uEl && uEl.value) || '').trim();
+        const password = (pEl && pEl.value) || '';
+        if (!username || !password) { if (msg) msg.textContent = '请填写用户名和密码'; return; }
+        if (msg) msg.textContent = '⏳ 正在登录…';
+        try {
+            // 同源登录接口：宿主 POST <basePath>/api/v1/auth/login。
+            // 从 location.pathname 取「…/api/v1/」前缀（兼容反向代理的 basePath），
+            // 比依赖宿主注入的 <base href> 更稳：无论用户敲的是 …/iwebplayer-s/、
+            // …/iwebplayer-s，还是 …/static/index.html?theme=…，解析结果都一致。
+            let url;
+            const m = window.location.pathname.match(/^(.*\/api\/v1\/)jsplugin\//);
+            if (m) url = m[1] + 'auth/login';
+            else url = new URL('/api/v1/auth/login', window.location.origin).toString();
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: username, password: password })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data || !data.access_token) {
+                if (msg) msg.textContent = '❌ ' + ((data && (data.error || data.detail)) || ('登录失败（HTTP ' + res.status + '）'));
+                return;
+            }
+            // 只写 accessToken：与宿主 authBridgeScriptTpl / APK injectAuthIntoPage 的既有约定保持一致
+            localStorage.setItem('songloft-auth', JSON.stringify({ accessToken: data.access_token }));
+            localStorage.setItem('iwebplayer-s.last_username', username);
+            if (msg) msg.textContent = '✅ 登录成功，正在进入…';
+            window.location.reload();
+        } catch (e) {
+            if (msg) msg.textContent = '❌ 无法连接服务器：' + ((e && e.message) || e);
+        }
+    };
+
+    /* ==========================================
      * 2. 核心配置与全局状态变量
      * ========================================== */
     window.APP_VERSION = '__APP_VERSION__'; // 构建时由 scripts/inject-version-hashes.mjs 注入真实插件版本
@@ -5724,17 +5782,41 @@
                     <span style="font-size:12px; color:#fff; background:linear-gradient(135deg,#ec4899,#8b5cf6); padding:6px 12px; border-radius:999px; font-weight:700; box-shadow:0 4px 12px rgba(236,72,153,.28);">iWebPlayer-S</span>
                   </div>
 
-                  <button onclick="window.location.href='/'" style="width:100%; padding:14px; background:linear-gradient(135deg,#ec4899,#8b5cf6); color:#fff; border:none; border-radius:14px; font-size:15px; font-weight:700; cursor:pointer; box-shadow:0 8px 22px rgba(236,72,153,.28); transition:transform .12s ease; outline:none;" onmousedown="this.style.transform='scale(.97)'" onmouseup="this.style.transform='none'" onmouseleave="this.style.transform='none'">
+                  <!-- 🌟 App：交给原生（先静默 refresh，失败才回本地登录页；成功后原生 openPlayer() 回本页） -->
+                  <button id="relogin-app-btn" onclick="window.__iwpReloginApp && window.__iwpReloginApp()" style="display:none; width:100%; padding:14px; background:linear-gradient(135deg,#ec4899,#8b5cf6); color:#fff; border:none; border-radius:14px; font-size:15px; font-weight:700; cursor:pointer; box-shadow:0 8px 22px rgba(236,72,153,.28); outline:none;">
                     <span style="display:inline-flex; align-items:center; justify-content:center; gap:6px;">
                       <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
                       重新登录
                     </span>
                   </button>
 
-                  <div style="margin-top:14px; font-size:12px; color:var(--text-sub);">或 <a href="#" onclick="window.location.reload(); return false;" style="color:var(--primary); font-weight:600; text-decoration:none;">刷新重试</a></div>
+                  <!-- 🌟 网页：就地登录（同源 /api/v1/auth/login），登录后 reload —— 当前 URL 与 ?theme=… 等参数原样保留，不再跳到主程序根路径 -->
+                  <div id="relogin-web-box" style="display:none; text-align:left;">
+                    <input id="relogin-user" type="text" autocomplete="username" placeholder="用户名" style="width:100%; padding:12px 14px; margin-bottom:10px; background:var(--bg-color); border:1px solid var(--border); border-radius:12px; color:var(--text-main); font-size:14px; box-sizing:border-box; outline:none;">
+                    <input id="relogin-pass" type="password" autocomplete="current-password" placeholder="密码" style="width:100%; padding:12px 14px; margin-bottom:14px; background:var(--bg-color); border:1px solid var(--border); border-radius:12px; color:var(--text-main); font-size:14px; box-sizing:border-box; outline:none;">
+                    <button onclick="window.__iwpRelogin && window.__iwpRelogin()" style="width:100%; padding:14px; background:linear-gradient(135deg,#ec4899,#8b5cf6); color:#fff; border:none; border-radius:14px; font-size:15px; font-weight:700; cursor:pointer; box-shadow:0 8px 22px rgba(236,72,153,.28); outline:none;">登录并继续</button>
+                    <div id="relogin-msg" style="margin-top:10px; min-height:16px; font-size:12px; color:var(--text-sub); text-align:center;"></div>
+                  </div>
+
+                  <div style="margin-top:14px; font-size:12px; color:var(--text-sub);">或 <a href="#" onclick="window.location.reload(); return false;" style="color:var(--primary); font-weight:600; text-decoration:none;">刷新重试</a> · <a href="/" style="color:var(--text-sub); text-decoration:none;">前往主程序登录</a></div>
                 </div>
               </div>
             `;
+            // 🌟 401 卡片按环境分流（注入的 HTML 里的 <script> 不会执行，故绑定放在这里）
+            (function bindRelogin() {
+                const appBtn = document.getElementById('relogin-app-btn');
+                const webBox = document.getElementById('relogin-web-box');
+                const isApp = (typeof window.__iwpIsApp === 'function') && window.__iwpIsApp();
+                if (isApp) { if (appBtn) appBtn.style.display = 'block'; return; }
+                if (webBox) webBox.style.display = 'block';
+                const uEl = document.getElementById('relogin-user');
+                const pEl = document.getElementById('relogin-pass');
+                if (uEl) uEl.value = localStorage.getItem('iwebplayer-s.last_username') || '';
+                const onKey = (e) => { if (e.key === 'Enter') { e.preventDefault(); if (window.__iwpRelogin) window.__iwpRelogin(); } };
+                if (uEl) uEl.addEventListener('keydown', onKey);
+                if (pEl) pEl.addEventListener('keydown', onKey);
+                if (uEl && uEl.value) { if (pEl) pEl.focus(); } else if (uEl) { uEl.focus(); }
+            })();
         } else {
             // ==========================================
             // 🌐 情景 B：Token 没问题，纯粹是网络/接口挂了
