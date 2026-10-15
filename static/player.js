@@ -472,9 +472,68 @@
         return null;
     };
 
-    window.playSong = async function(index, autoPlay = true, resumeTime = 0) {
-        if (window._davDirectTimeout) clearTimeout(window._davDirectTimeout); // 🌟 核心：每次切歌，第一时间杀掉上首歌的定时器
+    // =========================================================================
+    // 🌟 播放请求流转（跟进上游 v1.3.8「latest track selection wins」竞态修复）
+    //    每次选曲都拥有自己的异步工作；下一次点击立刻让上一次全部作废。
+    // =========================================================================
+    let playbackRequest = 0;
+    let pendingPlayback = false;
+    let metadataCleanup = null;
+    const playbackTimers = new Set();
+
+    window.invalidatePlaybackRequest = function() {
+        playbackRequest++;
+        pendingPlayback = false;
+        if (metadataCleanup) { metadataCleanup(); metadataCleanup = null; }
+        playbackTimers.forEach(clearTimeout);
+        playbackTimers.clear();
+        if (window._davDirectTimeout) clearTimeout(window._davDirectTimeout);
+        window._davDirectTimeout = null;
+        if (window._stalledRecoveryTimeout) clearTimeout(window._stalledRecoveryTimeout);
+        window._stalledRecoveryTimeout = null;
+        window.isScouting = false;
+        return playbackRequest;
+    };
+
+    const deferPlayback = (request, callback, delay) => {
+        const timer = setTimeout(() => {
+            playbackTimers.delete(timer);
+            if (request === playbackRequest) callback();
+        }, delay);
+        playbackTimers.add(timer);
+        return timer;
+    };
+
+    // 供 index.html 使用：把定时器绑到「当前这次选曲」上，切歌即作废
+    window.deferCurrentPlayback = (callback, delay) => deferPlayback(playbackRequest, callback, delay);
+
+    const playbackTrackKey = (song) => JSON.stringify([
+        song.plugin_entry_path || 'local',
+        song.id,
+        song.dedup_key || song.file_path || ''
+    ]);
+
+    // 供 index.html 的音频事件监听器使用：判断这条事件是否属于「当前这次选曲」
+    function currentMedia(audio) {
+        return !pendingPlayback &&
+            Number(audio.dataset.playbackRequest) === playbackRequest &&
+            (!audio.currentSrc || audio.currentSrc === audio.src);
+    }
+    window.isCurrentMedia = currentMedia;
+
+    window.playSong = async function(index, autoPlay = true, resumeTime = 0, options = {}) {
         if (index < 0 || index >= window.songList.length) return;
+
+        const sessionRestore = options.resumeKind === 'session';
+        // 🌟 核心：每次切歌，第一时间让上一次选曲的全部异步工作作废
+        const request = window.invalidatePlaybackRequest();
+        pendingPlayback = true;
+        const isCurrent = () => request === playbackRequest;
+        const targetPlaylist = window.currentPlaylist;
+        const selectedList = window.songList.slice();
+        const rawItem = selectedList[index];
+        const targetSongName = window.getSongNameObj(rawItem);
+        const globalToken = window.getAccessToken ? window.getAccessToken() : "";
 
         // =========================================================
         // 🌟 MIoT 小爱音箱播放流劫持 (第一道岔)
@@ -483,35 +542,35 @@
             const audioEl = $('audio');
             if (audioEl && !audioEl.paused) audioEl.pause(); // 强行掐断本机可能正在播放的声音
 
-            const pl = window.playlistMeta ? window.playlistMeta.find(p => p.name === window.currentPlaylist) : null;
-            let targetPlId = pl ? pl.id : null;
-
-            // 🌟 核心拦截：如果没有查到当前列表的真实 ID (说明身处在线资源或曲库搜索等虚拟列表)
-            if (!targetPlId) {
-                if (window.showToast) window.showToast("⏳ 正在将列表打包推送到音箱...", true);
-
-                // 呼叫 MIoT 管家，把当前的虚拟列表动态灌入专属歌单
-                targetPlId = await window.MiotManager.syncListToPushPlaylist(window.songList);
-
-                if (!targetPlId) {
-                    if (window.showToast) window.showToast("❌ 打包推送失败，请重试");
-                    return; // 打包失败，阻断播放
-                }
-                // 覆盖持久进度提示，避免“正在打包”一直停留在界面上。
-                if (window.showToast) window.showToast("✅ 列表已推送到音箱");
-            }
-
             window.highlightSongUI(index);
-            window.updateNpTitleUI(window.currentSongName, true, false);
+            window.updateNpTitleUI(targetSongName, true, false);
 
             if (autoPlay) {
+                const pl = window.playlistMeta ? window.playlistMeta.find(p => p.name === targetPlaylist) : null;
+                let targetPlId = pl ? pl.id : null;
+
+                // 🌟 核心拦截：如果没有查到当前列表的真实 ID (说明身处在线资源或曲库搜索等虚拟列表)
+                if (!targetPlId) {
+                    if (window.showToast) window.showToast("⏳ 正在将列表打包推送到音箱...", true);
+
+                    // 呼叫 MIoT 管家，把当前的虚拟列表动态灌入专属歌单
+                    targetPlId = await window.MiotManager.syncListToPushPlaylist(selectedList);
+                    if (!isCurrent()) return;
+
+                    if (!targetPlId) {
+                        if (window.showToast) window.showToast("❌ 打包推送失败，请重试");
+                        return; // 打包失败，阻断播放
+                    }
+                    // 覆盖持久进度提示，避免“正在打包”一直停留在界面上。
+                    if (window.showToast) window.showToast("✅ 列表已推送到音箱");
+                }
+                if (!isCurrent()) return;
+
                 // 🌟 注意：这里把原本写死的 pl.id 换成了智能获取到的 targetPlId
                 window.MiotManager.playPlaylist(targetPlId, index);
             }
 
             // 🌟 恢复：独立获取封面与歌词
-            const rawItem = window.songList[index];
-            const globalToken = window.getAccessToken ? window.getAccessToken() : "";
 
             const fpCover = $('fp-cover');
             const miniCoverImg = $('mini-cover-img');
@@ -519,16 +578,17 @@
             // 🌟 修复 Bug 2 (核心)：补上 onerror 兜底，防止链接失效导致白板不刮削！
             // 🌟 新增：404 智能抢救机制。如果自带的 cover_url 报 404，立刻呼叫刮削器抢救！
             const handleCoverError = function() {
+                if (!isCurrent()) return;
                 if (this.src !== window.defaultCover) {
                     this.src = window.defaultCover;
                     if (!rawItem._scrapedCover) {
-                        window.fetchScrape(rawItem, 'cover', window.currentSongName).then(hdCover => {
-                            if (hdCover && window.currentSongName === window.getSongNameObj(rawItem)) {
+                        window.fetchScrape(rawItem, 'cover', targetSongName).then(hdCover => {
+                            if (isCurrent() && hdCover) {
                                 rawItem._scrapedCover = hdCover;
                                 if (fpCover) fpCover.src = hdCover;
                                 if (miniCoverImg) miniCoverImg.src = hdCover;
                                 if (listImg) listImg.src = hdCover;
-                                if(window.updateMediaSession) window.updateMediaSession(window.currentSongName, hdCover, window.favoriteList, window.APP_LOGO);
+                                if(window.updateMediaSession) window.updateMediaSession(targetSongName, hdCover, window.favoriteList, window.APP_LOGO);
                             }
                         }).catch(()=>{});
                     }
@@ -550,21 +610,22 @@
             }
 
             const applyCoverUI = (coverSrc) => {
+                if (!isCurrent()) return;
                 if (fpCover) fpCover.src = coverSrc;
                 if (miniCoverImg) miniCoverImg.src = coverSrc;
                 // 🌟 同步氛围背景图
                 const ambientImg = $('fp-ambient-img');
                 if (ambientImg) ambientImg.src = coverSrc;
 
-                if(window.updateMediaSession) window.updateMediaSession(window.currentSongName, coverSrc, window.favoriteList, window.APP_LOGO);
+                if(window.updateMediaSession) window.updateMediaSession(targetSongName, coverSrc, window.favoriteList, window.APP_LOGO);
             };
 
             applyCoverUI(finalCover);
 
             // 🌟 修复：抛弃老旧的 Scraper，接入全新的 fetchScrape 引擎
             if (finalCover === window.defaultCover) {
-                window.fetchScrape(rawItem, 'cover', window.currentSongName).then(hdCover => {
-                    if (window.currentSongName === window.getSongNameObj(rawItem) && hdCover) {
+                window.fetchScrape(rawItem, 'cover', targetSongName).then(hdCover => {
+                    if (isCurrent() && hdCover) {
                         rawItem._scrapedCover = hdCover;
                         if (listImg) listImg.src = hdCover;
                         applyCoverUI(hdCover);
@@ -576,13 +637,14 @@
             if (window.LyricsEngine) window.LyricsEngine.parse(null); // 先清空上一首
 
             const loadLyric = async () => {
-                const lrc = await window.fetchSongLyric(rawItem, window.currentSongName);
-                if (lrc && window.currentSongName === window.getSongNameObj(rawItem) && window.LyricsEngine) {
+                const lrc = await window.fetchSongLyric(rawItem, targetSongName);
+                if (isCurrent() && lrc && window.LyricsEngine) {
                     window.LyricsEngine.parse(lrc);
                 }
             };
             loadLyric();
 
+            pendingPlayback = false;
             return; // 无论成功与否，彻底阻断本机 <audio>！
         }
         // =========================================================
@@ -598,7 +660,6 @@
         }
 
         window.highlightSongUI(index);
-        const targetSongName = window.currentSongName;
 
         const fpCover = $('fp-cover');
         const miniCoverImg = $('mini-cover-img');
@@ -609,11 +670,12 @@
 
         // 🌟 本地模式 404 智能抢救机制
         const handleCoverError = function() {
+            if (!isCurrent()) return;
             if (this.src !== window.defaultCover) {
                 this.src = window.defaultCover;
                 if (!rawItem._scrapedCover) {
                     window.fetchScrape(rawItem, 'cover', targetSongName).then(hdCover => {
-                        if (targetSongName === window.currentSongName && hdCover) {
+                        if (isCurrent() && hdCover) {
                             rawItem._scrapedCover = hdCover;
                             finalCover = hdCover;
                             applyUI();
@@ -626,9 +688,6 @@
 
         if (fpCover) fpCover.onerror = handleCoverError;
         if (miniCoverImg) miniCoverImg.onerror = handleCoverError;
-
-        const rawItem = window.songList[index];
-        const globalToken = window.getAccessToken ? window.getAccessToken() : "";
 
         let finalCover = window.defaultCover;
         const listImg = $(`list-cover-${index}`);
@@ -647,7 +706,7 @@
         let finalLrc = null;
 
         const applyUI = () => {
-            if (targetSongName !== window.currentSongName) return;
+            if (!isCurrent()) return;
             if (finalCover && finalCover !== currentRenderedCover) {
                 if (fpCover) fpCover.src = finalCover;
                 if (miniCoverImg) miniCoverImg.src = finalCover;
@@ -681,7 +740,7 @@
             }).catch(()=>{});
         }
 
-        const plConfig = window.getPlaylistConfig ? window.getPlaylistConfig(window.currentPlaylist) : {};
+        const plConfig = window.getPlaylistConfig ? window.getPlaylistConfig(targetPlaylist) : {};
         if (typeof window.updateFpSpeedUI === 'function') window.updateFpSpeedUI(plConfig.speedLocal || 1.0);
 
         const cornerFav = $('fp-corner-fav');
@@ -694,7 +753,8 @@
         try {
             let info = null;
 
-            if (window.preloadCache && (window.preloadCache.index === index || (window.preloadCache.isCross && window.preloadCache.playlist === window.currentPlaylist && index === 0))) {
+            // 🌟 跟进上游 v1.3.8：预读缓存必须同时匹配「歌单 + 曲目身份」，否则视为过期，直接丢弃
+            if (window.preloadCache && window.preloadCache.playlist === targetPlaylist && window.preloadCache.trackKey === playbackTrackKey(rawItem) && (window.preloadCache.index === index || (window.preloadCache.isCross && index === 0))) {
                 console.log("⚡ [极速切歌] 命中预读缓存！");
                 info = window.preloadCache.data;
 
@@ -728,38 +788,41 @@
                 }
             }
 
+            if (!isCurrent()) return;
             window.preloadCache = null;
 
             if (!info || !info.url) throw new Error("接口未返回有效的播放直链");
 
             if (info && info.url && audioEl) {
-                    window.localState.playlist = window.currentPlaylist;
-                    window.localState.songName = window.currentSongName;
+                    window.localState.playlist = targetPlaylist;
+                    window.localState.songName = targetSongName;
                     localStorage.setItem('iwebplayer-s.local_state', JSON.stringify(window.localState));
 
-                    audioEl.dataset.playingPlaylist = window.currentPlaylist;
+                    audioEl.dataset.playingPlaylist = targetPlaylist;
                     audioEl.dataset.playingSongName = targetSongName;
                     audioEl.dataset.trackTitle = rawItem.title || rawItem.name || '';
                     audioEl.dataset.trackArtist = rawItem.artist || rawItem.singer || '';
                     audioEl.dataset.trackAlbum = rawItem.album || rawItem.album_name || '';
                     audioEl.dataset.hasStarted = "0";
+                    audioEl.dataset.playbackRequest = String(request); // 🌟 本次选曲的身份，供音频事件归属判断
                     audioEl.src = info.url;
+                    pendingPlayback = false; // 🌟 直链已落地，此后的事件都属于本次选曲
 
-                    // 🌟 新增：WebDAV 直连模式专属的 8 秒硬超时防卡死
+                    // 🌟 新增：WebDAV 直连模式专属的 8 秒硬超时防卡死（随选曲作废，不再跨歌误伤）
                     if (window._davDirectTimeout) clearTimeout(window._davDirectTimeout);
                     const isDavDirect = rawItem.plugin_entry_path === 'dav' && window.ConfigManager.get('webdav', 'settings.mode') === 'direct';
 
                     if (isDavDirect) {
                         const targetIdx = index;
-                        window._davDirectTimeout = setTimeout(() => {
+                        window._davDirectTimeout = deferPlayback(request, () => {
                             // 8秒后还在尝试播这首歌，且依然没拉到哪怕一点点媒体元数据 (readyState === 0)
-                            if (window.currentIndex === targetIdx && audioEl.readyState === 0) {
+                            if (isCurrent() && audioEl.readyState === 0) {
                                 console.warn("[超时] WebDAV 直连无响应，强行斩断");
                                 audioEl.src = ''; // 强行重置音频源，打断浏览器的无尽等待
                                 window.showToast("⚠️ 直连节点无响应，自动跳过...");
 
                                 window.consecutiveFailures++;
-                                window.markSongAsDead(window.currentPlaylist, targetIdx);
+                                window.markSongAsDead(targetPlaylist, targetIdx);
                                 if (window.updatePlayButtonUI) window.updatePlayButtonUI(false);
 
                                 if (window.consecutiveFailures >= 5) {
@@ -775,24 +838,29 @@
                     let targetResumeTime = resumeTime > 0 ? resumeTime : 0;
                 let targetSpeed = plConfig.speedLocal || 1.0;
 
-                if (targetResumeTime === 0) {
-                    const savedSong = window.ConfigManager.get('config', `playback.positions.${window.currentPlaylist}.currentSong`);
-                    if (savedSong === window.currentSongName) {
-                        targetResumeTime = window.ConfigManager.get('config', `playback.positions.${window.currentPlaylist}.currentTime`) || 0;
+                // 🌟 跟进上游 v1.3.8：全局「自动记忆播放进度」总开关 ∨ 歌单级续播设置
+                const shouldRemember = window.shouldRememberProgress(targetPlaylist);
+
+                if (targetResumeTime === 0 && shouldRemember) {
+                    const savedSong = window.ConfigManager.get('config', `playback.positions.${targetPlaylist}.currentSong`);
+                    if (savedSong === targetSongName) {
+                        targetResumeTime = window.ConfigManager.get('config', `playback.positions.${targetPlaylist}.currentTime`) || 0;
                     }
-                }
-                if (targetResumeTime === 0 && plConfig.resumeLocal !== 'off') {
-                    const list = window.ConfigManager.get('config', `playback.positions.${window.currentPlaylist}.history`) || [];
-                    const found = list.find(item => item.name === window.currentSongName);
-                    if (found) targetResumeTime = found.time;
+                    if (targetResumeTime === 0) {
+                        const list = window.ConfigManager.get('config', `playback.positions.${targetPlaylist}.history`) || [];
+                        const found = list.find(item => item.name === targetSongName);
+                        if (found) targetResumeTime = found.time;
+                    }
                 }
 
                 if (plConfig.resumeLocal === 'global') {
                     try {
-                        const res = await fetch(`./sync?playlist=${encodeURIComponent(window.currentPlaylist)}`);
+                        const res = await fetch(`./sync?playlist=${encodeURIComponent(targetPlaylist)}`);
+                        if (!isCurrent()) return;
                         if (res.ok) {
                             const resData = await res.json();
-                            if (resData && resData.data && resData.data.songName === window.currentSongName) {
+                            if (!isCurrent()) return;
+                            if (resData && resData.data && resData.data.songName === targetSongName) {
                                 targetResumeTime = resData.data.time;
                             }
                         }
@@ -803,10 +871,15 @@
                 audioEl.playbackRate = targetSpeed;
                 if (typeof window.updateFpSpeedUI === 'function') window.updateFpSpeedUI(targetSpeed);
 
-                window.updateNpTitleUI(window.currentSongName, true, true);
+                window.updateNpTitleUI(targetSongName, true, true);
 
                 const restoreProgress = () => {
-                    if (audioEl.duration && targetResumeTime > 0) {
+                    if (!isCurrent()) return;
+
+                    // 🌟 最终拦截：没开记忆（且不是会话恢复）就一律从头开始
+                    if (!sessionRestore && !shouldRemember) targetResumeTime = 0;
+
+                    if (audioEl.duration && Number.isFinite(Number(targetResumeTime)) && targetResumeTime > 0 && targetResumeTime < audioEl.duration) {
                         audioEl.currentTime = targetResumeTime;
                         if(timeCurrentEl) timeCurrentEl.innerText = window.formatTime(targetResumeTime);
                         if(timeDurationEl) timeDurationEl.innerText = window.formatTime(audioEl.duration);
@@ -816,6 +889,7 @@
                     audioEl.removeEventListener('loadedmetadata', restoreProgress);
                 };
 
+                metadataCleanup = () => audioEl.removeEventListener('loadedmetadata', restoreProgress);
                 if (audioEl.readyState >= 1) restoreProgress();
                 else audioEl.addEventListener('loadedmetadata', restoreProgress);
 
@@ -829,7 +903,7 @@
 
             // 统一歌词读取（SongLoft 主库 → LXMusic → 刮削），不阻塞播放
             window.fetchSongLyric(rawItem, targetSongName).then(lrc => {
-                if (targetSongName !== window.currentSongName) return;
+                if (!isCurrent()) return;
                 if (lrc) {
                     finalLrc = lrc;
                     applyUI();
@@ -839,13 +913,15 @@
             }).catch(()=>{});
 
         } catch (err) {
+            if (!isCurrent()) return; // 🌟 过期请求的失败：不报警、不标死、不跳歌
+            pendingPlayback = false;
             if (window._davDirectTimeout) clearTimeout(window._davDirectTimeout); // 🌟 核心：解析异常时，也要杀掉定时器
             console.error("播放请求失败:", err);
             window.showToast("⚠️ 获取链接失败，自动跳过...");
 
-            if (window.currentIndex !== -1) {
+            if (index !== -1) {
                 window.consecutiveFailures++;
-                window.markSongAsDead(window.currentPlaylist, window.currentIndex);
+                window.markSongAsDead(targetPlaylist, index);
             }
 
             if(window.updatePlayButtonUI) window.updatePlayButtonUI(false);
@@ -854,7 +930,7 @@
                 window.showToast(`🛑 连续 5 首歌曲无法播放，已暂停。`);
                 window.consecutiveFailures = 0;
             } else {
-                setTimeout(() => {
+                deferPlayback(request, () => {
                     if (typeof window.playNextSong === 'function') {
                         window.playNextSong(true);
                     }
@@ -865,9 +941,13 @@
 
     window.scoutNextSong = async function(targetIndex, depth = 0) {
         if (depth >= 5 || targetIndex === window.currentIndex || !window.songList || window.songList.length === 0) return;
+        const request = playbackRequest;
+        const scoutPlaylist = window.currentPlaylist;
+        const scoutList = window.songList;
+        const validScout = () => request === playbackRequest && scoutPlaylist === window.currentPlaylist && scoutList === window.songList;
         window.isScouting = true;
 
-        const rawItem = window.songList[targetIndex];
+        const rawItem = scoutList[targetIndex];
         try {
             let targetAudioUrl = null;
             let fetchedData = null;
@@ -900,25 +980,28 @@
                 }
             }
 
+            if (!validScout()) return;
             if (targetAudioUrl) {
-                window.preloadCache = { index: targetIndex, url: targetAudioUrl, data: fetchedData };
+                window.preloadCache = { playlist: scoutPlaylist, trackKey: playbackTrackKey(rawItem), index: targetIndex, url: targetAudioUrl, data: fetchedData };
                 console.log(`📡 [预读成功] 已提前解析第 ${targetIndex} 首歌曲直链:`, targetAudioUrl);
             } else {
                 throw new Error("解析出的音频直链为空");
             }
         } catch (e) {
+            if (!validScout()) return;
             console.warn(`📡 [预读失败] 第 ${targetIndex} 首歌曲探测异常:`, e);
-            window.markSongAsDead(window.currentPlaylist, targetIndex);
+            window.markSongAsDead(scoutPlaylist, targetIndex);
             let nextNextIdx = (window.playMode === 2 && window.songList.length > 1) ?
                 Math.floor(Math.random() * window.songList.length) :
                 (targetIndex + 1 >= window.songList.length ? 0 : targetIndex + 1);
             await window.scoutNextSong(nextNextIdx, depth + 1);
         }
-        window.isScouting = false;
+        if (request === playbackRequest) window.isScouting = false;
     };
 
     window.scoutCrossPlaylistSong = async function(playlistName, rawItem) {
         if (!rawItem || window.isScouting) return;
+        const request = playbackRequest;
         window.isScouting = true;
         try {
             let targetAudioUrl = null;
@@ -952,14 +1035,15 @@
                 }
             }
 
+            if (request !== playbackRequest) return;
             if (targetAudioUrl) {
-                window.preloadCache = { isCross: true, playlist: playlistName, data: fetchedData, url: targetAudioUrl };
+                window.preloadCache = { trackKey: playbackTrackKey(rawItem), isCross: true, playlist: playlistName, data: fetchedData, url: targetAudioUrl };
                 console.log(`📡 [跨单预读成功] 已提前解析目标歌曲直链:`, targetAudioUrl);
             }
         } catch (e) {
             console.warn(`📡 [跨单预读失败]:`, e);
         }
-        window.isScouting = false;
+        if (request === playbackRequest) window.isScouting = false;
     };
 
 })(window);

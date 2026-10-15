@@ -19,7 +19,7 @@
     // ==========================================
     const defaultConfig = {
         config: {
-            preferences: { lockLyric: true, ambientBg: true, highPerf: true, defaultDevice: 'last' },
+            preferences: { lockLyric: true, ambientBg: true, highPerf: true, autoResume: false, defaultDevice: 'last' },
             player_state: { volume: 100, playMode: 1, splitMode: true },
             playlist_configs: {},
             playback: { last_active: {}, positions: {}, recent_playlists: [] }
@@ -184,6 +184,15 @@
         const configs = window.ConfigManager.get('config', 'playlist_configs') || {};
         configs[plName] = config;
         window.ConfigManager.set('config', 'playlist_configs', configs);
+    };
+
+    // 🌟 跟进上游 v1.3.8：是否记忆/恢复播放进度
+    //    全局「自动记忆播放进度」总开关 ∨ 歌单级续播设置（local/global）
+    window.shouldRememberProgress = function(plName) {
+        const prefs = window.getPreferences() || {};
+        if (prefs.autoResume === true) return true;
+        const conf = window.getPlaylistConfig ? window.getPlaylistConfig(plName) : {};
+        return conf.resumeLocal === 'local' || conf.resumeLocal === 'global';
     };
 
     window.showToast = function(msg, persist = false) {

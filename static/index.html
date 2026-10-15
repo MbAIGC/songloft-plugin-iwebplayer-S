@@ -2593,7 +2593,7 @@
       <div class="pref-item mb-12">
         <div class="pref-text-wrap">
           <div class="pref-title">锁屏歌词</div>
-          <div class="pref-desc">在系统锁屏和控制中心的歌曲标题处动态显示当前歌词。</div>
+          <div class="pref-desc">在系统锁屏界面，歌曲标题处动态显示当前歌词。</div>
         </div>
         <label class="ios-switch">
           <input type="checkbox" id="switch-lock-lyric">
@@ -2604,7 +2604,7 @@
       <div class="pref-item">
         <div class="pref-text-wrap">
           <div class="pref-title">沉浸氛围背景</div>
-          <div class="pref-desc">提取当前专辑封面，在全屏播放页生成动态高斯模糊流光效果。</div>
+          <div class="pref-desc">播放歌曲时，歌词及封面融入背景。</div>
         </div>
         <label class="ios-switch">
           <input type="checkbox" id="switch-ambient-bg">
@@ -2614,8 +2614,19 @@
 
       <div class="pref-item mt-12">
         <div class="pref-text-wrap">
+          <div class="pref-title">自动记忆播放进度</div>
+          <div class="pref-desc">打开歌单时，将自动定位上次播放的曲及进度。</div>
+        </div>
+        <label class="ios-switch">
+          <input type="checkbox" id="switch-auto-resume">
+          <span class="slider round"></span>
+        </label>
+      </div>
+
+      <div class="pref-item mt-12">
+        <div class="pref-text-wrap">
           <div class="pref-title">高性能同步模式</div>
-          <div class="pref-desc">开启后极速同步全量曲库。仅限高配服务器使用，低配开启可能导致 504 错误。</div>
+          <div class="pref-desc">极速同步全量曲库。若出现错误，请禁用。</div>
         </div>
         <label class="ios-switch">
           <input type="checkbox" id="switch-high-perf">
@@ -3618,7 +3629,7 @@
                   const isSrcEmpty = !audioEl.src || audioEl.src === window.location.href || audioEl.src.includes('blob:');
                   if (window._wasPlayingBeforeHidden) {
                       window._wasPlayingBeforeHidden = false;
-                      window.playSong(currentIndex, true, window._interruptedTime);
+                      window.playSong(currentIndex, true, window._interruptedTime, { resumeKind: 'session' });
                   } else if (isSrcEmpty) {
                       const resumeTime = parseFloat(localStorage.getItem('iwebplayer-s.standalone_resume_time')) || 0;
                       window.playSong(currentIndex, false, resumeTime);
@@ -3790,15 +3801,20 @@
             });
         }
 
+        // 🌟 跟进上游 v1.3.8：音频事件的归属判断
+        //    只有「当前这次选曲」的 play/playing/pause/error/timeupdate/ended 才允许驱动 UI、
+        //    记录进度、标失效或跳歌；过期事件一律丢弃（连点切歌/旧请求失败不再误伤新歌）。
+        const staleAudioEvent = () => typeof window.isCurrentMedia === 'function' && !window.isCurrentMedia(audioEl);
+
         // 音频播放核心事件
         audioEl.addEventListener('play', () => {
+          if (staleAudioEvent()) return;
           window.updatePlayButtonUI(true);
           if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
           window.setupMediaSession(audioEl, btnPrev, btnNext);
           // 🔐 宽屏/分栏修复：每次开始播放都以音频实际身份校正列表高亮并滚动到当前歌
           if (typeof window.syncPlayingHighlight === 'function') window.syncPlayingHighlight(true);
-          const conf = window.getPlaylistConfig(currentPlaylist);
-          if (conf.resumeLocal === 'off') {
+          if (!window.shouldRememberProgress(currentPlaylist)) {
               const currentDeadList = deadSongIndexes[currentPlaylist] || [];
               document.querySelectorAll('[id^="time-wrap-"]').forEach(el => {
                   const idx = parseInt(el.id.replace('time-wrap-', ''));
@@ -3807,9 +3823,10 @@
           }
         });
 
-        audioEl.addEventListener('playing', () => { audioEl.dataset.hasStarted = "1"; consecutiveFailures = 0; if ('mediaSession' in navigator) window.setupMediaSession(audioEl, btnPrev, btnNext); });
+        audioEl.addEventListener('playing', () => { if (staleAudioEvent()) return; audioEl.dataset.hasStarted = "1"; consecutiveFailures = 0; if ('mediaSession' in navigator) window.setupMediaSession(audioEl, btnPrev, btnNext); });
 
         audioEl.addEventListener('pause', () => {
+          if (staleAudioEvent()) return;
           window.updatePlayButtonUI(false);
           if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
           if (audioEl.src && !audioEl.ended && currentSongName) {
@@ -3820,6 +3837,7 @@
         });
 
         audioEl.addEventListener('error', () => {
+          if (staleAudioEvent()) return; // 过期音频事件：不标死、不跳歌
           if (window._davDirectTimeout) clearTimeout(window._davDirectTimeout); // 🌟 核心：发生原生错误时，立刻杀掉幽灵定时器！
           if (audioEl.src && audioEl.src !== window.location.href) {
             if (audioEl.dataset.hasStarted === "1") { window.updatePlayButtonUI(false); return; }
@@ -3827,7 +3845,7 @@
             if (currentIndex !== -1) { consecutiveFailures++; window.markSongAsDead(currentPlaylist, currentIndex); }
             window.updatePlayButtonUI(false);
             if (consecutiveFailures >= 5) { window.showToast(`🛑 连续 5 首歌曲无法播放，已暂停。`); consecutiveFailures = 0; }
-            else { setTimeout(() => { playNextSong(true); }, 1000); }
+            else { window.deferCurrentPlayback(() => playNextSong(true), 1000); }
           }
         });
 
@@ -3875,6 +3893,7 @@
         }
 
         audioEl.addEventListener('timeupdate', () => {
+          if (staleAudioEvent()) return;
           if (!audioEl.duration || window.isDragging) return;
           const current = audioEl.currentTime;
           const duration = audioEl.duration;
@@ -3889,7 +3908,7 @@
               if (bufferEnd - current < 0.2 && current < duration - 1) {
                   if (!window._stalledRecoveryTimeout) {
                       // 2. 耐心拉长：给予浏览器 1000 毫秒（1秒）的自然网络缓冲时间
-                      window._stalledRecoveryTimeout = setTimeout(() => {
+                      window._stalledRecoveryTimeout = window.deferCurrentPlayback(() => {
                           const resumeTime = audioEl.currentTime;
                           audioEl.load(); // 强行重置底层网络连接
                           audioEl.currentTime = resumeTime; // 拨回到断点
@@ -3920,8 +3939,7 @@
               window.ConfigManager.set('config', `playback.positions.${actualPlayingPl}.currentSong`, actualPlayingSong);
               window.ConfigManager.set('config', `playback.positions.${actualPlayingPl}.currentTime`, current);
 
-              const conf = window.getPlaylistConfig(actualPlayingPl);
-              if (conf.resumeLocal !== 'off') {
+              if (window.shouldRememberProgress(actualPlayingPl)) {
                   // 🌟 3. 维护歌单历史播放队列（取前 5 首）
                   let list = window.ConfigManager.get('config', `playback.positions.${actualPlayingPl}.history`) || [];
                   list = list.filter(item => item.name !== actualPlayingSong);
@@ -3929,7 +3947,10 @@
                   if (list.length > 5) list = list.slice(0, 5);
 
                   window.ConfigManager.set('config', `playback.positions.${actualPlayingPl}.history`, list);
-                  syncToCloud(actualPlayingPl, actualPlayingSong, current, audioEl.playbackRate, false);
+                  // 只有「云端续播」的歌单才需要把进度推给服务器（跟进上游 v1.3.8）
+                  if (window.getPlaylistConfig(actualPlayingPl).resumeLocal === 'global') {
+                      syncToCloud(actualPlayingPl, actualPlayingSong, current, audioEl.playbackRate, false);
+                  }
 
                   if (actualPlayingPl === currentPlaylist && actualPlayingSong === currentSongName) {
                       const timeWrap = document.getElementById(`time-wrap-${currentIndex}`);
@@ -3974,7 +3995,7 @@
           // 🌟 跟进上游 v1.3.3：去掉 audioEl.src 判断 —— 刷新页面后的第一次物理点击
           //    一律重跑 playSong()，在移动端的手势生命周期内唤醒媒体并精准续播
           if (!window._hasManuallyPlayed && currentIndex !== -1 && audioEl.paused) {
-              window._hasManuallyPlayed = true; window.playSong(currentIndex, true); return;
+              window._hasManuallyPlayed = true; window.playSong(currentIndex, true, audioEl.currentTime); return;
           }
           window._hasManuallyPlayed = true;
           if (audioEl.src && audioEl.src !== window.location.href) {
@@ -4008,7 +4029,7 @@
         function playNextSong(isAutoEnd = false) {
             if (songList.length === 0) return;
             if (isAutoEnd && playMode === 3) { audioEl.currentTime = 0; audioEl.play(); return; }
-            if (preloadCache && !preloadCache.isCross && preloadCache.index !== undefined && preloadCache.index !== currentIndex) { window.playSong(preloadCache.index); return; }
+            if (preloadCache && !preloadCache.isCross && preloadCache.playlist === window.currentPlaylist && preloadCache.index !== undefined && preloadCache.index !== currentIndex) { window.playSong(preloadCache.index); return; }
             if (playMode === 2 && songList.length > 1) {
                 let nextIdx; do { nextIdx = Math.floor(Math.random() * songList.length); } while (nextIdx === currentIndex);
                 window.playSong(nextIdx); return;
@@ -4040,7 +4061,7 @@
             window.playSong(prevIdx);
         }
         window.playNextSong = playNextSong;
-        audioEl.addEventListener('ended', () => playNextSong(true));
+        audioEl.addEventListener('ended', () => { if (staleAudioEvent()) return; playNextSong(true); });
 
         btnNext.addEventListener('click', () => {
             if (preloadCache && playMode !== 3) {
@@ -4050,7 +4071,7 @@
                         jumpToCrossPlaylist(nextPl, 0);
                         return;
                     }
-                } else if (preloadCache.index !== currentIndex) { window.playSong(preloadCache.index); return; }
+                } else if (preloadCache.playlist === window.currentPlaylist && preloadCache.index !== currentIndex) { window.playSong(preloadCache.index); return; }
             }
             playNextSong(false);
         });
@@ -5125,6 +5146,7 @@
         const switchLockLyric = document.getElementById('switch-lock-lyric');
         const switchAmbientBg = document.getElementById('switch-ambient-bg');
         const switchHighPerf = document.getElementById('switch-high-perf');
+        const switchAutoResume = document.getElementById('switch-auto-resume');
         // 🌟 新增 DOM 抓取：
         const prefDevVal = document.getElementById('pref-default-device-val');
         const prefDevOpts = document.getElementById('pref-default-device-opts');
@@ -5149,6 +5171,7 @@
                     if (switchLockLyric) switchLockLyric.checked = currentPrefs.lockLyric;
                     if (switchAmbientBg) switchAmbientBg.checked = currentPrefs.ambientBg !== false;
                     if (switchHighPerf) switchHighPerf.checked = currentPrefs.highPerf !== false;
+                    if (switchAutoResume) switchAutoResume.checked = currentPrefs.autoResume === true;
 
                     // 🌟 动态渲染自定义下拉框选项
                     if (prefDevVal && prefDevOpts) {
@@ -5246,6 +5269,13 @@
                         if (typeof window.showToast === 'function') {
                             window.showToast(e.target.checked ? "🚀 已开启高性能模式，下次同步生效" : "🐌 已切换至兼容模式");
                         }
+                    });
+                }
+
+                // 🌟 新增监听：自动记忆播放进度开关变化（跟进上游 v1.3.8）
+                if (switchAutoResume) {
+                    switchAutoResume.addEventListener('change', (e) => {
+                        window.savePreferences({ autoResume: e.target.checked });
                     });
                 }
 
