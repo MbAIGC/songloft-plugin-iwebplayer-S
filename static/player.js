@@ -527,6 +527,9 @@
         const sessionRestore = options.resumeKind === 'session';
         // 🌟 核心：每次切歌，第一时间让上一次选曲的全部异步工作作废
         const request = window.invalidatePlaybackRequest();
+        // 🌟 跟进上游 v1.3.10：点击即刻把按钮置为「播放中」，不必等音频事件
+        //    （慢网络下首帧要取直链，按钮不响应会像「点了没反应」）
+        if (window.updatePlayButtonUI && autoPlay) window.updatePlayButtonUI(true);
         pendingPlayback = true;
         const isCurrent = () => request === playbackRequest;
         const targetPlaylist = window.currentPlaylist;

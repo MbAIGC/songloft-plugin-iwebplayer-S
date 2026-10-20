@@ -1199,21 +1199,22 @@
             }
 
             let timeTagHtml = '';
-            const plConf = window.getPlaylistConfig(window.currentPlaylist);
             const currentDeadList = window.deadSongIndexes[window.currentPlaylist] || [];
 
             if (currentDeadList.includes(index)) {
                 timeTagHtml = `<div class="song-dead-tag">失效</div>`;
-            } else {
-                if (plConf.resumeLocal !== 'off') {
-                    const targetSvg = plConf.resumeLocal === 'global' ? window.SVG_ICONS.cloud_clock : window.SVG_ICONS.stopwatch;
-                    const history = JSON.parse(localStorage.getItem('iwebplayer-s.resume_history') || '{}');
-                    const list = history[window.currentPlaylist] || [];
-                    const found = list.find(item => item.name === songName);
-                    if (found && found.time > 0) {
-                        timeTagHtml = `<div style="display: flex; align-items: center; font-size: 11px; color: var(--primary); font-variant-numeric: tabular-nums; margin-left: 8px; flex-shrink: 0; font-weight: 500;">${targetSvg}${window.formatTime(found.time)}</div>`;
-                    }
+            } else if (window.shouldRememberProgress && window.shouldRememberProgress(window.currentPlaylist)) {
+                // 🌟 跟进上游 v1.3.10：只有「真的会记忆进度」时才显示秒表。
+                //    总开关关闭 / 歌单续播关闭时那个时间不会被恢复，显示出来纯属误导。
+                const plConf = window.getPlaylistConfig(window.currentPlaylist);
+                const targetSvg = plConf.resumeLocal === 'global' ? window.SVG_ICONS.cloud_clock : window.SVG_ICONS.stopwatch;
+                const history = JSON.parse(localStorage.getItem('iwebplayer-s.resume_history') || '{}');
+                const list = history[window.currentPlaylist] || [];
+                const found = list.find(item => item.name === songName);
+                if (found && found.time > 0) {
+                    timeTagHtml = `<div style="display: flex; align-items: center; font-size: 11px; color: var(--primary); font-variant-numeric: tabular-nums; margin-left: 8px; flex-shrink: 0; font-weight: 500;">${targetSvg}${window.formatTime(found.time)}</div>`;
                 } else {
+                    // 历史遗留键：旧版本可能写过，作为「最后断点」兜底
                     const plTracks = JSON.parse(localStorage.getItem('iwebplayer-s.playlist_tracks') || '{}');
                     if (plTracks[window.currentPlaylist] && plTracks[window.currentPlaylist].name === songName && plTracks[window.currentPlaylist].time > 0) {
                         timeTagHtml = `<div style="display: flex; align-items: center; font-size: 11px; color: var(--primary); font-variant-numeric: tabular-nums; margin-left: 8px; flex-shrink: 0; font-weight: 500;">${window.SVG_ICONS.stopwatch}${window.formatTime(plTracks[window.currentPlaylist].time)}</div>`;

@@ -20,6 +20,7 @@ type Stub = {
     requests: Array<{ url: string; resolve: (data: any) => void; reject: (err: any) => void }>;
     played: string[];
     notices: string[];
+    uiCalls: string[];
     timers: Map<number, (...args: any[]) => void>;
     runTimers: () => void;
     element: (id: string) => any;
@@ -29,6 +30,7 @@ function createPlayer(options: { readyState?: number; autoResume?: boolean; resu
     const requests: Stub['requests'] = [];
     const played: string[] = [];
     const notices: string[] = [];
+    const uiCalls: string[] = [];
     const timers = new Map<number, (...args: any[]) => void>();
     const storage = new Map<string, string>();
     const elements = new Map<string, any>();
@@ -163,14 +165,14 @@ function createPlayer(options: { readyState?: number; autoResume?: boolean; resu
         showToast: (text: string) => notices.push(text),
         fetchSongLyric: async () => null,
         updateNpTitleUI() {},
-        updatePlayButtonUI() {},
+        updatePlayButtonUI: (playing: boolean) => uiCalls.push(playing ? 'play' : 'pause'),
     });
 
     if (options.autoResume) ctx.savePreferences({ autoResume: true });
     if (options.resumeLocal) ctx.ConfigManager.set('config', 'playlist_configs', { Test: { resumeLocal: options.resumeLocal } });
 
     return {
-        ctx, audio, requests, played, notices, timers, element,
+        ctx, audio, requests, played, notices, uiCalls, timers, element,
         runTimers() {
             const fns = [...timers.values()];
             timers.clear();
@@ -259,6 +261,26 @@ describe('播放竞态（跟随上游 v1.3.8）', () => {
 
         p.ctx.playSong(1);
         expect(p.ctx.isCurrentMedia(p.audio)).toBe(false);
+    });
+
+    it('playSong(autoPlay=true) 立刻把按钮置为播放态（不等音频事件）', async () => {
+        const p = createPlayer();
+        const b = p.ctx.playSong(1);
+        // 直链还没取到，图标已经翻转（慢网络下点击不再像没反应）
+        expect(p.uiCalls).toEqual(['play']);
+        p.requests[0].resolve({ url: '/audio-B.mp3' });
+        await b;
+        expect(p.played).toEqual(['/audio-B.mp3']);
+    });
+
+    it('playSong(autoPlay=false) 不抢按钮状态（启动定位不自动播放）', async () => {
+        const p = createPlayer();
+        const b = p.ctx.playSong(1, false);
+        expect(p.uiCalls).toEqual([]);
+        p.requests[0].resolve({ url: '/audio-B.mp3' });
+        await b;
+        expect(p.played).toEqual([]);
+        expect(p.uiCalls).toEqual(['pause']);
     });
 
     it('预读缓存必须同时匹配歌单与曲目身份，过期缓存直接丢弃', async () => {

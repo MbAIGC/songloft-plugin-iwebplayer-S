@@ -84,3 +84,56 @@ describe('sortSongsByAddedAt (utils.js #5)', () => {
         expect(arr.map((x: any) => x.id)).toEqual([1, 2]);
     });
 });
+
+// ---------------------------------------------------------------------------
+// 刮削并发控制器（跟随上游 v1.3.10）
+//   · 浏览器同域只有 6 条连接，封面 404 连环抢救会挤占音频请求
+//   · 这里把并发锁在 3，并保持先进先出
+// ---------------------------------------------------------------------------
+describe('ScrapeManager（刮削并发控制器）', () => {
+    it('最多 3 个并发，且严格先进先出', async () => {
+        const started: number[] = [];
+        let active = 0;
+        let peak = 0;
+        (globalThis as any).fetch = () => {
+            const id = started.length;
+            started.push(id);
+            active++;
+            peak = Math.max(peak, active);
+            return new Promise((resolve) => setTimeout(() => {
+                active--;
+                resolve({ ok: true, json: async () => ({ cover: 'cover-' + id }) });
+            }, 5));
+        };
+
+        const tasks = Array.from({ length: 9 }, (_, i) =>
+            (globalThis as any).fetchScrape({ id: i + 1, title: 'T' + i, artist: 'A' }, 'cover'));
+        const results = await Promise.all(tasks);
+
+        expect(peak).toBeLessThanOrEqual(3);
+        expect(started).toEqual(Array.from({ length: 9 }, (_, i) => i));
+        expect(results).toEqual(Array.from({ length: 9 }, (_, i) => 'cover-' + i));
+    });
+
+    it('单个任务失败 → 返回 null，且不卡住后续队列', async () => {
+        let calls = 0;
+        (globalThis as any).fetch = () => {
+            calls++;
+            return calls === 1
+                ? Promise.reject(new Error('boom'))
+                : Promise.resolve({ ok: true, json: async () => ({ cover: 'ok' }) });
+        };
+
+        const [first, second] = await Promise.all([
+            (globalThis as any).fetchScrape({ id: 1, title: 'T' }, 'cover'),
+            (globalThis as any).fetchScrape({ id: 2, title: 'T' }, 'cover'),
+        ]);
+
+        expect(first).toBeNull();
+        expect(second).toBe('ok');
+    });
+
+    it('rawItem 为空时直接返回 null', async () => {
+        expect(await (globalThis as any).fetchScrape(null, 'cover')).toBeNull();
+    });
+});

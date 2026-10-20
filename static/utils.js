@@ -414,29 +414,62 @@
         });
     };
 
-    window.fetchScrape = async function(rawItem, type, currentSongName = null) {
-        if (!rawItem) return null;
-        let filename = '';
-        const nameObj = window.getSongNameObj ? window.getSongNameObj(rawItem) : (currentSongName || '');
-        if (nameObj) { filename = nameObj.replace(/\.(mp3|flac|wav|m4a|aac|ogg|ape|wma|alac)(.*)$/i, '').replace(/#.*$/, ''); }
-        else if (rawItem.file_path) { filename = String(rawItem.file_path).split('/').pop().replace(/\.[^/.]+$/, ""); }
-
-        let title = rawItem.title || rawItem.name || '';
-        let artist = rawItem.artist || rawItem.singer || '';
-        if (filename && filename.includes(' - ')) {
-            const parts = filename.split(' - ');
-            title = parts[0].trim();
-            artist = parts.slice(1).join(' - ').trim();
-        }
-        const url = `/api/v1/jsplugin/iwebplayer-s/scrape?type=${type}&title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}&filename=${encodeURIComponent(filename)}`;
-        try {
-            const res = await fetch(url);
-            if (res.ok) {
-                const data = await res.json();
-                return type === 'cover' ? data.cover : data.lyric;
+    // ==========================================
+    // 🚦 刮削并发控制器（跟进上游 v1.3.10）
+    //    浏览器对同一域名只有 6 条连接；封面 404 抢救会连环发请求，
+    //    这里限制最多 3 个并发，永远给音频 / 接口请求留出车道。
+    // ==========================================
+    window.ScrapeManager = {
+        queue: [],
+        active: 0,
+        max: 3,
+        add: function(task) {
+            return new Promise(resolve => {
+                this.queue.push({ task, resolve });
+                this.run();
+            });
+        },
+        run: async function() {
+            if (this.active >= this.max || this.queue.length === 0) return;
+            this.active++;
+            const { task, resolve } = this.queue.shift();
+            try {
+                resolve(await task());
+            } catch (e) {
+                resolve(null);
+            } finally {
+                this.active--;
+                this.run(); // 当前任务完成，放行下一个
             }
-        } catch(e) {}
-        return null;
+        }
+    };
+
+    window.fetchScrape = async function(rawItem, type, currentSongName = null) {
+        // 真正的网络请求塞进队列，避免批量刮削把音频请求挤掉
+        return window.ScrapeManager.add(async () => {
+            if (!rawItem) return null;
+            let filename = '';
+            const nameObj = window.getSongNameObj ? window.getSongNameObj(rawItem) : (currentSongName || '');
+            if (nameObj) { filename = nameObj.replace(/\.(mp3|flac|wav|m4a|aac|ogg|ape|wma|alac)(.*)$/i, '').replace(/#.*$/, ''); }
+            else if (rawItem.file_path) { filename = String(rawItem.file_path).split('/').pop().replace(/\.[^/.]+$/, ""); }
+
+            let title = rawItem.title || rawItem.name || '';
+            let artist = rawItem.artist || rawItem.singer || '';
+            if (filename && filename.includes(' - ')) {
+                const parts = filename.split(' - ');
+                title = parts[0].trim();
+                artist = parts.slice(1).join(' - ').trim();
+            }
+            const url = `/api/v1/jsplugin/iwebplayer-s/scrape?type=${type}&title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}&filename=${encodeURIComponent(filename)}`;
+            try {
+                const res = await fetch(url);
+                if (res.ok) {
+                    const data = await res.json();
+                    return type === 'cover' ? data.cover : data.lyric;
+                }
+            } catch(e) {}
+            return null;
+        });
     };
 
 })(window);

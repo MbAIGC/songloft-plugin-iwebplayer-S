@@ -3995,11 +3995,22 @@
           // 🌟 跟进上游 v1.3.3：去掉 audioEl.src 判断 —— 刷新页面后的第一次物理点击
           //    一律重跑 playSong()，在移动端的手势生命周期内唤醒媒体并精准续播
           if (!window._hasManuallyPlayed && currentIndex !== -1 && audioEl.paused) {
-              window._hasManuallyPlayed = true; window.playSong(currentIndex, true, audioEl.currentTime); return;
+              window._hasManuallyPlayed = true;
+              window.updatePlayButtonUI(true); // 🌟 跟进上游 v1.3.10：第一次物理点击即刻变图标
+              window.playSong(currentIndex, true, audioEl.currentTime);
+              return;
           }
           window._hasManuallyPlayed = true;
           if (audioEl.src && audioEl.src !== window.location.href) {
-              if (audioEl.paused) audioEl.play(); else { window.isPageBtnPause = true; audioEl.pause(); setTimeout(() => { window.isPageBtnPause = false; }, 200); }
+              if (audioEl.paused) {
+                  window.updatePlayButtonUI(true); // 🌟 即刻变图标
+                  audioEl.play();
+              } else {
+                  window.isPageBtnPause = true;
+                  window.updatePlayButtonUI(false); // 🌟 即刻变图标
+                  audioEl.pause();
+                  setTimeout(() => { window.isPageBtnPause = false; }, 200);
+              }
               return;
           }
           if (songList.length === 0) return;
@@ -5276,6 +5287,8 @@
                 if (switchAutoResume) {
                     switchAutoResume.addEventListener('change', (e) => {
                         window.savePreferences({ autoResume: e.target.checked });
+                        // 🌟 跟进上游 v1.3.10：立刻重绘当前列表，让秒表角标随之出现 / 消失
+                        if (typeof window.renderPlaylist === 'function') window.renderPlaylist();
                     });
                 }
 
